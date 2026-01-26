@@ -1,5 +1,5 @@
 <?php 
-$page_title = "Quản lý Categories";
+$page_title = "Quản lý danh mục";
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
 ?>
@@ -16,7 +16,7 @@ include 'layout/sidebar.php';
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item active">Categories</li>
+              <li class="breadcrumb-item active">Danh mục</li>
             </ol>
           </div>
         </div>
@@ -30,10 +30,10 @@ include 'layout/sidebar.php';
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title">Danh sách Categories</h3>
+                <h3 class="card-title">Danh sách danh mục</h3>
                 <div class="card-tools">
                   <button type="button" class="btn btn-primary btn-sm">
-                    <i class="fas fa-plus"></i> Thêm Category
+                    <i class="fas fa-plus"></i> Thêm
                   </button>
                 </div>
               </div>

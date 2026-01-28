@@ -1,0 +1,53 @@
+# Ignore uploaded files
+src/assets/uploads/*
+!src/assets/uploads/.gitkeep
+
+# Ignore config with sensitive data
+src/includes/config.php
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+error_log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Composer
+vendor/
+composer.lock
+
+# Node modules (if using)
+node_modules/
+package-lock.json
+
+# Cache
+cache/
+*.cache
+
+# Backup files
+*.bak
+*.backup
+*.sql.gz
+*.7z
+*.zip
+
+# Environment
+.env
+.env.local
+.env.production

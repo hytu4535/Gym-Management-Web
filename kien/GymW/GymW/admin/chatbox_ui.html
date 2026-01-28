@@ -1,0 +1,576 @@
+<!-- AI Chatbox Interface for Gym Management System -->
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .chatbot-container {
+        width: 100%;
+        max-width: 500px;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        height: 700px;
+    }
+
+    /* Header */
+    .chatbot-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        text-align: center;
+        border-bottom: 3px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chatbot-header h2 {
+        font-size: 22px;
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .chatbot-header p {
+        font-size: 12px;
+        opacity: 0.9;
+    }
+
+    /* BMI Input Section */
+    .bmi-input-section {
+        background: #f8f9fa;
+        padding: 15px;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .bmi-input-section h4 {
+        font-size: 12px;
+        color: #667eea;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .input-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .input-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .input-group label {
+        font-size: 12px;
+        color: #495057;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+
+    .input-group input,
+    .input-group select {
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 13px;
+        transition: all 0.3s ease;
+    }
+
+    .input-group input:focus,
+    .input-group select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .get-rec-btn {
+        width: 100%;
+        padding: 10px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        font-size: 13px;
+    }
+
+    .get-rec-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    /* Chat Area */
+    .chat-area {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: white;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    /* Messages */
+    .message {
+        display: flex;
+        margin-bottom: 10px;
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .message.user {
+        justify-content: flex-end;
+    }
+
+    .message.bot {
+        justify-content: flex-start;
+    }
+
+    .message-content {
+        max-width: 75%;
+        padding: 12px 15px;
+        border-radius: 12px;
+        font-size: 13px;
+        line-height: 1.5;
+        word-wrap: break-word;
+    }
+
+    .user .message-content {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom-right-radius: 3px;
+    }
+
+    .bot .message-content {
+        background: #f0f2f5;
+        color: #333;
+        border-bottom-left-radius: 3px;
+    }
+
+    .message-content strong {
+        color: inherit;
+        font-weight: 700;
+    }
+
+    .bot .message-content strong {
+        color: #667eea;
+    }
+
+    .message-time {
+        font-size: 11px;
+        color: #999;
+        margin-top: 5px;
+        padding: 0 5px;
+    }
+
+    /* Recommendation Box */
+    .recommendation-box {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+        border-left: 4px solid #667eea;
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .recommendation-box h5 {
+        color: #667eea;
+        margin-bottom: 8px;
+    }
+
+    .recommendation-box ul {
+        margin-left: 20px;
+    }
+
+    .recommendation-box li {
+        margin-bottom: 6px;
+    }
+
+    /* Input Area */
+    .input-area {
+        padding: 15px;
+        border-top: 1px solid #e9ecef;
+        background: white;
+        display: flex;
+        gap: 10px;
+    }
+
+    .input-area input {
+        flex: 1;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 25px;
+        font-size: 13px;
+        transition: all 0.3s ease;
+    }
+
+    .input-area input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .send-btn {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .send-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .send-btn:active {
+        transform: translateY(0);
+    }
+
+    /* Scrollbar */
+    .chat-area::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .chat-area::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    .chat-area::-webkit-scrollbar-thumb {
+        background: #667eea;
+        border-radius: 3px;
+    }
+
+    .chat-area::-webkit-scrollbar-thumb:hover {
+        background: #764ba2;
+    }
+
+    /* Loading indicator */
+    .typing-indicator {
+        display: flex;
+        gap: 4px;
+        padding: 12px 15px;
+        background: #f0f2f5;
+        border-radius: 12px;
+        width: fit-content;
+    }
+
+    .typing-indicator span {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #999;
+        animation: typing 1.4s infinite;
+    }
+
+    .typing-indicator span:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .typing-indicator span:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+    @keyframes typing {
+        0%, 60%, 100% {
+            transform: translateY(0);
+            opacity: 0.5;
+        }
+        30% {
+            transform: translateY(-8px);
+            opacity: 1;
+        }
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+        .chatbot-container {
+            max-width: 100%;
+            height: 80vh;
+        }
+
+        .message-content {
+            max-width: 90%;
+        }
+
+        .input-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="chatbot-container">
+    <!-- Header -->
+    <div class="chatbot-header">
+        <h2>🤖 Gym AI Assistant</h2>
+        <p>Cố vấn tập luyện & dinh dưỡng thông minh</p>
+    </div>
+
+    <!-- BMI Input Section -->
+    <div class="bmi-input-section">
+        <h4>📊 Thông tin của bạn</h4>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Chiều cao (cm)</label>
+                <input type="number" id="heightInput" placeholder="170" min="100" max="250">
+            </div>
+            <div class="input-group">
+                <label>Cân nặng (kg)</label>
+                <input type="number" id="weightInput" placeholder="70" min="20" max="200">
+            </div>
+        </div>
+        <div class="input-row">
+            <div class="input-group">
+                <label>Tuổi</label>
+                <input type="number" id="ageInput" placeholder="25" min="15" max="100">
+            </div>
+            <div class="input-group">
+                <label>Giới tính</label>
+                <select id="genderInput">
+                    <option value="male">Nam</option>
+                    <option value="female">Nữ</option>
+                </select>
+            </div>
+        </div>
+        <button class="get-rec-btn" onclick="getRecommendation()">📋 Nhận gợi ý</button>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat-area" id="chatArea">
+        <div class="message bot">
+            <div>
+                <div class="message-content">
+                    👋 <strong>Xin chào!</strong> Tôi là AI Gym Assistant<br><br>
+                    Tôi có thể giúp bạn:<br>
+                    ✨ Gợi ý chương trình tập<br>
+                    🥗 Tư vấn chế độ ăn<br>
+                    💪 Phân tích BMI<br>
+                    🎯 Đề xuất gói dịch vụ<br><br>
+                    Hãy nhập chiều cao & cân nặng rồi hỏi tôi! 😊
+                </div>
+                <div class="message-time">Vừa xong</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="input-area">
+        <input type="text" id="messageInput" placeholder="Hỏi tôi về tập luyện, dinh dưỡng, gói dịch vụ..." 
+               onkeypress="if(event.key==='Enter') sendMessage()">
+        <button class="send-btn" onclick="sendMessage()">Gửi</button>
+    </div>
+</div>
+
+<script>
+    // Store user profile
+    let userProfile = {
+        height: 0,
+        weight: 0,
+        age: 25,
+        gender: 'male',
+        goal: 'maintain'
+    };
+
+    // Get recommendation
+    function getRecommendation() {
+        const height = parseFloat(document.getElementById('heightInput').value);
+        const weight = parseFloat(document.getElementById('weightInput').value);
+        const age = parseInt(document.getElementById('ageInput').value) || 25;
+        const gender = document.getElementById('genderInput').value;
+
+        if (!height || !weight || height < 100 || height > 250 || weight < 20 || weight > 200) {
+            alert('Vui lòng nhập chiều cao (100-250cm) và cân nặng (20-200kg) hợp lệ!');
+            return;
+        }
+
+        userProfile = { height, weight, age, gender, goal: 'maintain' };
+
+        // Show loading
+        const chatArea = document.getElementById('chatArea');
+        const loadingMsg = document.createElement('div');
+        loadingMsg.className = 'message bot';
+        loadingMsg.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+        chatArea.appendChild(loadingMsg);
+        chatArea.scrollTop = chatArea.scrollHeight;
+
+        // Send request
+        fetch('ai_chatbot.php?action=get_recommendation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                height: height,
+                weight: weight,
+                age: age,
+                gender: gender,
+                goal: 'maintain'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingMsg.remove();
+            if (data.success) {
+                displayRecommendation(data);
+            } else {
+                addBotMessage('❌ Có lỗi xảy ra. Vui lòng thử lại!');
+            }
+        })
+        .catch(error => {
+            loadingMsg.remove();
+            addBotMessage('❌ Không thể kết nối đến server. Vui lòng kiểm tra kết nối!');
+            console.error('Error:', error);
+        });
+    }
+
+    // Display recommendations
+    function displayRecommendation(data) {
+        const bmi = data.bmi_info;
+        const training = data.recommendations.training;
+        const nutrition = data.recommendations.nutrition;
+        const packages = data.recommendations.packages;
+
+        let message = `📊 <strong>Phân tích của bạn:</strong>\n\n`;
+        message += `<strong>BMI: ${bmi.bmi}</strong> ${bmi.status}\n`;
+        message += `Phân loại: <strong>${bmi.categoryLabel}</strong>\n`;
+        message += `Chiều cao: ${data.profile.height}cm | Cân nặng: ${data.profile.weight}kg\n\n`;
+
+        message += `<strong>💪 ${training.title}</strong>\n`;
+        message += `Tần suất: ${training.frequency}\n`;
+        message += `Cấp độ: ${training.intensity}\n`;
+        message += `Calorie: ${training.calories}\n\n`;
+
+        message += `<strong>🥗 ${nutrition.title}</strong>\n`;
+        message += `Calorie/ngày: ${nutrition.daily_calories}\n`;
+        message += nutrition.macros.join('\n') + '\n\n';
+
+        message += `<strong>🎁 ${packages.message}</strong>\n`;
+        if (packages.packages && packages.packages.length > 0) {
+            packages.packages.forEach((pkg, idx) => {
+                message += `\n${pkg.icon} <strong>${pkg.name}</strong>\n`;
+                message += `⏱️ ${pkg.duration} - ${pkg.price}\n`;
+            });
+        }
+
+        addBotMessage(message);
+    }
+
+    // Send chat message
+    function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const message = input.value.trim();
+
+        if (!message) return;
+
+        // Add user message
+        addUserMessage(message);
+        input.value = '';
+
+        // Show typing indicator
+        const chatArea = document.getElementById('chatArea');
+        const typingMsg = document.createElement('div');
+        typingMsg.className = 'message bot';
+        typingMsg.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+        chatArea.appendChild(typingMsg);
+        chatArea.scrollTop = chatArea.scrollHeight;
+
+        // Send to server
+        fetch('ai_chatbot.php?action=chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                message: message,
+                height: userProfile.height,
+                weight: userProfile.weight
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            typingMsg.remove();
+            if (data.success) {
+                addBotMessage(data.reply, data.timestamp);
+            } else {
+                addBotMessage('❌ Có lỗi: ' + (data.error || 'Không xác định'));
+            }
+        })
+        .catch(error => {
+            typingMsg.remove();
+            addBotMessage('❌ Không thể kết nối server!');
+            console.error('Error:', error);
+        });
+    }
+
+    // Add user message
+    function addUserMessage(text) {
+        const chatArea = document.getElementById('chatArea');
+        const msgEl = document.createElement('div');
+        msgEl.className = 'message user';
+        msgEl.innerHTML = `
+            <div>
+                <div class="message-content">${text}</div>
+                <div class="message-time">${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+            </div>
+        `;
+        chatArea.appendChild(msgEl);
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    // Add bot message
+    function addBotMessage(text, time = null) {
+        const chatArea = document.getElementById('chatArea');
+        const msgEl = document.createElement('div');
+        msgEl.className = 'message bot';
+        
+        // Format text with newlines and bold
+        const formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                   .replace(/\n/g, '<br>');
+        
+        msgEl.innerHTML = `
+            <div>
+                <div class="message-content">${formattedText}</div>
+                <div class="message-time">${time || 'Vừa xong'}</div>
+            </div>
+        `;
+        chatArea.appendChild(msgEl);
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    // Allow Enter key to send message
+    document.getElementById('messageInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+</script>

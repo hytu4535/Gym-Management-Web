@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Gym AI Chatbox</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .test-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .test-sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 13px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e9ecef;
+            color: #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+
+        .output-section {
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .output-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .output-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .response-item {
+            background: white;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .response-item h4 {
+            color: #667eea;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .response-item p {
+            color: #555;
+            font-size: 12px;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.loading {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        @media (max-width: 768px) {
+            .test-sections {
+                grid-template-columns: 1fr;
+            }
+
+            .button-group {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 8px 15px;
+            border: 2px solid #ddd;
+            background: white;
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="header">
+            <h1>🤖 Beta Gym AI Chatbox</h1>
+            <p> AI Assistant </p>
+        </div>
+
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchTab('bmi')">📊 Test BMI</button>
+            <button class="tab-btn" onclick="switchTab('recommendations')">💡 Test Gợi ý</button>
+            <button class="tab-btn" onclick="switchTab('chat')">💬 Test Chat</button>
+        </div>
+
+        <!-- Test BMI Tab -->
+        <div id="bmi" class="tab-content active">
+            <div class="test-sections">
+                <div class="section">
+                    <h3>📏 Tính toán BMI</h3>
+                    <div class="form-group">
+                        <label>Chiều cao (cm)</label>
+                        <input type="number" id="bmiHeight" placeholder="170" min="100" max="250">
+                    </div>
+                    <div class="form-group">
+                        <label>Cân nặng (kg)</label>
+                        <input type="number" id="bmiWeight" placeholder="70" min="20" max="200">
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="testBMI()">🧮 Tính BMI</button>
+                        <button class="btn btn-secondary" onclick="loadSampleData()">📋 Dữ liệu mẫu</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>📊 Kết quả</h3>
+                    <div id="bmiOutput" class="output-box">Kết quả sẽ hiển thị ở đây...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Gợi ý Tab -->
+        <div id="recommendations" class="tab-content">
+            <div class="test-sections">
+                <div class="section">
+                    <h3>💪 Nhận Gợi ý</h3>
+                    <div class="form-group">
+                        <label>Chiều cao (cm)</label>
+                        <input type="number" id="recHeight" placeholder="170" min="100" max="250">
+                    </div>
+                    <div class="form-group">
+                        <label>Cân nặng (kg)</label>
+                        <input type="number" id="recWeight" placeholder="70" min="20" max="200">
+                    </div>
+                    <div class="form-group">
+                        <label>Tuổi</label>
+                        <input type="number" id="recAge" placeholder="25" min="15" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Giới tính</label>
+                        <select id="recGender">
+                            <option value="male">Nam</option>
+                            <option value="female">Nữ</option>
+                        </select>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="testRecommendation()">📋 Nhận Gợi ý</button>
+                        <button class="btn btn-secondary" onclick="loadSampleData2()">📋 Dữ liệu mẫu</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>📊 Kết quả</h3>
+                    <div id="recOutput" class="output-box">Kết quả sẽ hiển thị ở đây...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Chat Tab -->
+        <div id="chat" class="tab-content">
+            <div class="section">
+                <h3>💬 Test Chat với AI</h3>
+                <div class="form-group">
+                    <label>Chiều cao (cm)</label>
+                    <input type="number" id="chatHeight" placeholder="170" min="100" max="250">
+                </div>
+                <div class="form-group">
+                    <label>Cân nặng (kg)</label>
+                    <input type="number" id="chatWeight" placeholder="70" min="20" max="200">
+                </div>
+                <div class="form-group">
+                    <label>Tin nhắn</label>
+                    <input type="text" id="chatMessage" placeholder="Ví dụ: Tôi nên tập bao nhiêu buổi?" 
+                           onkeypress="if(event.key==='Enter') testChat()">
+                </div>
+                
+                <!-- Câu hỏi mẫu -->
+                <div style="background: #e8f4f8; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 12px;">
+                    <p style="font-weight: 600; color: #667eea; margin-bottom: 8px;">💡 Ví dụ câu hỏi:</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button onclick="sendExampleQuestion('Tôi nên tập bao nhiêu buổi một tuần?')" style="padding: 6px; background: white; border: 1px solid #667eea; color: #667eea; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">Tập luyện</button>
+                        <button onclick="sendExampleQuestion('Tôi cần bao nhiêu protein mỗi ngày?')" style="padding: 6px; background: white; border: 1px solid #667eea; color: #667eea; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">Protein</button>
+                        <button onclick="sendExampleQuestion('Nên ăn gì để giảm cân?')" style="padding: 6px; background: white; border: 1px solid #667eea; color: #667eea; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">Dinh dưỡng</button>
+                        <button onclick="sendExampleQuestion('Gói nào phù hợp với tôi?')" style="padding: 6px; background: white; border: 1px solid #667eea; color: #667eea; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">Gói dịch vụ</button>
+                        <button onclick="sendExampleQuestion('Bài tập chân nào tốt?')" style="padding: 6px; background: white; border: 1px solid #667eea; color: #667eea; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">Bài tập cụ thể</button>
+                        <button onclick="sendExampleQuestion('Tôi bao nhiêu tuổi nên tập gì?')" style="padding: 6px; background: white; border: 1px solid #667eea; color: #667eea; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">Theo tuổi</button>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="testChat()">💬 Gửi tin nhắn</button>
+                    <button class="btn btn-secondary" onclick="clearChat()">🗑️ Xóa</button>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <h3>💬 Cuộc trò chuyện</h3>
+                <div id="chatOutput" class="output-box">Cuộc trò chuyện sẽ hiển thị ở đây...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chatHistory = [];
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function toggleResponse() {
+            // Placeholder - no longer needed
+        }
+
+
+
+        function testBMI() {
+            const height = parseFloat(document.getElementById('bmiHeight').value);
+            const weight = parseFloat(document.getElementById('bmiWeight').value);
+
+            if (!height || !weight) {
+                alert('Vui lòng nhập chiều cao và cân nặng!');
+                return;
+            }
+
+            // Calculate BMI manually (JavaScript)
+            const heightInMeters = height / 100;
+            const bmi = weight / (heightInMeters * heightInMeters);
+
+            let category, status;
+            if (bmi < 18.5) {
+                category = 'Gầy';
+                status = '❌ Dưới chuẩn';
+            } else if (bmi < 25) {
+                category = 'Bình thường';
+                status = '✅ Khỏe mạnh';
+            } else if (bmi < 30) {
+                category = 'Thừa cân';
+                status = '⚠️ Cần cải thiện';
+            } else {
+                category = 'Béo phì';
+                status = '🔴 Cần tập luyện';
+            }
+
+            const result = `
+📊 KẾT QUẢ BMI
+━━━━━━━━━━━━━━━━━━━━━━
+Chiều cao: ${height} cm
+Cân nặng: ${weight} kg
+BMI: ${bmi.toFixed(1)}
+Phân loại: ${category}
+Trạng thái: ${status}
+━━━━━━━━━━━━━━━━━━━━━━
+            `;
+
+            document.getElementById('bmiOutput').textContent = result;
+        }
+
+        function testRecommendation() {
+            const height = parseFloat(document.getElementById('recHeight').value);
+            const weight = parseFloat(document.getElementById('recWeight').value);
+            const age = parseInt(document.getElementById('recAge').value);
+            const gender = document.getElementById('recGender').value;
+
+            if (!height || !weight) {
+                alert('Vui lòng nhập đầy đủ thông tin!');
+                return;
+            }
+
+            document.getElementById('recOutput').textContent = '⏳ Đang xử lý...';
+
+            const params = new URLSearchParams({
+                action: 'get_recommendation',
+                height: height,
+                weight: weight,
+                age: age,
+                gender: gender,
+                goal: 'maintain'
+            });
+            
+            fetch('ai_chatbot.php?' + params.toString(), {
+                method: 'GET'
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+
+                    if (data.success) {
+                        const bmi = data.bmi_info;
+                        const training = data.recommendations.training;
+                        const nutrition = data.recommendations.nutrition;
+                        const packages = data.recommendations.packages;
+
+                        let result = `
+📊 GỢI Ý CÁ NHÂN HÓA
+━━━━━━━━━━━━━━━━━━━━━━
+BMI: ${bmi.bmi} (${bmi.categoryLabel}) ${bmi.status}
+
+💪 ${training.title}
+   Tần suất: ${training.frequency}
+   Cấp độ: ${training.intensity}
+   Calorie: ${training.calories}
+
+🥗 ${nutrition.title}
+   Calo/ngày: ${nutrition.daily_calories}
+   `;
+
+                        nutrition.macros.forEach(macro => {
+                            result += `\n   ${macro}`;
+                        });
+
+                        if (packages.packages && packages.packages.length > 0) {
+                            result += `\n\n🎁 ${packages.message}\n`;
+                            packages.packages.forEach((pkg, idx) => {
+                                result += `\n   ${idx + 1}. ${pkg.icon} ${pkg.name}`;
+                                result += `\n      ⏱️ ${pkg.duration} - ${pkg.price}`;
+                            });
+                        }
+
+                        document.getElementById('recOutput').textContent = result;
+                    } else {
+                        document.getElementById('recOutput').textContent = '❌ Lỗi: ' + (data.error || 'Không xác định');
+                    }
+                } catch(e) {
+                    document.getElementById('recOutput').textContent = '❌ Lỗi JSON Parse: ' + e.message;
+                }
+            })
+            .catch(error => {
+                document.getElementById('recOutput').textContent = '❌ Không thể kết nối server!';
+            });
+        }
+
+        function testChat() {
+            const message = document.getElementById('chatMessage').value.trim();
+            const height = parseFloat(document.getElementById('chatHeight').value);
+            const weight = parseFloat(document.getElementById('chatWeight').value);
+
+            if (!message) {
+                alert('Vui lòng nhập tin nhắn!');
+                return;
+            }
+
+            // Add to chat history
+            chatHistory.push({ role: 'user', message: message });
+
+            const params = new URLSearchParams({
+                action: 'chat',
+                message: message,
+                height: height,
+                weight: weight
+            });
+
+            fetch('ai_chatbot.php?' + params.toString(), {
+                method: 'GET'
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+
+                    if (data.success) {
+                    chatHistory.push({ role: 'bot', message: data.reply });
+                    displayChat();
+                    document.getElementById('chatMessage').value = '';
+                } else {
+                    chatHistory.push({ role: 'bot', message: '❌ Lỗi: ' + (data.error || 'Không xác định') });
+                    displayChat();
+                }
+                } catch(e) {
+                    chatHistory.push({ role: 'bot', message: '❌ Lỗi JSON Parse: ' + e.message });
+                    displayChat();
+                }
+            })
+            .catch(error => {
+                chatHistory.push({ role: 'bot', message: '❌ Không thể kết nối server!' });
+                displayChat();
+            });
+        }
+
+        function displayChat() {
+            let html = '💬 CUỘC TRÒ CHUYỆN\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
+
+            chatHistory.forEach((msg, idx) => {
+                if (msg.role === 'user') {
+                    html += `👤 [Bạn]: ${msg.message}\n`;
+                } else {
+                    html += `🤖 [AI]: ${msg.message}\n`;
+                }
+                html += '\n';
+            });
+
+            document.getElementById('chatOutput').textContent = html;
+        }
+
+        function clearChat() {
+            chatHistory = [];
+            document.getElementById('chatMessage').value = '';
+            document.getElementById('chatOutput').textContent = 'Cuộc trò chuyện sẽ hiển thị ở đây...';
+        }
+
+        function sendExampleQuestion(question) {
+            document.getElementById('chatMessage').value = question;
+            testChat();
+        }
+
+        function loadSampleData() {
+            document.getElementById('bmiHeight').value = '170';
+            document.getElementById('bmiWeight').value = '75';
+            testBMI();
+        }
+
+        function loadSampleData2() {
+            document.getElementById('recHeight').value = '170';
+            document.getElementById('recWeight').value = '85';
+            document.getElementById('recAge').value = '30';
+            document.getElementById('recGender').value = 'male';
+            testRecommendation();
+        }
+    </script>
+</body>
+</html>

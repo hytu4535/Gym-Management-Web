@@ -734,6 +734,124 @@ LOCK TABLES `training_schedules` WRITE;
 /*!40000 ALTER TABLE `training_schedules` ENABLE KEYS */;
 UNLOCK TABLES;
 
+-- ------------------------------------------------------
+-- Table structure for table `services`
+-- ------------------------------------------------------
+
+DROP TABLE IF EXISTS `services`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `services` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` enum('thư giãn','xoa bóp','hỗ trợ') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `price` decimal(10,2) NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('hoạt động','không hoạt động') COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Dịch vụ phòng gym';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `services`
+--
+
+LOCK TABLES `services` WRITE;
+/*!40000 ALTER TABLE `services` DISABLE KEYS */;
+/*!40000 ALTER TABLE `services` ENABLE KEYS */;
+UNLOCK TABLES;
+
+-- ------------------------------------------------------
+-- Table structure for table `member_services`
+-- ------------------------------------------------------
+
+DROP TABLE IF EXISTS `member_services`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `member_services` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `member_id` int NOT NULL,
+  `service_id` int NOT NULL,
+  `start_date` date NOT NULL,
+  `end_date` date DEFAULT NULL,
+  `status` enum('còn hiệu lực','đã dùng') COLLATE utf8mb4_unicode_ci DEFAULT 'còn hiệu lực',
+  PRIMARY KEY (`id`),
+  KEY `idx_member_services_member` (`member_id`),
+  KEY `idx_member_services_service` (`service_id`),
+  CONSTRAINT `member_services_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `member_services_ibfk_2` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên sử dụng dịch vụ';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `member_services`
+--
+
+LOCK TABLES `member_services` WRITE;
+/*!40000 ALTER TABLE `member_services` DISABLE KEYS */;
+/*!40000 ALTER TABLE `member_services` ENABLE KEYS */;
+UNLOCK TABLES;
+
+-- ------------------------------------------------------
+-- Table structure for table `nutrition_plans`
+-- ------------------------------------------------------
+
+DROP TABLE IF EXISTS `nutrition_plans`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `nutrition_plans` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` enum('thực đơn','tư vấn') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `calories` int DEFAULT NULL COMMENT 'Tổng calo/ngày',
+  `bmi_range` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `price` decimal(10,2) DEFAULT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('hoạt động','không hoạt động') COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Chế độ dinh dưỡng & tư vấn';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `nutrition_plans`
+--
+
+LOCK TABLES `nutrition_plans` WRITE;
+/*!40000 ALTER TABLE `nutrition_plans` DISABLE KEYS */;
+/*!40000 ALTER TABLE `nutrition_plans` ENABLE KEYS */;
+UNLOCK TABLES;
+
+-- ------------------------------------------------------
+-- Table structure for table `member_nutrition_plans`
+-- ------------------------------------------------------
+
+DROP TABLE IF EXISTS `member_nutrition_plans`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `member_nutrition_plans` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `member_id` int NOT NULL,
+  `nutrition_plan_id` int NOT NULL,
+  `start_date` date NOT NULL,
+  `end_date` date DEFAULT NULL,
+  `status` enum('đã áp dụng','kết thúc') COLLATE utf8mb4_unicode_ci DEFAULT 'đã áp dụng',
+  PRIMARY KEY (`id`),
+  KEY `idx_member_nutrition_member` (`member_id`),
+  KEY `idx_member_nutrition_plan` (`nutrition_plan_id`),
+  CONSTRAINT `member_nutrition_plans_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `member_nutrition_plans_ibfk_2` FOREIGN KEY (`nutrition_plan_id`) REFERENCES `nutrition_plans` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên đăng ký dinh dưỡng';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `member_nutrition_plans`
+--
+
+LOCK TABLES `member_nutrition_plans` WRITE;
+/*!40000 ALTER TABLE `member_nutrition_plans` DISABLE KEYS */;
+/*!40000 ALTER TABLE `member_nutrition_plans` ENABLE KEYS */;
+UNLOCK TABLES;
+
 --
 -- Table structure for table `users`
 --

@@ -589,6 +589,29 @@ LOCK TABLES `reports` WRITE;
 UNLOCK TABLES;
 
 --
+-- Table structure for table `permission`
+--
+
+DROP TABLE IF EXISTS `permission`;
+CREATE TABLE `permission` (
+  id INT NOT NULL AUTO_INCREMENT,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `roles`
+--
+
+LOCK TABLES `permission` WRITE;
+-- Thêm quyền
+INSERT INTO permission (code) VALUES 
+('MANAGE_ALL'), 
+('HANDLE_CUSTOMERS'), 
+('USE_SERVICES');
+UNLOCK TABLES;
+
+--
 -- Table structure for table `roles`
 --
 
@@ -597,9 +620,12 @@ DROP TABLE IF EXISTS `roles`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `roles` (
   `id` int NOT NULL AUTO_INCREMENT,
+  `permission_id` int NOT NULL,
   `name` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
-  `description` text COLLATE utf8mb4_general_ci,
+  `description` text COLLATE utf8mb4_general_ci, 
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`),
+  FOREIGN KEY (`permission_id`) REFERENCES `permission`(`id`) 
   UNIQUE KEY `name` (`name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -610,7 +636,11 @@ CREATE TABLE `roles` (
 
 LOCK TABLES `roles` WRITE;
 /*!40000 ALTER TABLE `roles` DISABLE KEYS */;
-INSERT INTO `roles` VALUES (1,'admin',NULL),(2,'staff',NULL),(3,'member',NULL);
+-- Thêm vai trò gắn với quyền
+INSERT INTO `roles` (permission_id, name, description, status) VALUES
+(1, 'admin', 'Quản trị toàn hệ thống', 'active'),
+(2, 'staff', 'Nhân viên hỗ trợ khách hàng', 'active'),
+(3, 'member', 'Hội viên sử dụng dịch vụ', 'active');
 /*!40000 ALTER TABLE `roles` ENABLE KEYS */;
 UNLOCK TABLES;
 

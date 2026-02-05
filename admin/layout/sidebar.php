@@ -3,7 +3,7 @@
     <!-- Brand Logo -->
     <a href="index.php" class="brand-link">
       <i class="fas fa-dumbbell brand-image"></i>
-      <span class="brand-text font-weight-light">Gym</span>
+      <span class="brand-text font-weight-light">SD Gym</span>
     </a>
 
     <!-- Sidebar -->

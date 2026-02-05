@@ -25,9 +25,9 @@ DROP TABLE IF EXISTS `addresses`;
 CREATE TABLE `addresses` (
   `id` int NOT NULL AUTO_INCREMENT,
   `member_id` int NOT NULL,
-  `full_address` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `city` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `district` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `full_address` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `city` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `district` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_default` tinyint(1) DEFAULT '0',
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
@@ -53,9 +53,9 @@ DROP TABLE IF EXISTS `bmi_devices`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `bmi_devices` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `device_code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Mã máy đo',
-  `location` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Vị trí đặt máy',
-  `status` enum('active','inactive','maintenance') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `device_code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Mã máy đo',
+  `location` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Vị trí đặt máy',
+  `status` enum('active','inactive','maintenance') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Máy đo BMI';
@@ -84,7 +84,7 @@ CREATE TABLE `bmi_measurements` (
   `height` decimal(5,2) NOT NULL COMMENT 'Chiều cao (cm)',
   `weight` decimal(5,2) NOT NULL COMMENT 'Cân nặng (kg)',
   `bmi` decimal(5,2) NOT NULL COMMENT 'Chỉ số BMI',
-  `body_type` enum('gay','binh thuong','thua can','beo phi') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Phân loại thể trạng',
+  `body_type` enum('gay','binh thuong','thua can','beo phi') COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Phân loại thể trạng',
   `measured_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `fk_bmi_device` (`device_id`),
@@ -144,7 +144,7 @@ CREATE TABLE `carts` (
   `id` int NOT NULL AUTO_INCREMENT,
   `member_id` int NOT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  `status` enum('active','checked_out') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `status` enum('active','checked_out') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
   CONSTRAINT `carts_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE
@@ -169,9 +169,9 @@ DROP TABLE IF EXISTS `categories`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `categories` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -194,9 +194,9 @@ DROP TABLE IF EXISTS `equipment`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `equipment` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `quantity` int DEFAULT '1',
-  `status` enum('dang su dung','bao tri','ngung hoat dong') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'dang su dung',
+  `status` enum('dang su dung','bao tri','ngung hoat dong') COLLATE utf8mb4_unicode_ci DEFAULT 'dang su dung',
   PRIMARY KEY (`id`),
   KEY `idx_equipment_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Thiết bị phòng Gym';
@@ -251,7 +251,7 @@ CREATE TABLE `feedback` (
   `responded_by` int DEFAULT NULL,
   `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `rating` int DEFAULT NULL,
-  `status` enum('new','processing','processed','closed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'new',
+  `status` enum('new','processing','processed','closed') COLLATE utf8mb4_unicode_ci DEFAULT 'new',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_feedback_member_id` (`member_id`),
@@ -274,104 +274,6 @@ LOCK TABLES `feedback` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `import_details`
---
-
-DROP TABLE IF EXISTS `import_details`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `import_details` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `import_id` int NOT NULL,
-  `equipment_id` int DEFAULT NULL COMMENT 'Link tới máy móc (nếu có)',
-  `product_id` int DEFAULT NULL COMMENT 'Link tới sản phẩm Whey/Nước (nếu có)',
-  `quantity` int NOT NULL DEFAULT '1',
-  `import_price` decimal(15,2) NOT NULL DEFAULT '0.00',
-  PRIMARY KEY (`id`),
-  KEY `fk_detail_import` (`import_id`),
-  KEY `fk_detail_equipment` (`equipment_id`),
-  KEY `fk_detail_product` (`product_id`),
-  CONSTRAINT `fk_detail_equipment` FOREIGN KEY (`equipment_id`) REFERENCES `equipment` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_detail_import` FOREIGN KEY (`import_id`) REFERENCES `import_slips` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_detail_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `import_details`
---
-
-LOCK TABLES `import_details` WRITE;
-/*!40000 ALTER TABLE `import_details` DISABLE KEYS */;
-INSERT INTO `import_details` VALUES (1,1,1,NULL,2,26000000.00),(2,2,NULL,1,10,1500000.00);
-/*!40000 ALTER TABLE `import_details` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `import_slips`
---
-
-DROP TABLE IF EXISTS `import_slips`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `import_slips` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `staff_id` int NOT NULL,
-  `supplier_id` int NOT NULL,
-  `total_amount` decimal(15,2) DEFAULT '0.00',
-  `import_date` datetime DEFAULT CURRENT_TIMESTAMP,
-  `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `status` enum('Đã nhập','Đang chờ duyệt','Đã hủy') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'Đang chờ duyệt',
-  PRIMARY KEY (`id`),
-  KEY `fk_import_staff` (`staff_id`),
-  KEY `fk_import_supplier` (`supplier_id`),
-  CONSTRAINT `fk_import_staff` FOREIGN KEY (`staff_id`) REFERENCES `staff` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_import_supplier` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `import_slips`
---
-
-LOCK TABLES `import_slips` WRITE;
-/*!40000 ALTER TABLE `import_slips` DISABLE KEYS */;
-INSERT INTO `import_slips` VALUES (1,1,1,52000000.00,'2024-02-01 08:30:00','Nhập máy chạy bộ mới','Đã nhập'),(2,1,2,15000000.00,'2024-02-02 09:00:00','Nhập bổ sung Whey','Đang chờ duyệt');
-/*!40000 ALTER TABLE `import_slips` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `member_nutrition_plans`
---
-
-DROP TABLE IF EXISTS `member_nutrition_plans`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `member_nutrition_plans` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `member_id` int NOT NULL,
-  `nutrition_plan_id` int NOT NULL,
-  `start_date` date NOT NULL,
-  `end_date` date DEFAULT NULL,
-  `status` enum('đã áp dụng','kết thúc') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'đã áp dụng',
-  PRIMARY KEY (`id`),
-  KEY `idx_member_nutrition_member` (`member_id`),
-  KEY `idx_member_nutrition_plan` (`nutrition_plan_id`),
-  CONSTRAINT `member_nutrition_plans_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `member_nutrition_plans_ibfk_2` FOREIGN KEY (`nutrition_plan_id`) REFERENCES `nutrition_plans` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên đăng ký dinh dưỡng';
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `member_nutrition_plans`
---
-
-LOCK TABLES `member_nutrition_plans` WRITE;
-/*!40000 ALTER TABLE `member_nutrition_plans` DISABLE KEYS */;
-/*!40000 ALTER TABLE `member_nutrition_plans` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
 -- Table structure for table `member_packages`
 --
 
@@ -384,7 +286,7 @@ CREATE TABLE `member_packages` (
   `package_id` int NOT NULL,
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
-  `status` enum('active','expired','cancelled') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `status` enum('active','expired','cancelled') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
   KEY `package_id` (`package_id`),
@@ -400,37 +302,6 @@ CREATE TABLE `member_packages` (
 LOCK TABLES `member_packages` WRITE;
 /*!40000 ALTER TABLE `member_packages` DISABLE KEYS */;
 /*!40000 ALTER TABLE `member_packages` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `member_services`
---
-
-DROP TABLE IF EXISTS `member_services`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `member_services` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `member_id` int NOT NULL,
-  `service_id` int NOT NULL,
-  `start_date` date NOT NULL,
-  `end_date` date DEFAULT NULL,
-  `status` enum('còn hiệu lực','đã dùng') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'còn hiệu lực',
-  PRIMARY KEY (`id`),
-  KEY `idx_member_services_member` (`member_id`),
-  KEY `idx_member_services_service` (`service_id`),
-  CONSTRAINT `member_services_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `member_services_ibfk_2` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên sử dụng dịch vụ';
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `member_services`
---
-
-LOCK TABLES `member_services` WRITE;
-/*!40000 ALTER TABLE `member_services` DISABLE KEYS */;
-/*!40000 ALTER TABLE `member_services` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -474,11 +345,11 @@ DROP TABLE IF EXISTS `members`;
 CREATE TABLE `members` (
   `id` int NOT NULL AUTO_INCREMENT,
   `users_id` int NOT NULL,
-  `full_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `phone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `address` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `full_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone` varchar(15) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `address` text COLLATE utf8mb4_unicode_ci,
   `join_date` date DEFAULT NULL,
-  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   `height` decimal(5,2) DEFAULT NULL COMMENT 'Chiều cao (cm)',
   `weight` decimal(5,2) DEFAULT NULL COMMENT 'Cân nặng (kg)',
   `tier_id` int DEFAULT '1' COMMENT 'Hạng hội viên',
@@ -510,11 +381,11 @@ DROP TABLE IF EXISTS `membership_packages`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `membership_packages` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `package_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `package_name` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
   `duration_months` int NOT NULL,
   `price` decimal(10,2) NOT NULL,
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
-  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT 'active',
+  `description` text COLLATE utf8mb4_general_ci,
+  `status` enum('active','inactive') COLLATE utf8mb4_general_ci DEFAULT 'active',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -538,8 +409,8 @@ DROP TABLE IF EXISTS `notifications`;
 CREATE TABLE `notifications` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
-  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `content` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `is_read` tinyint(1) DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -555,35 +426,6 @@ CREATE TABLE `notifications` (
 LOCK TABLES `notifications` WRITE;
 /*!40000 ALTER TABLE `notifications` DISABLE KEYS */;
 /*!40000 ALTER TABLE `notifications` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `nutrition_plans`
---
-
-DROP TABLE IF EXISTS `nutrition_plans`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `nutrition_plans` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('thực đơn','tư vấn') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `calories` int DEFAULT NULL COMMENT 'Tổng calo/ngày',
-  `bmi_range` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `price` decimal(10,2) DEFAULT NULL,
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `status` enum('hoạt động','không hoạt động') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Chế độ dinh dưỡng & tư vấn';
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `nutrition_plans`
---
-
-LOCK TABLES `nutrition_plans` WRITE;
-/*!40000 ALTER TABLE `nutrition_plans` DISABLE KEYS */;
-/*!40000 ALTER TABLE `nutrition_plans` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -630,8 +472,8 @@ CREATE TABLE `orders` (
   `address_id` int DEFAULT NULL,
   `order_date` datetime DEFAULT CURRENT_TIMESTAMP,
   `total_amount` decimal(12,2) DEFAULT '0.00',
-  `payment_method` enum('cash','online') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'cash',
-  `status` enum('pending','confirmed','delivered','cancelled') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `payment_method` enum('cash','online') COLLATE utf8mb4_unicode_ci DEFAULT 'cash',
+  `status` enum('pending','confirmed','delivered','cancelled') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
   KEY `address_id` (`address_id`),
@@ -650,59 +492,32 @@ LOCK TABLES `orders` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `permission`
+-- Table structure for table `payments`
 --
 
-DROP TABLE IF EXISTS `permission`;
+DROP TABLE IF EXISTS `payments`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `permission` (
+CREATE TABLE `payments` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `code` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `member_package_id` int NOT NULL,
+  `payment_date` datetime DEFAULT CURRENT_TIMESTAMP,
+  `amount` decimal(10,2) NOT NULL,
+  `payment_method` enum('cash','bank_transfer','momo') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payment_status` enum('paid','pending','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'paid',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  KEY `member_package_id` (`member_package_id`),
+  CONSTRAINT `payments_ibfk_1` FOREIGN KEY (`member_package_id`) REFERENCES `member_packages` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `permission`
+-- Dumping data for table `payments`
 --
 
-LOCK TABLES `permission` WRITE;
-/*!40000 ALTER TABLE `permission` DISABLE KEYS */;
-INSERT INTO `permission` VALUES (2,'HANDLE_CUSTOMERS'),(1,'MANAGE_ALL'),(3,'USE_SERVICES');
-/*!40000 ALTER TABLE `permission` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `products`
---
-
-DROP TABLE IF EXISTS `products`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `products` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `category_id` int DEFAULT NULL,
-  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `unit` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hộp' COMMENT 'Đơn vị tính: hộp, chai, cái...',
-  `stock_quantity` int DEFAULT '0' COMMENT 'Số lượng tồn kho',
-  `selling_price` decimal(15,2) DEFAULT '0.00' COMMENT 'Giá bán lẻ cho hội viên',
-  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
-  PRIMARY KEY (`id`),
-  KEY `fk_product_category` (`category_id`),
-  CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `products`
---
-
-LOCK TABLES `products` WRITE;
-/*!40000 ALTER TABLE `products` DISABLE KEYS */;
-INSERT INTO `products` VALUES (1,1,'Whey Gold Standard 5lbs','Hộp',20,1850000.00,'active'),(2,2,'Nước khoáng Lavie 500ml','Chai',100,10000.00,'active'),(3,3,'Găng tay tập Gym Adidas','Đôi',15,450000.00,'active');
-/*!40000 ALTER TABLE `products` ENABLE KEYS */;
+LOCK TABLES `payments` WRITE;
+/*!40000 ALTER TABLE `payments` DISABLE KEYS */;
+/*!40000 ALTER TABLE `payments` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -746,15 +561,15 @@ DROP TABLE IF EXISTS `reports`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `reports` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `type` enum('doanh thu','hoi vien','thiet bi','dich vu','khac') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+  `type` enum('doanh thu','hoi vien','thiet bi','dich vu','khac') COLLATE utf8mb4_general_ci NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `description` text COLLATE utf8mb4_general_ci,
   `period_start` date DEFAULT NULL,
   `period_end` date DEFAULT NULL,
   `created_by` int NOT NULL,
   `data` json DEFAULT NULL,
-  `file_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `status` enum('draft','completed','archived') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT 'draft',
+  `file_path` varchar(500) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `status` enum('draft','completed','archived') COLLATE utf8mb4_general_ci DEFAULT 'draft',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -782,15 +597,11 @@ DROP TABLE IF EXISTS `roles`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `roles` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `permission_id` int NOT NULL,
-  `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
-  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `name` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `description` text COLLATE utf8mb4_general_ci,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `name` (`name`),
-  KEY `permission_id` (`permission_id`),
-  CONSTRAINT `roles_ibfk_1` FOREIGN KEY (`permission_id`) REFERENCES `permission` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -799,35 +610,8 @@ CREATE TABLE `roles` (
 
 LOCK TABLES `roles` WRITE;
 /*!40000 ALTER TABLE `roles` DISABLE KEYS */;
-INSERT INTO `roles` VALUES (4,1,'admin','Quản trị toàn hệ thống','active'),(5,2,'staff','Nhân viên hỗ trợ khách hàng','active'),(6,3,'member','Hội viên sử dụng dịch vụ','active');
+INSERT INTO `roles` VALUES (1,'admin',NULL),(2,'staff',NULL),(3,'member',NULL);
 /*!40000 ALTER TABLE `roles` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `services`
---
-
-DROP TABLE IF EXISTS `services`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `services` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('thư giãn','xoa bóp','hỗ trợ') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `price` decimal(10,2) NOT NULL,
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `status` enum('hoạt động','không hoạt động') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Dịch vụ phòng gym';
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `services`
---
-
-LOCK TABLES `services` WRITE;
-/*!40000 ALTER TABLE `services` DISABLE KEYS */;
-/*!40000 ALTER TABLE `services` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -840,9 +624,9 @@ DROP TABLE IF EXISTS `staff`;
 CREATE TABLE `staff` (
   `id` int NOT NULL AUTO_INCREMENT,
   `users_id` int NOT NULL,
-  `full_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `position` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `full_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `position` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`),
   KEY `users_id` (`users_id`),
   CONSTRAINT `staff_ibfk_1` FOREIGN KEY (`users_id`) REFERENCES `users` (`id`)
@@ -856,33 +640,6 @@ CREATE TABLE `staff` (
 LOCK TABLES `staff` WRITE;
 /*!40000 ALTER TABLE `staff` DISABLE KEYS */;
 /*!40000 ALTER TABLE `staff` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `suppliers`
---
-
-DROP TABLE IF EXISTS `suppliers`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `suppliers` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `phone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `address` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `suppliers`
---
-
-LOCK TABLES `suppliers` WRITE;
-/*!40000 ALTER TABLE `suppliers` DISABLE KEYS */;
-INSERT INTO `suppliers` VALUES (1,'Công ty Thể Thao Đại Việt','0901234567','123 Lý Thường Kiệt, Q10, TP.HCM','2024-01-27 10:00:00'),(2,'Whey Store VN','0909888777','456 CMT8, Q3, TP.HCM','2024-01-27 10:00:00');
-/*!40000 ALTER TABLE `suppliers` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -930,10 +687,10 @@ DROP TABLE IF EXISTS `trainers`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `trainers` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `full_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('Nội bộ','Tự do') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'Nội bộ',
-  `phone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `full_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` enum('Nội bộ','Tự do') COLLATE utf8mb4_unicode_ci DEFAULT 'Nội bộ',
+  `phone` varchar(15) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -959,7 +716,7 @@ CREATE TABLE `training_schedules` (
   `member_id` int NOT NULL,
   `trainer_id` int DEFAULT NULL,
   `training_date` datetime NOT NULL,
-  `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+  `note` text COLLATE utf8mb4_general_ci,
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
   KEY `trainer_id` (`trainer_id`),
@@ -987,10 +744,10 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` int NOT NULL AUTO_INCREMENT,
   `role_id` int NOT NULL,
-  `username` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `password` varchar(267) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `email` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `status` enum('active','locked') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT 'active',
+  `username` varchar(30) COLLATE utf8mb4_general_ci NOT NULL,
+  `password` varchar(267) COLLATE utf8mb4_general_ci NOT NULL,
+  `email` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
+  `status` enum('active','locked') COLLATE utf8mb4_general_ci DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`),
@@ -1019,4 +776,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-02-05 16:38:27
+-- Dump completed on 2026-01-27  2:17:48

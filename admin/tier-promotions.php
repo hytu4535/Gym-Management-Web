@@ -1,5 +1,5 @@
 <?php 
-$page_title = "Quản lý Members";
+$page_title = "Quản lý Khuyến Mãi Theo Hạng";
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
 ?>
@@ -11,12 +11,12 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1 class="m-0">Quản lý Members</h1>
+            <h1 class="m-0">Quản lý Khuyến Mãi Theo Hạng</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item active">Members</li>
+              <li class="breadcrumb-item active">Khuyến Mãi</li>
             </ol>
           </div>
         </div>
@@ -30,10 +30,10 @@ include 'layout/sidebar.php';
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title">Danh sách Members</h3>
+                <h3 class="card-title">Danh sách Chương Trình Khuyến Mãi</h3>
                 <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm">
-                    <i class="fas fa-plus"></i> Thêm Member
+                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addPromotionModal">
+                    <i class="fas fa-plus"></i> Thêm Khuyến Mãi
                   </button>
                 </div>
               </div>
@@ -42,27 +42,25 @@ include 'layout/sidebar.php';
                   <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Họ tên</th>
-                    <th>Email</th>
-                    <th>SĐT</th>
-                    <th>Hạng HV</th>
-                    <th>Tổng Chi</th>
-                    <th>Chiều cao</th>
-                    <th>Cân nặng</th>
-                    <th>Trạng thái</th>
+                    <th>Tên Chương Trình</th>
+                    <th>Hạng Áp Dụng</th>
+                    <th>Loại Giảm</th>
+                    <th>Giá Trị</th>
+                    <th>Thời Gian</th>
+                    <th>Giới Hạn</th>
+                    <th>Trạng Thái</th>
                     <th>Hành động</th>
                   </tr>
                   </thead>
                   <tbody>
                   <tr>
                     <td>1</td>
-                    <td>Trương Trung Kiên</td>
-                    <td>kien@gmail.com</td>
-                    <td>0912345678</td>
-                    <td><span class="badge badge-secondary">Đồng</span></td>
-                    <td>2,500,000 VNĐ</td>
-                    <td>170 cm</td>
-                    <td>65 kg</td>
+                    <td>Giảm PT cho hội viên Bạc</td>
+                    <td><span class="badge badge-light">Bạc</span></td>
+                    <td>Phần trăm</td>
+                    <td>10%</td>
+                    <td>01/01/2024 - 31/12/2024</td>
+                    <td>100 lượt</td>
                     <td><span class="badge badge-success">Active</span></td>
                     <td>
                       <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
@@ -72,30 +70,13 @@ include 'layout/sidebar.php';
                   </tr>
                   <tr>
                     <td>2</td>
-                    <td>Nguyễn Tường Huy</td>
-                    <td>huy@gmail.com</td>
-                    <td>0987654321</td>
-                    <td><span class="badge badge-light">Bạc</span></td>
-                    <td>4,200,000 VNĐ</td>
-                    <td>160 cm</td>
-                    <td>52 kg</td>
+                    <td>Tặng 1 buổi tập Vàng</td>
+                    <td><span class="badge badge-warning">Vàng</span></td>
+                    <td>Gói dịch vụ</td>
+                    <td>1 buổi</td>
+                    <td>01/01/2024 - 31/12/2024</td>
+                    <td>50 lượt</td>
                     <td><span class="badge badge-success">Active</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>3</td>
-                    <td>Nguyễn Nguyên Bảo</td>
-                    <td>bao@gmail.com</td>
-                    <td>0903456789</td>
-                    <td><span class="badge badge-secondary">Đồng</span></td>
-                    <td>1,800,000 VNĐ</td>
-                    <td>175 cm</td>
-                    <td>70 kg</td>
-                    <td><span class="badge badge-secondary">Inactive</span></td>
                     <td>
                       <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
                       <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>

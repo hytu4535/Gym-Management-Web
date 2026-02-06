@@ -1,5 +1,5 @@
 <?php 
-$page_title = "Quản lý Members";
+$page_title = "Quản lý Sản Phẩm";
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
 ?>
@@ -11,12 +11,12 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1 class="m-0">Quản lý Members</h1>
+            <h1 class="m-0">Quản lý Sản Phẩm</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item active">Members</li>
+              <li class="breadcrumb-item active">Sản Phẩm</li>
             </ol>
           </div>
         </div>
@@ -30,10 +30,10 @@ include 'layout/sidebar.php';
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title">Danh sách Members</h3>
+                <h3 class="card-title">Danh sách Sản Phẩm (Whey, Nước, Phụ Kiện)</h3>
                 <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm">
-                    <i class="fas fa-plus"></i> Thêm Member
+                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addProductModal">
+                    <i class="fas fa-plus"></i> Thêm Sản Phẩm
                   </button>
                 </div>
               </div>
@@ -42,27 +42,23 @@ include 'layout/sidebar.php';
                   <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Họ tên</th>
-                    <th>Email</th>
-                    <th>SĐT</th>
-                    <th>Hạng HV</th>
-                    <th>Tổng Chi</th>
-                    <th>Chiều cao</th>
-                    <th>Cân nặng</th>
-                    <th>Trạng thái</th>
+                    <th>Tên Sản Phẩm</th>
+                    <th>Danh Mục</th>
+                    <th>Đơn Vị</th>
+                    <th>Tồn Kho</th>
+                    <th>Giá Bán (VNĐ)</th>
+                    <th>Trạng Thái</th>
                     <th>Hành động</th>
                   </tr>
                   </thead>
                   <tbody>
                   <tr>
                     <td>1</td>
-                    <td>Trương Trung Kiên</td>
-                    <td>kien@gmail.com</td>
-                    <td>0912345678</td>
-                    <td><span class="badge badge-secondary">Đồng</span></td>
-                    <td>2,500,000 VNĐ</td>
-                    <td>170 cm</td>
-                    <td>65 kg</td>
+                    <td>Whey Gold Standard 5lbs</td>
+                    <td><span class="badge badge-primary">Whey Protein</span></td>
+                    <td>Hộp</td>
+                    <td>20</td>
+                    <td>1,850,000</td>
                     <td><span class="badge badge-success">Active</span></td>
                     <td>
                       <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
@@ -72,13 +68,11 @@ include 'layout/sidebar.php';
                   </tr>
                   <tr>
                     <td>2</td>
-                    <td>Nguyễn Tường Huy</td>
-                    <td>huy@gmail.com</td>
-                    <td>0987654321</td>
-                    <td><span class="badge badge-light">Bạc</span></td>
-                    <td>4,200,000 VNĐ</td>
-                    <td>160 cm</td>
-                    <td>52 kg</td>
+                    <td>Nước khoáng Lavie 500ml</td>
+                    <td><span class="badge badge-info">Nước uống</span></td>
+                    <td>Chai</td>
+                    <td>100</td>
+                    <td>10,000</td>
                     <td><span class="badge badge-success">Active</span></td>
                     <td>
                       <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
@@ -88,14 +82,12 @@ include 'layout/sidebar.php';
                   </tr>
                   <tr>
                     <td>3</td>
-                    <td>Nguyễn Nguyên Bảo</td>
-                    <td>bao@gmail.com</td>
-                    <td>0903456789</td>
-                    <td><span class="badge badge-secondary">Đồng</span></td>
-                    <td>1,800,000 VNĐ</td>
-                    <td>175 cm</td>
-                    <td>70 kg</td>
-                    <td><span class="badge badge-secondary">Inactive</span></td>
+                    <td>Găng tay tập Gym Adidas</td>
+                    <td><span class="badge badge-secondary">Phụ kiện</span></td>
+                    <td>Đôi</td>
+                    <td>15</td>
+                    <td>450,000</td>
+                    <td><span class="badge badge-success">Active</span></td>
                     <td>
                       <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
                       <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>

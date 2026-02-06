@@ -56,8 +56,8 @@
           </li>
 
           <!-- Quản lý hội viên -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php'])) ? 'active' : ''; ?>">
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-user-friends"></i>
               <p>
                 Quản lý hội viên
@@ -74,20 +74,27 @@
               <li class="nav-item">
                 <a href="member-packages.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'member-packages.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
-                  <p>Gói tập</p>
+                  <p>Gói tập HV</p>
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link " >
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>BMI & sức khỏe</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link " >
+                <a href="member-tiers.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'member-tiers.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Hạng hội viên</p>
                 </a>
+              </li>
+              <li class="nav-item">
+                <a href="bmi-devices.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'bmi-devices.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Máy đo BMI</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="bmi-measurements.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'bmi-measurements.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Lịch sử đo BMI</p>
+                </a>
+              </li>
             </ul>
           </li>
           <li class="nav-item">
@@ -130,25 +137,25 @@
             </ul>
           </li>
           <!-- Quản lý Dịch vụ -->
-            <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'training-schedules.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'training-schedules.php'])) ? 'active' : ''; ?>">
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition-plans.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition-plans.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-utensils"></i>
               <p>
-                Quản lý dịch vụ và dinh dưỡng
+                Dịch vụ & Dinh dưỡng
                 <i class="fas fa-angle-left right"></i>
               </p>
             </a>
             <ul class="nav nav-treeview">
               <li class="nav-item">
-                <a  class="nav-link ">
+                <a href="services.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'services.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Dịch vụ</p>
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link ">
+                <a href="nutrition-plans.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'nutrition-plans.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
-                  <p>Dinh dưỡng</p>
+                  <p>Chế độ dinh dưỡng</p>
                 </a>
               </li>
             </ul>
@@ -164,6 +171,18 @@
             </a>
             <ul class="nav nav-treeview">
               <li class="nav-item">
+                <a href="products.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'products.php') ? 'active' : ''; ?>">
+                 <i class="far fa-circle nav-icon"></i>
+                  <p>Sản phẩm</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="categories.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'categories.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Danh mục</p>
+                </a>
+              </li>
+              <li class="nav-item">
                 <a href="orders.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'orders.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Đơn hàng</p>
@@ -175,12 +194,6 @@
                   <p>Chi tiết đơn hàng</p>
                 </a>
               </li>
-            <!--  <li class="nav-item">
-                <a href="payments.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'payments.php') ? 'active' : ''; ?>">
-                  <i class="far fa-circle nav-icon"></i>
-                  <p>Trạng thái thanh toán</p>
-                </a>
-              </li> -->
               <li class="nav-item">
                 <a href="carts.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'carts.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
@@ -189,10 +202,11 @@
               </li>
             </ul>
           </li>
+
           <!-- Quản lý kho -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['categories.php', 'orders.php', 'order-items.php', 'payments.php', 'carts.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['categories.php', 'orders.php', 'order-items.php', 'payments.php', 'carts.php'])) ? 'active' : ''; ?>">
-              <i class="nav-icon fas fa-shopping-cart"></i>
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['import-slips.php', 'suppliers.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['import-slips.php', 'suppliers.php'])) ? 'active' : ''; ?>">
+              <i class="nav-icon fas fa-warehouse"></i>
               <p>
                 Quản lý kho
                 <i class="fas fa-angle-left right"></i>
@@ -200,25 +214,20 @@
             </a>
             <ul class="nav nav-treeview">
               <li class="nav-item">
-                <a href="categories.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'categories.php') ? 'active' : ''; ?>">
-                 <i class="far fa-circle nav-icon"></i>
-                  <p>Sản phẩm</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link">
+                <a href="import-slips.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'import-slips.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Phiếu nhập</p>
                 </a>
               </li>
               <li class="nav-item">
-               <a class="nav-link">
+                <a href="suppliers.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'suppliers.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Nhà cung cấp</p>
                 </a>
               </li>
             </ul>
           </li>
+          
           <!-- Quản lý thiết bị -->
           <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['equipment.php', 'equipment-maintenance.php'])) ? 'menu-open' : ''; ?>">
             <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['equipment.php', 'equipment-maintenance.php'])) ? 'active' : ''; ?>">
@@ -268,18 +277,38 @@
               </li>
             </ul>
           </li>
-               <li class="nav-item">
-               <a class="nav-link">
-                  <i class="nav-icon fas fa-percent"></i>
-                  <p>Quản lý ưu đãi</p>
+          <!-- Quản lý ưu đãi -->
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['tier-promotions.php', 'promotion-usage.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['tier-promotions.php', 'promotion-usage.php'])) ? 'active' : ''; ?>">
+              <i class="nav-icon fas fa-percent"></i>
+              <p>
+                Quản lý ưu đãi
+                <i class="fas fa-angle-left right"></i>
+              </p>
+            </a>
+            <ul class="nav nav-treeview">
+              <li class="nav-item">
+                <a href="tier-promotions.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'tier-promotions.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Khuyến mãi theo hạng</p>
                 </a>
               </li>
-               <li class="nav-item">
-               <a class="nav-link">
-                  <i class="nav-icon fas fa-chart-line"></i>
-                  <p>Báo cáo thống kê</p>
+              <li class="nav-item">
+                <a href="promotion-usage.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'promotion-usage.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Lịch sử sử dụng</p>
                 </a>
               </li>
+            </ul>
+          </li>
+          
+          <!-- Báo cáo thống kê -->
+          <li class="nav-item">
+            <a href="reports.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'reports.php') ? 'active' : ''; ?>">
+              <i class="nav-icon fas fa-chart-line"></i>
+              <p>Báo cáo thống kê</p>
+            </a>
+          </li>
           <!-- Logout -->
           <li class="nav-item">
             <a href="logout.php" class="nav-link">

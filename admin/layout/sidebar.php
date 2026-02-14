@@ -130,8 +130,8 @@
             </ul>
           </li>
           <!-- Quản lý Dịch vụ -->
-            <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'training-schedules.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'training-schedules.php'])) ? 'active' : ''; ?>">
+            <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition_plans.php', 'member_services.php', 'member_nutrition_plans.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition_plans.php', 'member_services.php', 'member_nutrition_plans.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-utensils"></i>
               <p>
                 Quản lý dịch vụ và dinh dưỡng
@@ -140,13 +140,13 @@
             </a>
             <ul class="nav nav-treeview">
               <li class="nav-item">
-                <a  class="nav-link ">
+                <a href="services.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'services.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Dịch vụ</p>
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link ">
+                <a href="nutrition_plans.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'nutrition_plans.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Dinh dưỡng</p>
                 </a>

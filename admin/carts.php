@@ -2,6 +2,18 @@
 $page_title = "Quản lý giỏ hàng";
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
+require_once '../config/db.php';
+
+$sql = "SELECT c.id, c.created_at, c.status, m.full_name, 
+               COUNT(ci.id) AS total_items,
+               SUM(ci.quantity * pkg.price) AS total_price
+        FROM carts c
+        LEFT JOIN members m ON c.member_id = m.id
+        LEFT JOIN cart_items ci ON c.id = ci.cart_id
+        LEFT JOIN membership_packages pkg ON ci.package_id = pkg.id
+        GROUP BY c.id, c.created_at, c.status, m.full_name
+        ORDER BY c.id DESC";
+$result = $conn->query($sql);
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -45,17 +57,34 @@ include 'layout/sidebar.php';
                   </tr>
                   </thead>
                   <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>Nguyễn Văn A</td>
-                    <td>3</td>
-                    <td>1,500,000đ</td>
-                    <td>2026-01-22</td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
+                  <?php 
+                    if ($result && $result->num_rows > 0) {
+                        while($row = $result->fetch_assoc()) {                       
+                            $customerName = $row['full_name'] ?? 'Khách vãng lai';
+                            $totalItems = $row['total_items'];
+                            $totalPrice = number_format($row['total_price'] ?? 0, 0, ',', '.') . 'đ';
+                            $createdDate = date('Y-m-d', strtotime($row['created_at']));
+
+                            echo "<tr>";
+                            echo "  <td>{$row['id']}</td>";
+                            echo "  <td>{$customerName}</td>";
+                            echo "  <td>{$totalItems}</td>";
+                            echo "  <td class='text-danger font-weight-bold'>{$totalPrice}</td>";
+                            echo "  <td>{$createdDate}</td>";
+                            echo "  <td>
+                                      <a href='cart-items.php?id={$row['id']}' class='btn btn-info btn-sm' title='Xem chi tiết'>
+                                        <i class='fas fa-eye'></i>
+                                      </a>
+                                      <a href='process/cart_delete.php?id={$row['id']}' class='btn btn-danger btn-sm' title='Xóa giỏ hàng' onclick=\"return confirm('Bạn có chắc chắn muốn xóa giỏ hàng này?');\">
+                                        <i class='fas fa-trash'></i>
+                                      </a>
+                                    </td>";
+                            echo "</tr>";
+                        }
+                    } else {
+                        echo "<tr><td colspan='6' class='text-center'>Hiện chưa có giỏ hàng nào trong hệ thống.</td></tr>";
+                    }
+                  ?>
                   </tbody>
                 </table>
               </div>

@@ -70,20 +70,12 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-<<<<<<< HEAD
             <h1 class="m-0">Quản lý Phản Hồi</h1>
-=======
-            <h1 class="m-0">Quản lý Feedback</h1>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-<<<<<<< HEAD
               <li class="breadcrumb-item active">Phản Hồi</li>
-=======
-              <li class="breadcrumb-item active">Feedback</li>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
             </ol>
           </div>
         </div>
@@ -97,7 +89,6 @@ include 'layout/sidebar.php';
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-<<<<<<< HEAD
                 <h3 class="card-title">Danh sách Phản Hồi</h3>
               </div>
               <div class="card-body">
@@ -114,48 +105,6 @@ include 'layout/sidebar.php';
                   </tr>
                   </thead>
                   <tbody id="feedbackTableBody">
-=======
-                <h3 class="card-title">Danh sách Feedback</h3>
-              </div>
-              <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
-                  <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>ID Khách hàng</th>
-                    <th>Nội dung</th>
-                    <th>Đánh giá</th>
-                    <th>Ngày tạo</th>
-                    <th>Trạng thái</th>
-                    <th>Hành động</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>Nguyễn Văn A</td>
-                    <td>Phòng gym rất tốt, thiết bị hiện đại</td>
-                    <td>5/5</td>
-                    <td>2026-01-20</td>
-                    <td><span class="badge badge-success">Đã xem</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>Trần Thị B</td>
-                    <td>Huấn luyện viên nhiệt tình</td>
-                    <td>5/5</td>
-                    <td>2026-01-21</td>
-                    <td><span class="badge badge-warning">Chưa xem</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
                   </tbody>
                 </table>
               </div>
@@ -165,7 +114,6 @@ include 'layout/sidebar.php';
       </div>
     </section>
 
-<<<<<<< HEAD
   </div>
 
 <!-- View Feedback Modal -->
@@ -381,6 +329,3 @@ function deleteFeedbackItem(id) {
     });
 }
 </script>
-=======
-<?php include 'layout/footer.php'; ?>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682

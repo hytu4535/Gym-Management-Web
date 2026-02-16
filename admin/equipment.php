@@ -100,11 +100,7 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-<<<<<<< HEAD
             <h1 class="m-0">Quản lý Thiết Bị</h1>
-=======
-            <h1 class="m-0">Quản lý thiết bị</h1>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
@@ -125,17 +121,12 @@ include 'layout/sidebar.php';
               <div class="card-header">
                 <h3 class="card-title">Danh sách thiết bị</h3>
                 <div class="card-tools">
-<<<<<<< HEAD
-                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addEquipmentModal">
-=======
                   <button type="button" class="btn btn-primary btn-sm">
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
                     <i class="fas fa-plus"></i> Thêm thiết bị
                   </button>
                 </div>
               </div>
               <div class="card-body">
-<<<<<<< HEAD
                 <table class="table table-bordered table-striped table-hover" id="equipmentTable">
                   <thead class="table-dark">
                   <tr>
@@ -384,18 +375,6 @@ function deleteEquipment(id) {
     });
 }
 </script>
-=======
-                <table class="table table-bordered table-striped data-table">
-                  <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Tên thiết bị</th>
-                    <th>Số lượng</th>
-                    <th>Tình trạng</th>
-                    <th>Hành động</th>
-                  </tr>
-                  </thead>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
                   <tbody>
                   <tr>
                     <td>1</td>

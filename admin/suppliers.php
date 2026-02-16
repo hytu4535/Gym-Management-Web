@@ -136,7 +136,6 @@ include 'layout/sidebar.php';
               <div class="card-header">
                 <h3 class="card-title">Danh sách Nhà Cung Cấp</h3>
                 <div class="card-tools">
-<<<<<<< HEAD
                   <div class="input-group input-group-sm" style="width: 150px;">
                     <input type="text" id="searchInput" class="form-control" placeholder="Tìm kiếm...">
                     <div class="input-group-append">
@@ -146,15 +145,11 @@ include 'layout/sidebar.php';
                     </div>
                   </div>
                   <button type="button" class="btn btn-primary btn-sm ml-2" data-toggle="modal" data-target="#addSupplierModal">
-=======
-                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addSupplierModal">
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
                     <i class="fas fa-plus"></i> Thêm NCC
                   </button>
                 </div>
               </div>
               <div class="card-body">
-<<<<<<< HEAD
                 <table class="table table-bordered table-striped table-hover" id="suppliersTable">
                   <thead class="table-dark">
                   <tr>
@@ -167,44 +162,6 @@ include 'layout/sidebar.php';
                   </tr>
                   </thead>
                   <tbody id="suppliersTableBody">
-=======
-                <table class="table table-bordered table-striped data-table">
-                  <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Tên Nhà Cung Cấp</th>
-                    <th>Số Điện Thoại</th>
-                    <th>Địa Chỉ</th>
-                    <th>Ngày Tạo</th>
-                    <th>Hành động</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>Công ty Thể Thao Đại Việt</td>
-                    <td>0901234567</td>
-                    <td>123 Lý Thường Kiệt, Q10, TP.HCM</td>
-                    <td>27/01/2024</td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>Whey Store VN</td>
-                    <td>0909888777</td>
-                    <td>456 CMT8, Q3, TP.HCM</td>
-                    <td>27/01/2024</td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
                   </tbody>
                 </table>
               </div>
@@ -214,7 +171,6 @@ include 'layout/sidebar.php';
       </div>
     </section>
 
-<<<<<<< HEAD
   </div>
 
 <!-- Add/Edit Supplier Modal -->
@@ -539,6 +495,3 @@ function formatCurrency(amount) {
     }).format(amount || 0);
 }
 </script>
-=======
-<?php include 'layout/footer.php'; ?>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682

@@ -129,11 +129,7 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-<<<<<<< HEAD
             <h1 class="m-0">Quản lý Phiếu Nhập</h1>
-=======
-            <h1 class="m-0">Quản lý Phiếu Nhập Kho</h1>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
@@ -155,20 +151,15 @@ include 'layout/sidebar.php';
                 <h3 class="card-title">Danh sách Phiếu Nhập Kho</h3>
                 <div class="card-tools">
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addImportModal">
-<<<<<<< HEAD
                     <i class="fas fa-plus"></i> Thêm Phiếu Nhập
-=======
-                    <i class="fas fa-plus"></i> Tạo Phiếu Nhập
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
                   </button>
                 </div>
               </div>
               <div class="card-body">
-<<<<<<< HEAD
+
                 <table class="table table-bordered table-striped table-hover" id="importsTable">
                   <thead class="table-dark">
                   <tr>
-                    <th style="width: 50px;">ID</th>
                     <th>Nhà Cung Cấp</th>
                     <th>Ngày Nhập</th>
                     <th style="width: 120px;">Số Tiền</th>
@@ -177,56 +168,15 @@ include 'layout/sidebar.php';
                   </tr>
                   </thead>
                   <tbody id="importsTableBody">
-=======
+
                 <table class="table table-bordered table-striped data-table">
                   <thead>
                   <tr>
-                    <th>Mã Phiếu</th>
-                    <th>Nhà Cung Cấp</th>
-                    <th>Nhân Viên</th>
-                    <th>Tổng Tiền</th>
-                    <th>Ngày Nhập</th>
-                    <th>Trạng Thái</th>
-                    <th>Hành động</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  <tr>
-                    <td>#PN001</td>
-                    <td>Công ty Thể Thao Đại Việt</td>
-                    <td>Nguyễn Văn A</td>
-                    <td>52,000,000 VNĐ</td>
-                    <td>01/02/2024</td>
-                    <td><span class="badge badge-success">Đã nhập</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-primary btn-sm"><i class="fas fa-print"></i></button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>#PN002</td>
-                    <td>Whey Store VN</td>
-                    <td>Nguyễn Văn A</td>
-                    <td>15,000,000 VNĐ</td>
-                    <td>02/02/2024</td>
-                    <td><span class="badge badge-warning">Đang chờ duyệt</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-success btn-sm"><i class="fas fa-check"></i> Duyệt</button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-times"></i> Hủy</button>
-                    </td>
-                  </tr>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
         </div>
       </div>
     </section>
 
-<<<<<<< HEAD
   </div>
 
 <!-- Add/Edit Import Modal -->
@@ -464,6 +414,3 @@ function deleteImport(id) {
     });
 }
 </script>
-=======
-<?php include 'layout/footer.php'; ?>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682

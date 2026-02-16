@@ -56,8 +56,8 @@
           </li>
 
           <!-- Quản lý hội viên -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php'])) ? 'active' : ''; ?>">
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-user-friends"></i>
               <p>
                 Quản lý hội viên
@@ -81,6 +81,12 @@
                 <a href="member-tiers.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'member-tiers.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Hạng hội viên</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="addresses.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'addresses.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Địa chỉ</p>
                 </a>
               </li>
               <li class="nav-item">

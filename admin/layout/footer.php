@@ -35,13 +35,16 @@
 <!-- Page specific script -->
 <script>
   $(function () {
-    // Initialize DataTables
-    $(".data-table").DataTable({
+    // Initialize DataTables for all tables
+    $("#memberTable, #tierTable, #packageTable, #bmiTable, .data-table").DataTable({
       "responsive": true,
-      "lengthChange": false,
+      "lengthChange": true,
       "autoWidth": false,
-      "buttons": ["copy", "csv", "excel", "pdf", "print", "colvis"]
-    }).buttons().container().appendTo('.dataTables_wrapper .col-md-6:eq(0)');
+      "pageLength": 10,
+      "language": {
+        "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Vietnamese.json"
+      }
+    });
   });
 </script>
 

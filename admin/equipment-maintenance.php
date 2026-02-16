@@ -94,11 +94,7 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-<<<<<<< HEAD
             <h1 class="m-0">Bảo Trì Thiết Bị</h1>
-=======
-            <h1 class="m-0">Bảo trì thiết bị</h1>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
@@ -117,21 +113,14 @@ include 'layout/sidebar.php';
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-<<<<<<< HEAD
                 <h3 class="card-title">Lịch sử Bảo Trì Thiết Bị</h3>
                 <div class="card-tools">
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addMaintenanceModal">
-=======
-                <h3 class="card-title">Lịch sử bảo trì</h3>
-                <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm">
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
                     <i class="fas fa-plus"></i> Thêm lịch bảo trì
                   </button>
                 </div>
               </div>
               <div class="card-body">
-<<<<<<< HEAD
                 <table class="table table-bordered table-striped table-hover" id="maintenanceTable">
                   <thead class="table-dark">
                   <tr>
@@ -143,29 +132,6 @@ include 'layout/sidebar.php';
                   </tr>
                   </thead>
                   <tbody id="maintenanceTableBody">
-=======
-                <table class="table table-bordered table-striped data-table">
-                  <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>ID Thiết bị</th>
-                    <th>Ngày bảo trì</th>
-                    <th>Ghi chú</th>
-                    <th>Hành động</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>Máy chạy bộ #1</td>
-                    <td>2026-01-20</td>
-                    <td>Thay dây đai</td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                    </td>
-                  </tr>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682
                   </tbody>
                 </table>
               </div>
@@ -175,7 +141,6 @@ include 'layout/sidebar.php';
       </div>
     </section>
 
-<<<<<<< HEAD
   </div>
 
 <!-- Add/Edit Maintenance Modal -->
@@ -371,6 +336,3 @@ function deleteMaintenance(id) {
     });
 }
 </script>
-=======
-<?php include 'layout/footer.php'; ?>
->>>>>>> 34a2fa975ad8cea20aeca729e7e1e6c7991c6682

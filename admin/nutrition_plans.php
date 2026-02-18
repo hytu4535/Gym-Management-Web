@@ -4,6 +4,17 @@ require_once '../includes/session.php';
 
 $db = getDB();
 
+// Helper: calculate total calories for a plan from items
+function calculatePlanCalories($db, $plan_id) {
+  $stmt = $db->prepare("SELECT SUM(ni.calories * npi.servings_per_day) AS calc
+    FROM nutrition_plan_items npi
+    JOIN nutrition_items ni ON ni.id = npi.item_id
+    WHERE npi.nutrition_plan_id = ?");
+  $stmt->execute([$plan_id]);
+  $row = $stmt->fetch();
+  return ($row && $row['calc']) ? (int)$row['calc'] : null;
+}
+
 // Xử lý thêm chế độ dinh dưỡng
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
@@ -62,6 +73,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Lấy danh sách chế độ dinh dưỡng
 $stmt = $db->query("SELECT * FROM nutrition_plans ORDER BY id DESC");
 $plans = $stmt->fetchAll();
+
+// Compute calculated calories (from items) for each plan when available
+foreach ($plans as &$plan) {
+  $plan['calculated_calories'] = calculatePlanCalories($db, $plan['id']);
+}
+unset($plan);
 
 // Lấy flash message
 $flash = getFlashMessage();
@@ -132,7 +149,8 @@ include 'layout/sidebar.php';
                     <td><?= $plan['id'] ?></td>
                     <td><?= htmlspecialchars($plan['name']) ?></td>
                     <td><?= ucfirst($plan['type']) ?></td>
-                    <td><?= $plan['calories'] ? number_format($plan['calories']) : '-' ?></td>
+                    <?php $display_cal = $plan['calculated_calories'] ?? $plan['calories']; ?>
+                    <td><?= $display_cal ? number_format($display_cal) . ' kcal' : '-' ?></td>
                     <td><?= htmlspecialchars($plan['bmi_range'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($plan['description'] ?? '') ?></td>
                     <td>
@@ -190,8 +208,13 @@ include 'layout/sidebar.php';
               <div class="form-group">
                 <label>Loại <span class="text-danger">*</span></label>
                 <select class="form-control" name="type" required>
-                  <option value="thực đơn">Thực đơn</option>
-                  <option value="tư vấn">Tư vấn</option>
+                  <option value="tăng cân">tăng cân</option>
+                  <option value="giảm cân">giảm cân</option>
+                  <option value="tư vấn">tư vấn</option>
+                  <option value="duy trì">duy trì</option>
+                  <option value="tăng cơ">tăng cơ</option>
+                  <option value="giảm mỡ">giảm mỡ</option>
+                  <option value="khác">khác</option>
                 </select>
               </div>
               <div class="form-group">
@@ -242,8 +265,13 @@ include 'layout/sidebar.php';
               <div class="form-group">
                 <label>Loại <span class="text-danger">*</span></label>
                 <select class="form-control" name="type" id="edit-type" required>
-                  <option value="thực đơn">Thực đơn</option>
-                  <option value="tư vấn">Tư vấn</option>
+                  <option value="tăng cân">tăng cân</option>
+                  <option value="giảm cân">giảm cân</option>
+                  <option value="tư vấn">tư vấn</option>
+                  <option value="duy trì">duy trì</option>
+                  <option value="tăng cơ">tăng cơ</option>
+                  <option value="giảm mỡ">giảm mỡ</option>
+                  <option value="khác">khác</option>
                 </select>
               </div>
               <div class="form-group">

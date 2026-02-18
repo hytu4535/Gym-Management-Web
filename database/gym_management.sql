@@ -557,34 +557,57 @@ LOCK TABLES `notifications` WRITE;
 /*!40000 ALTER TABLE `notifications` ENABLE KEYS */;
 UNLOCK TABLES;
 
---
--- Table structure for table `nutrition_plans`
---
 
-DROP TABLE IF EXISTS `nutrition_plans`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `nutrition_plans` (
+
+-- ------------------------------------------------------
+-- Schema additions: nutrition items and plan-items, and extra columns for nutrition_plans
+-- These were added to provide per-plan reference weight and structured items (no sample data inserted)
+-- ------------------------------------------------------
+
+
+/* Table to store individual nutrition items / servings (no sample rows added) */
+DROP TABLE IF EXISTS `nutrition_items`;
+CREATE TABLE IF NOT EXISTS `nutrition_items` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('thực đơn','tư vấn') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `calories` int DEFAULT NULL COMMENT 'Tổng calo/ngày',
-  `bmi_range` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `status` enum('hoạt động','không hoạt động') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
+  `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `serving_desc` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `calories` int DEFAULT NULL,
+  `protein` DECIMAL(6,2) DEFAULT NULL,
+  `carbs` DECIMAL(6,2) DEFAULT NULL,
+  `fat` DECIMAL(6,2) DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('hoạt động','không hoạt động') COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Chế độ dinh dưỡng & tư vấn';
-/*!40101 SET character_set_client = @saved_cs_client */;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `nutrition_plans`
---
 
-LOCK TABLES `nutrition_plans` WRITE;
-/*!40000 ALTER TABLE `nutrition_plans` DISABLE KEYS */;
-/*!40000 ALTER TABLE `nutrition_plans` ENABLE KEYS */;
+LOCK TABLES `nutrition_items` WRITE;
+
 UNLOCK TABLES;
 
+DROP TABLE IF EXISTS `nutrition_plan_items`;
+/* Join table linking nutrition plans to nutrition items with servings */
+CREATE TABLE IF NOT EXISTS `nutrition_plan_items` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `nutrition_plan_id` int NOT NULL,
+  `item_id` int NOT NULL,
+  `servings_per_day` DECIMAL(5,2) DEFAULT 1,
+  `meal_time` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `note` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_plan` (`nutrition_plan_id`),
+  KEY `idx_item` (`item_id`),
+  CONSTRAINT `fk_plan_item_plan` FOREIGN KEY (`nutrition_plan_id`) REFERENCES `nutrition_plans` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_plan_item_item` FOREIGN KEY (`item_id`) REFERENCES `nutrition_items` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+/* Update existing nutrition_plans records (ids 1..10) to include bmi_min/bmi_max/reference_weight/goal
+   Reference weights were computed assuming a reference height of 1.70 m (rounded to nearest kg).
+*/
+
+LOCK TABLES `nutrition_plan_items` WRITE;
+
+UNLOCK TABLES;
 --
 -- Table structure for table `order_items`
 --
@@ -1044,7 +1067,7 @@ DROP TABLE IF EXISTS `nutrition_plans`;
 CREATE TABLE `nutrition_plans` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('thực đơn','tư vấn') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` enum('tăng cân','giảm cân','tư vấn','duy trì','tăng cơ','giảm mỡ','khác') COLLATE utf8mb4_unicode_ci NOT NULL,
   `calories` int DEFAULT NULL COMMENT 'Tổng calo/ngày',
   `bmi_range` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,

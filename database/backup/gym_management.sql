@@ -32,7 +32,7 @@ CREATE TABLE `addresses` (
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
   CONSTRAINT `addresses_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=27 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -41,7 +41,6 @@ CREATE TABLE `addresses` (
 
 LOCK TABLES `addresses` WRITE;
 /*!40000 ALTER TABLE `addresses` DISABLE KEYS */;
-INSERT INTO `addresses` VALUES (1,13,'18/20 Phan Văn Trị, P5, TP.HCM','TP. HCM','Quận 5',1),(11,1,'45 Nguyễn Trãi, Phường 2','Hồ Chí Minh','Quận 5',1),(12,2,'78 Trần Hưng Đạo','Hà Nội','Hoàn Kiếm',1),(13,2,'12 Nguyễn Chí Thanh','Hà Nội','Đống Đa',0),(14,3,'56 Lý Thường Kiệt','Đà Nẵng','Hải Châu',1),(15,3,'90 Nguyễn Văn Linh','Đà Nẵng','Thanh Khê',0),(26,2,'18/16A Võ Văn Kiệt, Quận 2, TPHCM','TP.HCM','Quận 2',0);
 /*!40000 ALTER TABLE `addresses` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -59,7 +58,7 @@ CREATE TABLE `bmi_devices` (
   `status` enum('active','inactive','maintenance') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Máy đo BMI';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Máy đo BMI';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -68,7 +67,6 @@ CREATE TABLE `bmi_devices` (
 
 LOCK TABLES `bmi_devices` WRITE;
 /*!40000 ALTER TABLE `bmi_devices` DISABLE KEYS */;
-INSERT INTO `bmi_devices` VALUES (1,'BMI - 06','Tầng 1 - Khu A','active','2026-02-15 11:55:01'),(2,'BMI - 07','Tầng 1 - Khu C','active','2026-02-15 11:56:16'),(3,'BMI - 01','Tầng 2','active','2026-02-15 11:56:30');
 /*!40000 ALTER TABLE `bmi_devices` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -94,7 +92,7 @@ CREATE TABLE `bmi_measurements` (
   KEY `idx_bmi_date` (`measured_at`),
   CONSTRAINT `fk_bmi_device` FOREIGN KEY (`device_id`) REFERENCES `bmi_devices` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_bmi_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch sử đo BMI của hội viên';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch sử đo BMI của hội viên';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -103,7 +101,6 @@ CREATE TABLE `bmi_measurements` (
 
 LOCK TABLES `bmi_measurements` WRITE;
 /*!40000 ALTER TABLE `bmi_measurements` DISABLE KEYS */;
-INSERT INTO `bmi_measurements` VALUES (2,2,1,175.00,70.00,22.86,'binh thuong','2026-02-15 11:55:35'),(3,13,3,180.00,55.00,16.98,'gay','2026-02-15 11:57:31'),(4,3,2,165.00,70.00,25.71,'thua can','2026-02-15 11:57:49');
 /*!40000 ALTER TABLE `bmi_measurements` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -176,7 +173,7 @@ CREATE TABLE `categories` (
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -185,7 +182,6 @@ CREATE TABLE `categories` (
 
 LOCK TABLES `categories` WRITE;
 /*!40000 ALTER TABLE `categories` DISABLE KEYS */;
-INSERT INTO `categories` VALUES (1,'test','test','active');
 /*!40000 ALTER TABLE `categories` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -363,7 +359,7 @@ CREATE TABLE `member_nutrition_plans` (
   KEY `idx_member_nutrition_plan` (`nutrition_plan_id`),
   CONSTRAINT `member_nutrition_plans_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
   CONSTRAINT `member_nutrition_plans_ibfk_2` FOREIGN KEY (`nutrition_plan_id`) REFERENCES `nutrition_plans` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên đăng ký dinh dưỡng';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên đăng ký dinh dưỡng';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -372,7 +368,6 @@ CREATE TABLE `member_nutrition_plans` (
 
 LOCK TABLES `member_nutrition_plans` WRITE;
 /*!40000 ALTER TABLE `member_nutrition_plans` DISABLE KEYS */;
-INSERT INTO `member_nutrition_plans` VALUES (1,2,1,'2026-02-19','2026-02-21','đã áp dụng');
 /*!40000 ALTER TABLE `member_nutrition_plans` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -395,7 +390,7 @@ CREATE TABLE `member_packages` (
   KEY `package_id` (`package_id`),
   CONSTRAINT `member_packages_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
   CONSTRAINT `member_packages_ibfk_2` FOREIGN KEY (`package_id`) REFERENCES `membership_packages` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -404,7 +399,6 @@ CREATE TABLE `member_packages` (
 
 LOCK TABLES `member_packages` WRITE;
 /*!40000 ALTER TABLE `member_packages` DISABLE KEYS */;
-INSERT INTO `member_packages` VALUES (1,13,1,'2025-02-06','2025-03-06','active'),(2,3,2,'2026-02-10','2026-05-10','active');
 /*!40000 ALTER TABLE `member_packages` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -427,7 +421,7 @@ CREATE TABLE `member_services` (
   KEY `idx_member_services_service` (`service_id`),
   CONSTRAINT `member_services_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
   CONSTRAINT `member_services_ibfk_2` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên sử dụng dịch vụ';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên sử dụng dịch vụ';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -436,7 +430,6 @@ CREATE TABLE `member_services` (
 
 LOCK TABLES `member_services` WRITE;
 /*!40000 ALTER TABLE `member_services` DISABLE KEYS */;
-INSERT INTO `member_services` VALUES (1,2,4,'2026-02-19','2026-02-20','đã dùng');
 /*!40000 ALTER TABLE `member_services` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -458,7 +451,7 @@ CREATE TABLE `member_tiers` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_tier_name` (`name`),
   UNIQUE KEY `uk_tier_level` (`level`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -495,7 +488,7 @@ CREATE TABLE `members` (
   KEY `fk_members_tier` (`tier_id`),
   CONSTRAINT `fk_members_tier` FOREIGN KEY (`tier_id`) REFERENCES `member_tiers` (`id`),
   CONSTRAINT `members_ibfk_1` FOREIGN KEY (`users_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -504,7 +497,7 @@ CREATE TABLE `members` (
 
 LOCK TABLES `members` WRITE;
 /*!40000 ALTER TABLE `members` DISABLE KEYS */;
-INSERT INTO `members` VALUES (1,1,'Trương Trung Kiên','0912345678','Quận 1, TP.HCM','2024-01-15','active',170.00,65.00,1,2500000.00),(2,2,'Nguyễn Tường Huy','0987654321','Quận 3, TP.HCM','2024-02-20','active',175.00,70.00,2,4200000.00),(3,3,'Nguyễn Nguyên Bảo','0903456789','Thủ Đức, TP.HCM','2023-11-05','inactive',165.00,70.00,1,1800000.00),(13,9,'test','0786026878','666 Võ Văn Kiệt, Gò Vấp, TP.HCM','2026-02-15','active',180.00,55.00,1,0.00);
+INSERT INTO `members` VALUES (1,1,'Trương Trung Kiên','0912345678','Quận 1, TP.HCM','2024-01-15','active',170.00,65.00,1,2500000.00),(2,2,'Nguyễn Tường Huy','0987654321','Quận 3, TP.HCM','2024-02-20','active',160.00,52.00,2,4200000.00),(3,3,'Nguyễn Nguyên Bảo','0903456789','Thủ Đức, TP.HCM','2023-11-05','inactive',175.00,70.00,1,1800000.00);
 /*!40000 ALTER TABLE `members` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -523,7 +516,7 @@ CREATE TABLE `membership_packages` (
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
   `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT 'active',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -532,7 +525,6 @@ CREATE TABLE `membership_packages` (
 
 LOCK TABLES `membership_packages` WRITE;
 /*!40000 ALTER TABLE `membership_packages` DISABLE KEYS */;
-INSERT INTO `membership_packages` VALUES (1,'Gói 1 Tháng',1,500000.00,'Tập gym không giới hạn 1 tháng','active'),(2,'Gói 3 Tháng',3,1350000.00,'Tiết kiệm hơn so với gói lẻ','active'),(3,'Gói 6 Tháng',6,2500000.00,'Ưu đãi mạnh cho hội viên lâu dài','active'),(4,'Gói 12 Tháng',12,4800000.00,'Gói năm – rẻ nhất','active'),(6,'test',12,24000.00,'test','active');
 /*!40000 ALTER TABLE `membership_packages` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -566,69 +558,6 @@ LOCK TABLES `notifications` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `nutrition_items`
---
-
-DROP TABLE IF EXISTS `nutrition_items`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `nutrition_items` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `serving_desc` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `calories` int DEFAULT NULL,
-  `protein` decimal(6,2) DEFAULT NULL,
-  `carbs` decimal(6,2) DEFAULT NULL,
-  `fat` decimal(6,2) DEFAULT NULL,
-  `notes` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `status` enum('hoạt động','không hoạt động') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `nutrition_items`
---
-
-LOCK TABLES `nutrition_items` WRITE;
-/*!40000 ALTER TABLE `nutrition_items` DISABLE KEYS */;
-INSERT INTO `nutrition_items` VALUES (1,'Ức gà luộc','100g',165,31.00,0.00,3.60,'Nguồn protein nạc cao, phù hợp cho tăng cơ và giảm mỡ.','hoạt động'),(2,'Cơm trắng','1 chén (150g)',200,4.00,45.00,0.40,'Nguồn tinh bột phổ biến, cung cấp năng lượng nhanh.','hoạt động'),(3,'Trứng gà','1 quả (~50g)',70,6.00,0.60,5.00,'Giàu protein và chất béo tốt, thích hợp cho bữa sáng.','hoạt động'),(4,'Cá hồi áp chảo','100g',208,20.00,0.00,13.00,'Giàu omega-3, hỗ trợ tim mạch và phục hồi cơ bắp.','hoạt động'),(5,'Khoai lang luộc','100g',86,1.60,20.00,0.10,'Tinh bột chậm, giúp no lâu và ổn định đường huyết.','hoạt động'),(6,'test','50',90,6.00,0.60,13.00,'test','hoạt động');
-/*!40000 ALTER TABLE `nutrition_items` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `nutrition_plan_items`
---
-
-DROP TABLE IF EXISTS `nutrition_plan_items`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `nutrition_plan_items` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `nutrition_plan_id` int NOT NULL,
-  `item_id` int NOT NULL,
-  `servings_per_day` decimal(5,2) DEFAULT '1.00',
-  `meal_time` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `note` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_plan` (`nutrition_plan_id`),
-  KEY `idx_item` (`item_id`),
-  CONSTRAINT `fk_plan_item_item` FOREIGN KEY (`item_id`) REFERENCES `nutrition_items` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_plan_item_plan` FOREIGN KEY (`nutrition_plan_id`) REFERENCES `nutrition_plans` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `nutrition_plan_items`
---
-
-LOCK TABLES `nutrition_plan_items` WRITE;
-/*!40000 ALTER TABLE `nutrition_plan_items` DISABLE KEYS */;
-INSERT INTO `nutrition_plan_items` VALUES (1,1,2,1.00,'sáng, chiều, tối','aaaaaaa'),(2,1,1,2.00,'Bữa trưa','Tăng lượng protein chính trong ngày'),(3,1,2,1.50,'Bữa trưa','Bổ sung tinh bột vừa phải'),(4,2,5,2.00,'Bữa sáng','Tinh bột chậm giúp no lâu'),(5,2,3,1.00,'Bữa sáng','Bổ sung protein và chất béo tốt'),(6,3,4,1.50,'Bữa tối','Omega-3 hỗ trợ phục hồi cơ');
-/*!40000 ALTER TABLE `nutrition_plan_items` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
 -- Table structure for table `nutrition_plans`
 --
 
@@ -638,13 +567,13 @@ DROP TABLE IF EXISTS `nutrition_plans`;
 CREATE TABLE `nutrition_plans` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('tăng cân','giảm cân','tư vấn','duy trì','tăng cơ','giảm mỡ','khác') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` enum('tăng cân','giảm cân','tư vấn','duy trì','tăng cơ','giảm mỡ','khác') COLLATE utf8mb4_unicode_ci NOT NULL,
   `calories` int DEFAULT NULL COMMENT 'Tổng calo/ngày',
   `bmi_range` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `status` enum('hoạt động','không hoạt động') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Chế độ dinh dưỡng & tư vấn';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Chế độ dinh dưỡng & tư vấn';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -653,7 +582,6 @@ CREATE TABLE `nutrition_plans` (
 
 LOCK TABLES `nutrition_plans` WRITE;
 /*!40000 ALTER TABLE `nutrition_plans` DISABLE KEYS */;
-INSERT INTO `nutrition_plans` VALUES (1,'Tăng cân cơ bản 2500 Calo','tăng cân',2500,'BMI < 18.5','Chế độ ăn dành cho người gầy, tập trung vào thực phẩm giàu năng lượng, tăng khẩu phần tinh bột và protein.','hoạt động'),(2,'Giảm cân khoa học 1500 Calo','giảm cân',1500,'BMI 23 - 27','Thực đơn giảm calo an toàn, hạn chế đường và chất béo xấu, tăng rau xanh và protein nạc.','hoạt động'),(3,'Tăng cơ chuyên sâu 2800 Calo','tăng cơ',2800,'BMI 18.5 - 24.9','Chế độ ăn giàu protein kết hợp carb phức, phù hợp người tập gym 4-6 buổi/tuần.','hoạt động'),(4,'Giảm mỡ Low-carb 1700 Calo','giảm mỡ',1700,'BMI > 23','Giảm tinh bột nhanh, ưu tiên protein và chất béo tốt, hỗ trợ đốt mỡ hiệu quả.','không hoạt động'),(5,'Tư vấn dinh dưỡng cá nhân hóa','tư vấn',NULL,'Mọi chỉ số BMI','Gói tư vấn 1:1 cùng chuyên gia, xây dựng thực đơn phù hợp thể trạng và mục tiêu.','hoạt động'),(6,'test','giảm cân',3000,'23','test','hoạt động');
 /*!40000 ALTER TABLE `nutrition_plans` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -708,7 +636,7 @@ CREATE TABLE `orders` (
   KEY `address_id` (`address_id`),
   CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`),
   CONSTRAINT `orders_ibfk_2` FOREIGN KEY (`address_id`) REFERENCES `addresses` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -717,7 +645,6 @@ CREATE TABLE `orders` (
 
 LOCK TABLES `orders` WRITE;
 /*!40000 ALTER TABLE `orders` DISABLE KEYS */;
-INSERT INTO `orders` VALUES (1,1,1,'2026-02-18 09:15:00',250000.00,'cash','delivered'),(8,1,11,'2026-02-18 18:50:10',100000.00,'cash','delivered'),(9,2,12,'2026-02-18 11:45:00',125000.00,'cash','delivered'),(10,2,13,'2026-02-18 13:00:00',99000.99,'online','pending'),(11,3,14,'2026-02-18 14:20:00',760000.00,'cash','cancelled');
 /*!40000 ALTER TABLE `orders` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -764,7 +691,7 @@ CREATE TABLE `products` (
   PRIMARY KEY (`id`),
   KEY `fk_product_category` (`category_id`),
   CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -773,7 +700,7 @@ CREATE TABLE `products` (
 
 LOCK TABLES `products` WRITE;
 /*!40000 ALTER TABLE `products` DISABLE KEYS */;
-INSERT INTO `products` VALUES (1,1,'Whey Gold Standard 5lbs','Hộp',20,1850000.00,'active'),(2,1,'Nước khoáng Lavie 500ml','Chai',100,10000.00,'active'),(3,1,'Găng tay tập Gym Adidas','Đôi',15,450000.00,'active'),(4,1,'test_product','chai',30,50000.00,'active');
+INSERT INTO `products` VALUES (1,1,'Whey Gold Standard 5lbs','Hộp',20,1850000.00,'active'),(2,2,'Nước khoáng Lavie 500ml','Chai',100,10000.00,'active'),(3,3,'Găng tay tập Gym Adidas','Đôi',15,450000.00,'active');
 /*!40000 ALTER TABLE `products` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -890,7 +817,7 @@ CREATE TABLE `services` (
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `status` enum('hoạt động','không hoạt động') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Dịch vụ phòng gym';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Dịch vụ phòng gym';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -899,7 +826,6 @@ CREATE TABLE `services` (
 
 LOCK TABLES `services` WRITE;
 /*!40000 ALTER TABLE `services` DISABLE KEYS */;
-INSERT INTO `services` VALUES (3,'test','thư giãn',50000.00,'test','hoạt động'),(4,'test2','thư giãn',70000.00,'test2','hoạt động');
 /*!40000 ALTER TABLE `services` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -945,7 +871,7 @@ CREATE TABLE `suppliers` (
   `address` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -954,7 +880,7 @@ CREATE TABLE `suppliers` (
 
 LOCK TABLES `suppliers` WRITE;
 /*!40000 ALTER TABLE `suppliers` DISABLE KEYS */;
-INSERT INTO `suppliers` VALUES (1,'Công ty Thể Thao Đại Việt','0901234567','123 Lý Thường Kiệt, Q10, TP.HCM','2024-01-27 10:00:00'),(2,'Whey Store VN','0909888777','456 CMT8, Q3, TP.HCM','2024-01-27 10:00:00'),(17,'a','a','a','2026-02-17 10:31:25');
+INSERT INTO `suppliers` VALUES (1,'Công ty Thể Thao Đại Việt','0901234567','123 Lý Thường Kiệt, Q10, TP.HCM','2024-01-27 10:00:00'),(2,'Whey Store VN','0909888777','456 CMT8, Q3, TP.HCM','2024-01-27 10:00:00');
 /*!40000 ALTER TABLE `suppliers` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1008,7 +934,7 @@ CREATE TABLE `trainers` (
   `phone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1017,7 +943,6 @@ CREATE TABLE `trainers` (
 
 LOCK TABLES `trainers` WRITE;
 /*!40000 ALTER TABLE `trainers` DISABLE KEYS */;
-INSERT INTO `trainers` VALUES (1,'test','Nội bộ','0786026878','hoạt động');
 /*!40000 ALTER TABLE `trainers` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1039,7 +964,7 @@ CREATE TABLE `training_schedules` (
   KEY `trainer_id` (`trainer_id`),
   CONSTRAINT `training_schedules_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
   CONSTRAINT `training_schedules_ibfk_2` FOREIGN KEY (`trainer_id`) REFERENCES `trainers` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1048,7 +973,6 @@ CREATE TABLE `training_schedules` (
 
 LOCK TABLES `training_schedules` WRITE;
 /*!40000 ALTER TABLE `training_schedules` DISABLE KEYS */;
-INSERT INTO `training_schedules` VALUES (1,2,1,'2026-02-20 11:00:00','test');
 /*!40000 ALTER TABLE `training_schedules` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1072,7 +996,7 @@ CREATE TABLE `users` (
   UNIQUE KEY `email` (`email`),
   KEY `role_id` (`role_id`),
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1081,7 +1005,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,3,'truongtrungkien','123456','kien@gmail.com','active','2026-01-26 19:05:40'),(2,3,'nguyentuonghuy','123456','huy@gmail.com','active','2026-01-26 19:05:40'),(3,3,'nguyennguyenbao','123456','bao@gmail.com','active','2026-01-26 19:05:40'),(9,6,'test1','123456','test1@gmail.com','active','2026-02-15 11:22:23');
+INSERT INTO `users` VALUES (1,3,'truongtrungkien','123456','kien@gmail.com','active','2026-01-26 19:05:40'),(2,3,'nguyentuonghuy','123456','huy@gmail.com','active','2026-01-26 19:05:40'),(3,3,'nguyennguyenbao','123456','bao@gmail.com','active','2026-01-26 19:05:40');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -1094,4 +1018,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-02-19 18:25:09
+-- Dump completed on 2026-02-05 16:48:27

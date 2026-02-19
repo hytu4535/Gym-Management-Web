@@ -1,26 +1,38 @@
 <?php 
-$page_title = "Quản lý dịch vụ";
+$page_title = "Quản lý chế độ dinh dưỡng";
 require_once '../includes/session.php';
 
 $db = getDB();
 
-// Xử lý thêm dịch vụ
+// Helper: calculate total calories for a plan from items
+function calculatePlanCalories($db, $plan_id) {
+  $stmt = $db->prepare("SELECT SUM(ni.calories * npi.servings_per_day) AS calc
+    FROM nutrition_plan_items npi
+    JOIN nutrition_items ni ON ni.id = npi.item_id
+    WHERE npi.nutrition_plan_id = ?");
+  $stmt->execute([$plan_id]);
+  $row = $stmt->fetch();
+  return ($row && $row['calc']) ? (int)$row['calc'] : null;
+}
+
+// Xử lý thêm chế độ dinh dưỡng
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
         $name = sanitize($_POST['name']);
         $type = $_POST['type'];
-        $price = floatval($_POST['price']);
+        $calories = !empty($_POST['calories']) ? intval($_POST['calories']) : null;
+        $bmi_range = sanitize($_POST['bmi_range']);
         $description = sanitize($_POST['description']);
         $status = $_POST['status'];
 
         try {
-            $stmt = $db->prepare("INSERT INTO services (name, type, price, description, status) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$name, $type, $price, $description, $status]);
-            setFlashMessage('success', 'Thêm dịch vụ thành công!');
+            $stmt = $db->prepare("INSERT INTO nutrition_plans (name, type, calories, bmi_range, description, status) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$name, $type, $calories, $bmi_range, $description, $status]);
+            setFlashMessage('success', 'Thêm chế độ dinh dưỡng thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
         }
-        redirect('services.php');
+        redirect('nutrition_plans.php');
         exit;
     }
 
@@ -28,38 +40,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $id = intval($_POST['id']);
         $name = sanitize($_POST['name']);
         $type = $_POST['type'];
-        $price = floatval($_POST['price']);
+        $calories = !empty($_POST['calories']) ? intval($_POST['calories']) : null;
+        $bmi_range = sanitize($_POST['bmi_range']);
         $description = sanitize($_POST['description']);
         $status = $_POST['status'];
 
         try {
-            $stmt = $db->prepare("UPDATE services SET name = ?, type = ?, price = ?, description = ?, status = ? WHERE id = ?");
-            $stmt->execute([$name, $type, $price, $description, $status, $id]);
-            setFlashMessage('success', 'Cập nhật dịch vụ thành công!');
+            $stmt = $db->prepare("UPDATE nutrition_plans SET name = ?, type = ?, calories = ?, bmi_range = ?, description = ?, status = ? WHERE id = ?");
+            $stmt->execute([$name, $type, $calories, $bmi_range, $description, $status, $id]);
+            setFlashMessage('success', 'Cập nhật chế độ dinh dưỡng thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
         }
-        redirect('services.php');
+        redirect('nutrition_plans.php');
         exit;
     }
 
     if ($_POST['action'] === 'delete') {
         $id = intval($_POST['id']);
         try {
-            $stmt = $db->prepare("DELETE FROM services WHERE id = ?");
+            $stmt = $db->prepare("DELETE FROM nutrition_plans WHERE id = ?");
             $stmt->execute([$id]);
-            setFlashMessage('success', 'Xóa dịch vụ thành công!');
+            setFlashMessage('success', 'Xóa chế độ dinh dưỡng thành công!');
         } catch (PDOException $e) {
-            setFlashMessage('danger', 'Lỗi: Không thể xóa dịch vụ. ' . $e->getMessage());
+            setFlashMessage('danger', 'Lỗi: Không thể xóa chế độ dinh dưỡng. ' . $e->getMessage());
         }
-        redirect('services.php');
+        redirect('nutrition_plans.php');
         exit;
     }
 }
 
-// Lấy danh sách dịch vụ
-$stmt = $db->query("SELECT * FROM services ORDER BY id DESC");
-$services = $stmt->fetchAll();
+// Lấy danh sách chế độ dinh dưỡng
+$stmt = $db->query("SELECT * FROM nutrition_plans ORDER BY id DESC");
+$plans = $stmt->fetchAll();
+
+// Compute calculated calories (from items) for each plan when available
+foreach ($plans as &$plan) {
+  $plan['calculated_calories'] = calculatePlanCalories($db, $plan['id']);
+}
+unset($plan);
 
 // Lấy flash message
 $flash = getFlashMessage();
@@ -75,12 +94,12 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1 class="m-0">Quản lý dịch vụ</h1>
+            <h1 class="m-0">Quản lý chế độ dinh dưỡng</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item active">Dịch vụ</li>
+              <li class="breadcrumb-item active">Chế độ dinh dưỡng</li>
             </ol>
           </div>
         </div>
@@ -103,10 +122,10 @@ include 'layout/sidebar.php';
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title">Danh sách dịch vụ</h3>
+                <h3 class="card-title">Danh sách chế độ dinh dưỡng</h3>
                 <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addServiceModal">
-                    <i class="fas fa-plus"></i> Thêm dịch vụ
+                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addNutritionModal">
+                    <i class="fas fa-plus"></i> Thêm chế độ
                   </button>
                 </div>
               </div>
@@ -115,24 +134,27 @@ include 'layout/sidebar.php';
                   <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Tên dịch vụ</th>
+                    <th>Tên chế độ</th>
                     <th>Loại</th>
-                    <th>Giá (VNĐ)</th>
+                    <th>Calories/ngày</th>
+                    <th>BMI phù hợp</th>
                     <th>Mô tả</th>
                     <th>Trạng thái</th>
                     <th>Hành động</th>
                   </tr>
                   </thead>
                   <tbody>
-                  <?php foreach ($services as $service): ?>
+                  <?php foreach ($plans as $plan): ?>
                   <tr>
-                    <td><?= $service['id'] ?></td>
-                    <td><?= htmlspecialchars($service['name']) ?></td>
-                    <td><?= ucfirst($service['type']) ?></td>
-                    <td><?= formatCurrency($service['price']) ?></td>
-                    <td><?= htmlspecialchars($service['description'] ?? '') ?></td>
+                    <td><?= $plan['id'] ?></td>
+                    <td><?= htmlspecialchars($plan['name']) ?></td>
+                    <td><?= ucfirst($plan['type']) ?></td>
+                    <?php $display_cal = $plan['calculated_calories'] ?? $plan['calories']; ?>
+                    <td><?= $display_cal ? number_format($display_cal) . ' kcal' : '-' ?></td>
+                    <td><?= htmlspecialchars($plan['bmi_range'] ?? '-') ?></td>
+                    <td><?= htmlspecialchars($plan['description'] ?? '') ?></td>
                     <td>
-                      <?php if ($service['status'] === 'hoạt động'): ?>
+                      <?php if ($plan['status'] === 'hoạt động'): ?>
                         <span class="badge badge-success">Hoạt động</span>
                       <?php else: ?>
                         <span class="badge badge-danger">Không hoạt động</span>
@@ -140,19 +162,20 @@ include 'layout/sidebar.php';
                     </td>
                     <td>
                       <button class="btn btn-warning btn-sm btn-edit"
-                        data-id="<?= $service['id'] ?>"
-                        data-name="<?= htmlspecialchars($service['name']) ?>"
-                        data-type="<?= $service['type'] ?>"
-                        data-price="<?= $service['price'] ?>"
-                        data-description="<?= htmlspecialchars($service['description'] ?? '') ?>"
-                        data-status="<?= $service['status'] ?>"
-                        data-toggle="modal" data-target="#editServiceModal">
+                        data-id="<?= $plan['id'] ?>"
+                        data-name="<?= htmlspecialchars($plan['name']) ?>"
+                        data-type="<?= $plan['type'] ?>"
+                        data-calories="<?= $plan['calories'] ?? '' ?>"
+                        data-bmi="<?= htmlspecialchars($plan['bmi_range'] ?? '') ?>"
+                        data-description="<?= htmlspecialchars($plan['description'] ?? '') ?>"
+                        data-status="<?= $plan['status'] ?>"
+                        data-toggle="modal" data-target="#editNutritionModal">
                         <i class="fas fa-edit"></i>
                       </button>
                       <button class="btn btn-danger btn-sm btn-delete"
-                        data-id="<?= $service['id'] ?>"
-                        data-name="<?= htmlspecialchars($service['name']) ?>"
-                        data-toggle="modal" data-target="#deleteServiceModal">
+                        data-id="<?= $plan['id'] ?>"
+                        data-name="<?= htmlspecialchars($plan['name']) ?>"
+                        data-toggle="modal" data-target="#deleteNutritionModal">
                         <i class="fas fa-trash"></i>
                       </button>
                     </td>
@@ -167,36 +190,44 @@ include 'layout/sidebar.php';
       </div>
     </section>
 
-    <!-- Modal Thêm dịch vụ -->
-    <div class="modal fade" id="addServiceModal" tabindex="-1" role="dialog">
+    <!-- Modal Thêm chế độ dinh dưỡng -->
+    <div class="modal fade" id="addNutritionModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="services.php">
+          <form method="POST" action="nutrition_plans.php">
             <input type="hidden" name="action" value="add">
             <div class="modal-header">
-              <h5 class="modal-title">Thêm dịch vụ mới</h5>
+              <h5 class="modal-title">Thêm chế độ dinh dưỡng mới</h5>
               <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
             </div>
             <div class="modal-body">
               <div class="form-group">
-                <label>Tên dịch vụ <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" name="name" placeholder="Nhập tên dịch vụ" required>
+                <label>Tên chế độ <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" name="name" placeholder="Nhập tên chế độ dinh dưỡng" required>
               </div>
               <div class="form-group">
-                <label>Loại dịch vụ <span class="text-danger">*</span></label>
+                <label>Loại <span class="text-danger">*</span></label>
                 <select class="form-control" name="type" required>
-                  <option value="thư giãn">Thư giãn</option>
-                  <option value="xoa bóp">Xoa bóp</option>
-                  <option value="hỗ trợ">Hỗ trợ</option>
+                  <option value="tăng cân">tăng cân</option>
+                  <option value="giảm cân">giảm cân</option>
+                  <option value="tư vấn">tư vấn</option>
+                  <option value="duy trì">duy trì</option>
+                  <option value="tăng cơ">tăng cơ</option>
+                  <option value="giảm mỡ">giảm mỡ</option>
+                  <option value="khác">khác</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Giá (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="price" placeholder="Nhập giá dịch vụ" min="0" step="1000" required>
+                <label>Calories/ngày</label>
+                <input type="number" class="form-control" name="calories" placeholder="Nhập tổng calo/ngày" min="0">
+              </div>
+              <div class="form-group">
+                <label>BMI phù hợp</label>
+                <input type="text" class="form-control" name="bmi_range" placeholder="VD: 18.5 - 25">
               </div>
               <div class="form-group">
                 <label>Mô tả</label>
-                <textarea class="form-control" name="description" rows="3" placeholder="Nhập mô tả dịch vụ"></textarea>
+                <textarea class="form-control" name="description" rows="3" placeholder="Nhập mô tả chi tiết"></textarea>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
@@ -215,33 +246,41 @@ include 'layout/sidebar.php';
       </div>
     </div>
 
-    <!-- Modal Sửa dịch vụ -->
-    <div class="modal fade" id="editServiceModal" tabindex="-1" role="dialog">
+    <!-- Modal Sửa chế độ dinh dưỡng -->
+    <div class="modal fade" id="editNutritionModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="services.php">
+          <form method="POST" action="nutrition_plans.php">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
             <div class="modal-header">
-              <h5 class="modal-title">Sửa dịch vụ</h5>
+              <h5 class="modal-title">Sửa chế độ dinh dưỡng</h5>
               <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
             </div>
             <div class="modal-body">
               <div class="form-group">
-                <label>Tên dịch vụ <span class="text-danger">*</span></label>
+                <label>Tên chế độ <span class="text-danger">*</span></label>
                 <input type="text" class="form-control" name="name" id="edit-name" required>
               </div>
               <div class="form-group">
-                <label>Loại dịch vụ <span class="text-danger">*</span></label>
+                <label>Loại <span class="text-danger">*</span></label>
                 <select class="form-control" name="type" id="edit-type" required>
-                  <option value="thư giãn">Thư giãn</option>
-                  <option value="xoa bóp">Xoa bóp</option>
-                  <option value="hỗ trợ">Hỗ trợ</option>
+                  <option value="tăng cân">tăng cân</option>
+                  <option value="giảm cân">giảm cân</option>
+                  <option value="tư vấn">tư vấn</option>
+                  <option value="duy trì">duy trì</option>
+                  <option value="tăng cơ">tăng cơ</option>
+                  <option value="giảm mỡ">giảm mỡ</option>
+                  <option value="khác">khác</option>
                 </select>
               </div>
               <div class="form-group">
-                <label>Giá (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="price" id="edit-price" min="0" step="1000" required>
+                <label>Calories/ngày</label>
+                <input type="number" class="form-control" name="calories" id="edit-calories" min="0">
+              </div>
+              <div class="form-group">
+                <label>BMI phù hợp</label>
+                <input type="text" class="form-control" name="bmi_range" id="edit-bmi">
               </div>
               <div class="form-group">
                 <label>Mô tả</label>
@@ -264,11 +303,11 @@ include 'layout/sidebar.php';
       </div>
     </div>
 
-    <!-- Modal Xóa dịch vụ -->
-    <div class="modal fade" id="deleteServiceModal" tabindex="-1" role="dialog">
+    <!-- Modal Xóa chế độ dinh dưỡng -->
+    <div class="modal fade" id="deleteNutritionModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="services.php">
+          <form method="POST" action="nutrition_plans.php">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="id" id="delete-id">
             <div class="modal-header">
@@ -276,7 +315,7 @@ include 'layout/sidebar.php';
               <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
             </div>
             <div class="modal-body">
-              <p>Bạn có chắc chắn muốn xóa dịch vụ <strong id="delete-name"></strong>?</p>
+              <p>Bạn có chắc chắn muốn xóa chế độ <strong id="delete-name"></strong>?</p>
               <p class="text-danger"><small>Hành động này không thể hoàn tác!</small></p>
             </div>
             <div class="modal-footer">
@@ -300,7 +339,8 @@ $(function() {
     $('#edit-id').val($(this).data('id'));
     $('#edit-name').val($(this).data('name'));
     $('#edit-type').val($(this).data('type'));
-    $('#edit-price').val($(this).data('price'));
+    $('#edit-calories').val($(this).data('calories'));
+    $('#edit-bmi').val($(this).data('bmi'));
     $('#edit-description').val($(this).data('description'));
     $('#edit-status').val($(this).data('status'));
   });

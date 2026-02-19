@@ -43,7 +43,9 @@ if ($is_development) {
 }
 
 // Session configuration
-ini_set('session.cookie_httponly', 1);
-ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
+// Note: Session ini settings moved to avoid "headers already sent" errors
+// These settings should be configured in php.ini or at the start of the application
+// ini_set('session.cookie_httponly', 1);
+// ini_set('session.use_only_cookies', 1);
+// ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
 ?>

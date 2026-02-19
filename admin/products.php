@@ -2,6 +2,14 @@
 $page_title = "Quản lý Sản Phẩm";
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
+require_once '../config/db.php';
+
+$sql = "SELECT p.id, p.name, p.unit, p.stock_quantity, p.selling_price, p.status, c.name AS category_name 
+        FROM products p 
+        LEFT JOIN categories c ON p.category_id = c.id 
+        ORDER BY p.id DESC";
+
+$result = $conn->query($sql);
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -52,48 +60,42 @@ include 'layout/sidebar.php';
                   </tr>
                   </thead>
                   <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>Whey Gold Standard 5lbs</td>
-                    <td><span class="badge badge-primary">Whey Protein</span></td>
-                    <td>Hộp</td>
-                    <td>20</td>
-                    <td>1,850,000</td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>Nước khoáng Lavie 500ml</td>
-                    <td><span class="badge badge-info">Nước uống</span></td>
-                    <td>Chai</td>
-                    <td>100</td>
-                    <td>10,000</td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>3</td>
-                    <td>Găng tay tập Gym Adidas</td>
-                    <td><span class="badge badge-secondary">Phụ kiện</span></td>
-                    <td>Đôi</td>
-                    <td>15</td>
-                    <td>450,000</td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
+                    
+                    <?php 
+                      if ($result && $result->num_rows > 0) {
+                        while($row = $result->fetch_assoc()) {
+                            if ($row['status'] == 'active') {
+                                $statusBadge = '<span class="badge badge-success">Active</span>';
+                            } else {
+                                $statusBadge = '<span class="badge badge-secondary">Inactive</span>';
+                            }                     
+                            $formattedPrice = number_format($row['selling_price'], 0, ',', '.');                                      
+                            echo "<tr>";
+                            echo "  <td>{$row['id']}</td>";
+                            echo "  <td>{$row['name']}</td>";
+                            echo "  <td><span class='badge badge-info'>" . ($row['category_name'] ?? 'Chưa phân loại') . "</span></td>";
+                            echo "  <td>{$row['unit']}</td>";
+                            echo "  <td>{$row['stock_quantity']}</td>"; 
+                            echo "  <td>{$formattedPrice}</td>";       
+                            echo "  <td>{$statusBadge}</td>";
+                            echo "  <td>
+                                      <a href='product_edit.php?id={$row['id']}' 
+                                        class='btn btn-warning btn-sm' title='Sửa'>
+                                        <i class='fas fa-edit'></i>
+                                      </a>
+                                      <a href='./process/product_delete.php?id={$row['id']}'    
+                                        class='btn btn-danger btn-sm'    
+                                        onclick=\"return confirm('Bạn có chắc chắn muốn xóa sản phẩm này không?');\">   
+                                        <i class='fas fa-trash'></i>
+                                      </a>
+                                    </td>";
+                            echo "</tr>";
+                        }
+                      } else {
+                          echo "<tr><td colspan='8' class='text-center'>Hiện chưa có sản phẩm nào.</td></tr>";
+                        }
+                  ?>
+
                   </tbody>
                 </table>
               </div>
@@ -103,4 +105,73 @@ include 'layout/sidebar.php';
       </div>
     </section>
 
+<div class="modal fade" id="addProductModal" tabindex="-1" role="dialog" aria-labelledby="addProductModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document"> <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addProductModalLabel">Thêm Sản Phẩm Mới</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form action="process/product_add.php" method="POST">
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="name">Tên Sản Phẩm <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="name" name="name" required placeholder="Nhập tên sản phẩm...">
+              </div>
+              
+              <div class="form-group">
+                <label for="category_id">Danh Mục</label>
+                <select class="form-control" id="category_id" name="category_id">
+                  <option value="">-- Chọn danh mục --</option>
+                  <?php
+                    $cat_sql = "SELECT id, name FROM categories";
+                    $cat_result = $conn->query($cat_sql);
+                    if ($cat_result && $cat_result->num_rows > 0) {
+                        while($cat = $cat_result->fetch_assoc()) {
+                            echo "<option value='{$cat['id']}'>{$cat['name']}</option>";
+                        }
+                    }
+                  ?>
+                </select>
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="unit">Đơn Vị Tính</label>
+                <input type="text" class="form-control" id="unit" name="unit" placeholder="hộp, chai, cái...">
+              </div>
+
+              <div class="form-group">
+                <label for="selling_price">Giá Bán Lẻ (VNĐ) <span class="text-danger">*</span></label>
+                <input type="number" class="form-control" id="selling_price" name="selling_price" required min="0" value="0">
+              </div>
+
+              <div class="form-group">
+                <label for="stock_quantity">Số Lượng Tồn Kho</label>
+                <input type="number" class="form-control" id="stock_quantity" name="stock_quantity" min="0" value="0">
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="status">Trạng Thái</label>
+            <select class="form-control" id="status" name="status">
+              <option value="active">Active (Kích hoạt)</option>
+              <option value="inactive">Inactive (Ẩn)</option>
+            </select>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary" name="btn_add_product">Lưu Sản Phẩm</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <?php include 'layout/footer.php'; ?>

@@ -570,7 +570,6 @@ CREATE TABLE `nutrition_plans` (
   `type` enum('thực đơn','tư vấn') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `calories` int DEFAULT NULL COMMENT 'Tổng calo/ngày',
   `bmi_range` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `price` decimal(10,2) DEFAULT NULL,
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `status` enum('hoạt động','không hoạt động') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
   PRIMARY KEY (`id`)

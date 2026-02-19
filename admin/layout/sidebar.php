@@ -142,12 +142,12 @@
               </li>
             </ul>
           </li>
-          <!-- Quản lý Dịch vụ -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition-plans.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition-plans.php'])) ? 'active' : ''; ?>">
+          <!-- Quản lý Dịch vụ và dinh dưỡng -->
+            <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition_plans.php', 'member_services.php', 'member_nutrition_plans.php','nutrition_items.php','nutrition_plan_items.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition_plans.php', 'member_services.php', 'member_nutrition_plans.php','nutrition_items.php','nutrition_plan_items.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-utensils"></i>
               <p>
-                Dịch vụ & Dinh dưỡng
+                Quản lý dịch vụ và dinh dưỡng
                 <i class="fas fa-angle-left right"></i>
               </p>
             </a>
@@ -159,9 +159,33 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a href="nutrition-plans.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'nutrition-plans.php') ? 'active' : ''; ?>">
+                <a href="member_services.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'member_services.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
-                  <p>Chế độ dinh dưỡng</p>
+                  <p>Gán dịch vụ hội viên</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="nutrition_plans.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'nutrition_plans.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Dinh dưỡng</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="nutrition_items.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'nutrition_items.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Danh sách món</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="nutrition_plan_items.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'nutrition_plan_items.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Món trong thực đơn</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="member_nutrition_plans.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'member_nutrition_plans.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Gán dinh dưỡng hội viên</p>
                 </a>
               </li>
             </ul>

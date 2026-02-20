@@ -1,196 +1,119 @@
-<?php include 'layout/header.php'; ?>
+<?php 
+session_start();
+// TODO: Kiểm tra đăng nhập
+// TODO: Lấy thông tin giỏ hàng từ database hoặc session
+include 'layout/header.php'; 
+?>
 
-    <!-- Breadcrumb Section Begin -->
-    <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
-        <div class="container">
-            <div class="row">
-                <div class="col-lg-12 text-center">
-                    <div class="breadcrumb-text">
-                        <h2>Giỏ hàng</h2>
-                        <div class="bt-option">
-                            <a href="./index.php">Trang chủ</a>
-                            <span>Giỏ hàng</span>
-                        </div>
+<!-- Breadcrumb Section Begin -->
+<section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-12 text-center">
+                <div class="breadcrumb-text">
+                    <h2>Giỏ hàng</h2>
+                    <div class="bt-option">
+                        <a href="index.php">Trang chủ</a>
+                        <span>Giỏ hàng</span>
                     </div>
                 </div>
             </div>
         </div>
-    </section>
-    <!-- Breadcrumb Section End -->
+    </div>
+</section>
+<!-- Breadcrumb Section End -->
 
-    <!-- Shopping Cart Section Begin -->
-    <section class="shopping-cart spad">
-        <div class="container">
-            <div class="row">
-                <div class="col-lg-12">
-                    <div class="cart-table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Hình ảnh</th>
-                                    <th>Tên sản phẩm</th>
-                                    <th>Giá</th>
-                                    <th>Số lượng</th>
-                                    <th>Tổng</th>
-                                    <th><i class="fa fa-close"></i></th>
-                                </tr>
-                            </thead>
-                            <tbody id="cart-items">
-                                <!-- Cart items will be loaded here via AJAX -->
-                                <tr>
-                                    <td colspan="6" class="text-center">Đang tải giỏ hàng...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="row">
-                        <div class="col-lg-4">
-                            <div class="cart-buttons">
-                                <a href="./products.php" class="primary-btn continue-shop">Tiếp tục mua hàng</a>
-                            </div>
-                        </div>
-                        <div class="col-lg-4 offset-lg-4">
-                            <div class="proceed-checkout">
-                                <ul>
-                                    <li class="subtotal">Tạm tính <span id="subtotal">0đ</span></li>
-                                    <li class="cart-total">Tổng cộng <span id="total">0đ</span></li>
-                                </ul>
-                                <a href="./checkout.php" class="proceed-btn" id="checkout-btn">Thanh toán</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-    <!-- Shopping Cart Section End -->
-
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        $(document).ready(function() {
-            loadCart();
-
-            // Load cart via AJAX
-            function loadCart() {
-                $.ajax({
-                    url: 'ajax/get-cart.php',
-                    method: 'GET',
-                    dataType: 'json',
-                    success: function(response) {
-                        if (response.success) {
-                            displayCart(response.cart, response.subtotal, response.total);
-                        } else {
-                            $('#cart-items').html('<tr><td colspan="6" class="text-center">Giỏ hàng trống</td></tr>');
-                        }
-                    }
-                });
-            }
-
-            // Display cart
-            function displayCart(items, subtotal, total) {
-                if (items.length === 0) {
-                    $('#cart-items').html('<tr><td colspan="6" class="text-center">Giỏ hàng trống</td></tr>');
-                    $('#checkout-btn').hide();
-                    return;
-                }
-
-                let html = '';
-                items.forEach(function(item) {
-                    html += `
-                        <tr data-cart-id="${item.cart_id}">
-                            <td class="cart-pic">
-                                <img src="${item.image}" alt="${item.name}" style="width:100px; height:100px; object-fit:cover;">
-                            </td>
-                            <td class="cart-title">
-                                <h5><a href="./product-detail.php?id=${item.product_id}">${item.name}</a></h5>
-                            </td>
-                            <td class="p-price">${formatPrice(item.price)}</td>
-                            <td class="qua-col">
-                                <div class="quantity">
-                                    <div class="pro-qty">
-                                        <span class="dec qtybtn" onclick="updateQuantity(${item.cart_id}, ${item.quantity - 1})">-</span>
-                                        <input type="text" value="${item.quantity}" readonly>
-                                        <span class="inc qtybtn" onclick="updateQuantity(${item.cart_id}, ${item.quantity + 1})">+</span>
+<!-- Shopping Cart Section Begin -->
+<section class="shopping-cart-section spad">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-12">
+                <div class="cart-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Hình ảnh</th>
+                                <th>Sản phẩm</th>
+                                <th>Đơn giá</th>
+                                <th>Số lượng</th>
+                                <th>Thành tiền</th>
+                                <th><i class="fa fa-close"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-items">
+                            <!-- TODO: Hiển thị các sản phẩm trong giỏ hàng từ database -->
+                            <tr>
+                                <td class="cart-pic first-row">
+                                    <img src="assets/img/products/product-1.jpg" alt="">
+                                </td>
+                                <td class="cart-title first-row">
+                                    <h5>Tên sản phẩm</h5>
+                                </td>
+                                <td class="p-price first-row">500,000 VNĐ</td>
+                                <td class="qua-col first-row">
+                                    <div class="quantity">
+                                        <div class="pro-qty">
+                                            <span class="dec qtybtn" onclick="updateQuantity(1, 'decrease')">-</span>
+                                            <input type="number" value="1" min="1" data-product-id="1">
+                                            <span class="inc qtybtn" onclick="updateQuantity(1, 'increase')">+</span>
+                                        </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td class="total-price">${formatPrice(item.price * item.quantity)}</td>
-                            <td class="close-td">
-                                <i class="fa fa-close" onclick="removeFromCart(${item.cart_id})" style="cursor:pointer;"></i>
-                            </td>
-                        </tr>
-                    `;
-                });
-                $('#cart-items').html(html);
-                $('#subtotal').text(formatPrice(subtotal));
-                $('#total').text(formatPrice(total));
-                $('#cart-count').text(items.length);
-            }
+                                </td>
+                                <td class="total-price first-row">500,000 VNĐ</td>
+                                <td class="close-td first-row">
+                                    <i class="fa fa-close" onclick="removeFromCart(1)"></i>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="cart-buttons">
+                            <a href="products.php" class="primary-btn continue-shop">Tiếp tục mua hàng</a>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 offset-lg-4">
+                        <div class="proceed-checkout">
+                            <ul>
+                                <li class="subtotal">Tạm tính <span id="subtotal">0 VNĐ</span></li>
+                                <li class="cart-total">Tổng cộng <span id="total">0 VNĐ</span></li>
+                            </ul>
+                            <a href="checkout.php" class="proceed-btn">Thanh toán</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- Shopping Cart Section End -->
 
-            // Format price
-            function formatPrice(price) {
-                return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
-            }
-        });
+<script>
+// TODO: Load cart items từ database
+function loadCart() {
+    // AJAX call to load cart items
+    console.log('Loading cart...');
+}
 
-        // Update quantity
-        function updateQuantity(cartId, newQuantity) {
-            if (newQuantity < 1) return;
-            
-            $.ajax({
-                url: 'ajax/update-cart.php',
-                method: 'POST',
-                data: { cart_id: cartId, quantity: newQuantity },
-                dataType: 'json',
-                success: function(response) {
-                    if (response.success) {
-                        location.reload();
-                    } else {
-                        alert(response.message || 'Có lỗi xảy ra');
-                    }
-                }
-            });
-        }
+// TODO: Update số lượng sản phẩm trong giỏ hàng
+function updateQuantity(productId, action) {
+    // AJAX call to ajax/cart-update.php
+    console.log('Updating quantity:', productId, action);
+}
 
-        // Remove from cart
-        function removeFromCart(cartId) {
-            if (!confirm('Bạn có chắc muốn xóa sản phẩm này?')) return;
-            
-            $.ajax({
-                url: 'ajax/remove-from-cart.php',
-                method: 'POST',
-                data: { cart_id: cartId },
-                dataType: 'json',
-                success: function(response) {
-                    if (response.success) {
-                        location.reload();
-                    } else {
-                        alert(response.message || 'Có lỗi xảy ra');
-                    }
-                }
-            });
-        }
-    </script>
+// TODO: Xóa sản phẩm khỏi giỏ hàng
+function removeFromCart(productId) {
+    if (confirm('Bạn có chắc muốn xóa sản phẩm này?')) {
+        // AJAX call to ajax/cart-remove.php
+        console.log('Removing from cart:', productId);
+    }
+}
 
-    <style>
-        .cart-table { margin-bottom: 30px; }
-        .cart-table table { width: 100%; border-collapse: collapse; }
-        .cart-table th, .cart-table td { padding: 15px; border: 1px solid #ddd; text-align: center; }
-        .cart-table th { background: #f8f8f8; font-weight: 600; }
-        .cart-pic img { width: 100px; height: 100px; object-fit: cover; }
-        .cart-title h5 { margin: 0; font-size: 16px; }
-        .p-price, .total-price { color: #f36100; font-weight: 600; font-size: 16px; }
-        .pro-qty { display: inline-flex; align-items: center; border: 1px solid #ddd; }
-        .pro-qty input { width: 50px; text-align: center; border: none; }
-        .pro-qty .qtybtn { padding: 5px 10px; cursor: pointer; user-select: none; }
-        .close-td i { color: #f36100; font-size: 18px; }
-        .cart-buttons { margin-bottom: 20px; }
-        .continue-shop { display: inline-block; padding: 12px 30px; background: #111; color: white; }
-        .proceed-checkout { background: #f8f8f8; padding: 30px; }
-        .proceed-checkout ul { list-style: none; padding: 0; margin-bottom: 20px; }
-        .proceed-checkout li { display: flex; justify-content: space-between; padding: 10px 0; font-size: 16px; }
-        .proceed-checkout .cart-total { font-weight: 700; font-size: 18px; color: #f36100; border-top: 2px solid #ddd; padding-top: 15px; }
-        .proceed-btn { display: block; width: 100%; padding: 15px; background: #f36100; color: white; text-align: center; font-weight: 700; }
-    </style>
+// Load cart on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadCart();
+});
+</script>
 
 <?php include 'layout/footer.php'; ?>

@@ -117,15 +117,14 @@ DROP TABLE IF EXISTS `cart_items`;
 CREATE TABLE `cart_items` (
   `id` int NOT NULL AUTO_INCREMENT,
   `cart_id` int NOT NULL,
-  `item_type` enum('product','package','service') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `item_id` int NOT NULL,
+  `package_id` int NOT NULL,
   `quantity` int DEFAULT '1',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `unique_cart_item` (`cart_id`,`item_type`,`item_id`),
   KEY `cart_id` (`cart_id`),
-  CONSTRAINT `cart_items_ibfk_1` FOREIGN KEY (`cart_id`) REFERENCES `carts` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=37 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `package_id` (`package_id`),
+  CONSTRAINT `cart_items_ibfk_1` FOREIGN KEY (`cart_id`) REFERENCES `carts` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `cart_items_ibfk_2` FOREIGN KEY (`package_id`) REFERENCES `membership_packages` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -134,7 +133,6 @@ CREATE TABLE `cart_items` (
 
 LOCK TABLES `cart_items` WRITE;
 /*!40000 ALTER TABLE `cart_items` DISABLE KEYS */;
-INSERT INTO `cart_items` VALUES (27,1,'product',1,2,'2026-02-20 00:08:34'),(28,1,'product',2,5,'2026-02-20 00:08:34'),(29,1,'service',3,1,'2026-02-20 00:08:34'),(30,2,'product',3,1,'2026-02-20 00:08:34'),(31,2,'package',1,1,'2026-02-20 00:08:34'),(32,3,'service',4,2,'2026-02-20 00:08:34'),(33,3,'product',4,3,'2026-02-20 00:08:34'),(34,4,'package',2,1,'2026-02-20 00:08:34'),(35,4,'product',1,1,'2026-02-20 00:08:34'),(36,4,'service',3,1,'2026-02-20 00:08:34');
 /*!40000 ALTER TABLE `cart_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -153,7 +151,7 @@ CREATE TABLE `carts` (
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
   CONSTRAINT `carts_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -162,7 +160,6 @@ CREATE TABLE `carts` (
 
 LOCK TABLES `carts` WRITE;
 /*!40000 ALTER TABLE `carts` DISABLE KEYS */;
-INSERT INTO `carts` VALUES (1,1,'2026-02-20 07:08:08','active'),(2,2,'2026-02-20 07:08:08','active'),(3,3,'2026-02-20 07:08:08','active'),(4,13,'2026-02-20 07:08:08','active');
 /*!40000 ALTER TABLE `carts` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -461,7 +458,7 @@ CREATE TABLE `member_tiers` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_tier_name` (`name`),
   UNIQUE KEY `uk_tier_level` (`level`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -670,19 +667,16 @@ DROP TABLE IF EXISTS `order_items`;
 CREATE TABLE `order_items` (
   `id` int NOT NULL AUTO_INCREMENT,
   `order_id` int NOT NULL,
-  `item_type` enum('product','package','service') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `item_id` int NOT NULL,
-  `item_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `price` decimal(15,2) NOT NULL,
+  `package_id` int NOT NULL,
   `quantity` int DEFAULT '1',
-  `discount` decimal(15,2) DEFAULT '0.00',
-  `subtotal` decimal(15,2) GENERATED ALWAYS AS (((`price` * `quantity`) - `discount`)) STORED,
+  `price` decimal(12,2) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `order_id` (`order_id`),
-  KEY `idx_item_lookup` (`item_type`,`item_id`),
-  CONSTRAINT `order_items_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `package_id` (`package_id`),
+  CONSTRAINT `order_items_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `order_items_ibfk_2` FOREIGN KEY (`package_id`) REFERENCES `membership_packages` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -691,7 +685,6 @@ CREATE TABLE `order_items` (
 
 LOCK TABLES `order_items` WRITE;
 /*!40000 ALTER TABLE `order_items` DISABLE KEYS */;
-INSERT INTO `order_items` (`id`, `order_id`, `item_type`, `item_id`, `item_name`, `price`, `quantity`, `discount`, `created_at`) VALUES (1,1,'product',1,'Whey Gold Standard 5lbs',1850000.00,1,100000.00,'2026-02-20 00:09:14'),(2,1,'product',2,'Nước khoáng Lavie 500ml',10000.00,10,0.00,'2026-02-20 00:09:14'),(3,8,'service',3,'test',50000.00,2,0.00,'2026-02-20 00:09:14'),(4,9,'product',3,'Găng tay tập Gym Adidas',450000.00,1,50000.00,'2026-02-20 00:09:14'),(5,10,'package',1,'Gói 1 Tháng',500000.00,1,0.00,'2026-02-20 00:09:14'),(6,10,'product',4,'test_product',50000.00,2,1000.00,'2026-02-20 00:09:14'),(7,11,'package',3,'Gói 6 Tháng',2500000.00,1,200000.00,'2026-02-20 00:09:14'),(8,11,'service',4,'test2',70000.00,3,10000.00,'2026-02-20 00:09:14'),(9,11,'product',1,'Whey Gold Standard 5lbs',1850000.00,1,200000.00,'2026-02-20 00:09:14');
 /*!40000 ALTER TABLE `order_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1101,4 +1094,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-02-20  7:10:10
+-- Dump completed on 2026-02-19 18:25:09

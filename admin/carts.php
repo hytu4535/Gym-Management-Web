@@ -6,11 +6,21 @@ require_once '../config/db.php';
 
 $sql = "SELECT c.id, c.created_at, c.status, m.full_name, 
                COUNT(ci.id) AS total_items,
-               SUM(ci.quantity * pkg.price) AS total_price
+               SUM(
+                   ci.quantity * 
+                   CASE ci.item_type
+                       WHEN 'product' THEN p.selling_price
+                       WHEN 'package' THEN pkg.price
+                       WHEN 'service' THEN s.price
+                       ELSE 0
+                   END
+               ) AS total_price
         FROM carts c
         LEFT JOIN members m ON c.member_id = m.id
         LEFT JOIN cart_items ci ON c.id = ci.cart_id
-        LEFT JOIN membership_packages pkg ON ci.package_id = pkg.id
+        LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
+        LEFT JOIN membership_packages pkg ON ci.item_type = 'package' AND ci.item_id = pkg.id
+        LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
         GROUP BY c.id, c.created_at, c.status, m.full_name
         ORDER BY c.id DESC";
 $result = $conn->query($sql);

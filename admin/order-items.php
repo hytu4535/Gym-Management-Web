@@ -22,9 +22,8 @@ if ($result_order->num_rows == 0) {
 }
 
 $order = $result_order->fetch_assoc();
-$sql_items = "SELECT oi.id AS item_id, oi.quantity, oi.price, mp.package_name AS item_name 
+$sql_items = "SELECT oi.id AS item_id, oi.item_type, oi.item_name, oi.quantity, oi.price, oi.discount, oi.subtotal
               FROM order_items oi
-              LEFT JOIN membership_packages mp ON oi.package_id = mp.id
               WHERE oi.order_id = $order_id";
 $result_items = $conn->query($sql_items);
 ?>
@@ -63,10 +62,12 @@ $result_items = $conn->query($sql_items);
                   <tr>
                     <th>ID</th>
                     <th>Mã đơn hàng</th>
-                    <th>Sản phẩm</th>
+                    <th>Loại</th>
+                    <th>Tên sản phẩm</th>
                     <th>Số lượng</th>
                     <th>Giá</th>
-                    <th>Tổng</th>
+                    <th>Giảm giá</th>
+                    <th>Thành tiền</th>
                   </tr>
                   </thead>
                   <tbody>
@@ -75,21 +76,43 @@ $result_items = $conn->query($sql_items);
                         $orderCode = "#ORD" . str_pad($order_id, 3, "0", STR_PAD_LEFT);
 
                         while($item = $result_items->fetch_assoc()) {
+                            $item_type = $item['item_type'];
+                            $item_type_label = '';
+                            $badge_class = '';
+                            
+                            switch($item_type) {
+                                case 'product':
+                                    $item_type_label = 'Sản phẩm';
+                                    $badge_class = 'badge-success';
+                                    break;
+                                case 'package':
+                                    $item_type_label = 'Gói tập';
+                                    $badge_class = 'badge-primary';
+                                    break;
+                                case 'service':
+                                    $item_type_label = 'Dịch vụ';
+                                    $badge_class = 'badge-warning';
+                                    break;
+                            }
+                            
                             $price = $item['price'];
                             $quantity = $item['quantity'];
-                            $subtotal = $price * $quantity;
+                            $discount = $item['discount'];
+                            $subtotal = $item['subtotal'];
                             
                             echo "<tr>";
                             echo "  <td>{$item['item_id']}</td>";                                    
                             echo "  <td><span class='badge badge-info'>{$orderCode}</span></td>";    
-                            echo "  <td class='text-primary font-weight-bold'>" . ($item['item_name'] ?? 'Gói tập đã bị xóa') . "</td>"; 
+                            echo "  <td><span class='badge {$badge_class}'>{$item_type_label}</span></td>"; 
+                            echo "  <td class='text-primary font-weight-bold'>" . $item['item_name'] . "</td>"; 
                             echo "  <td>{$quantity}</td>";                                           
                             echo "  <td>" . number_format($price, 0, ',', '.') . "đ</td>";         
+                            echo "  <td>" . number_format($discount, 0, ',', '.') . "đ</td>";       
                             echo "  <td class='text-danger font-weight-bold'>" . number_format($subtotal, 0, ',', '.') . "đ</td>"; 
                             echo "</tr>";
                         }
                     } else {
-                        echo "<tr><td colspan='6' class='text-center'>Không có chi tiết mặt hàng cho đơn này.</td></tr>";
+                        echo "<tr><td colspan='8' class='text-center'>Không có chi tiết mặt hàng cho đơn này.</td></tr>";
                     }
                     ?>
                   </tbody>

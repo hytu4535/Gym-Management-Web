@@ -46,11 +46,48 @@ if ($result->num_rows > 0) {
                                 <div class="form-group">
                                     <label>Trạng Thái Đơn Hàng <span class="text-danger">*</span></label>
                                     <select name="status" class="form-control" style="font-weight: bold;">
-                                        <option value="pending" <?php echo ($order['status'] == 'pending') ? 'selected' : ''; ?>>🟡 Chờ xử lý</option>
-                                        <option value="confirmed" <?php echo ($order['status'] == 'confirmed') ? 'selected' : ''; ?>>🔵 Đã xác nhận</option>
-                                        <option value="delivered" <?php echo ($order['status'] == 'delivered') ? 'selected' : ''; ?>>🟢 Đã giao / Hoàn thành</option>
-                                        <option value="cancelled" <?php echo ($order['status'] == 'cancelled') ? 'selected' : ''; ?>>🔴 Đã hủy</option>
+                                        <?php
+                                        // Xác định các trạng thái có thể chuyển đổi
+                                        $current_status = $order['status'];
+                                        $all_statuses = [
+                                            'pending' => '🟡 Chờ xử lý',
+                                            'confirmed' => '🔵 Đã xác nhận',
+                                            'delivered' => '🟢 Đã giao / Hoàn thành',
+                                            'cancelled' => '🔴 Đã hủy'
+                                        ];
+
+                                        // Xác định trạng thái có thể chuyển
+                                        $allowed_statuses = [];
+                                        if ($current_status == 'pending') {
+                                            $allowed_statuses = ['pending', 'confirmed', 'cancelled'];
+                                        } elseif ($current_status == 'confirmed') {
+                                            $allowed_statuses = ['confirmed', 'delivered', 'cancelled'];
+                                        } elseif ($current_status == 'delivered') {
+                                            $allowed_statuses = ['delivered']; // Không thể thay đổi
+                                        } elseif ($current_status == 'cancelled') {
+                                            $allowed_statuses = ['cancelled']; // Không thể thay đổi
+                                        }
+
+                                        foreach ($all_statuses as $status_key => $status_label) {
+                                            $selected = ($current_status == $status_key) ? 'selected' : '';
+                                            $disabled = !in_array($status_key, $allowed_statuses) ? 'disabled' : '';
+                                            echo "<option value='$status_key' $selected $disabled>$status_label</option>";
+                                        }
+                                        ?>
                                     </select>
+                                    <small class="form-text text-muted">
+                                        <?php
+                                        if ($current_status == 'pending') {
+                                            echo "Có thể chuyển sang: Đã xác nhận hoặc Đã hủy";
+                                        } elseif ($current_status == 'confirmed') {
+                                            echo "Có thể chuyển sang: Đã giao hoặc Đã hủy";
+                                        } elseif ($current_status == 'delivered') {
+                                            echo "Đơn hàng đã giao không thể thay đổi trạng thái";
+                                        } elseif ($current_status == 'cancelled') {
+                                            echo "Đơn hàng đã hủy không thể thay đổi trạng thái";
+                                        }
+                                        ?>
+                                    </small>
                                 </div>
                             </div>
                         </div>

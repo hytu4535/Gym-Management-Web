@@ -4,7 +4,7 @@ include 'layout/header.php';
 include 'layout/sidebar.php';
 require_once '../config/db.php';
 
-$sql = "SELECT p.id, p.name, p.unit, p.stock_quantity, p.selling_price, p.status, c.name AS category_name 
+$sql = "SELECT p.id, p.name, p.img, p.unit, p.stock_quantity, p.selling_price, p.status, c.name AS category_name 
         FROM products p 
         LEFT JOIN categories c ON p.category_id = c.id 
         ORDER BY p.id DESC";
@@ -50,6 +50,7 @@ $result = $conn->query($sql);
                   <thead>
                   <tr>
                     <th>ID</th>
+                    <th>Hình ảnh</th>
                     <th>Tên Sản Phẩm</th>
                     <th>Danh Mục</th>
                     <th>Đơn Vị</th>
@@ -69,9 +70,11 @@ $result = $conn->query($sql);
                             } else {
                                 $statusBadge = '<span class="badge badge-secondary">Inactive</span>';
                             }                     
-                            $formattedPrice = number_format($row['selling_price'], 0, ',', '.');                                      
+                            $formattedPrice = number_format($row['selling_price'], 0, ',', '.');   
+                            $imgPath = $row['img'] ? "../assets/uploads/products/{$row['img']}" : "../assets/uploads/products/default-product.jpg";
                             echo "<tr>";
                             echo "  <td>{$row['id']}</td>";
+                            echo "  <td><img src='{$imgPath}' alt='{$row['name']}' style='width: 60px; height: 60px; object-fit: cover; border-radius: 5px;'></td>";
                             echo "  <td>{$row['name']}</td>";
                             echo "  <td><span class='badge badge-info'>" . ($row['category_name'] ?? 'Chưa phân loại') . "</span></td>";
                             echo "  <td>{$row['unit']}</td>";
@@ -85,14 +88,14 @@ $result = $conn->query($sql);
                                       </a>
                                       <a href='./process/product_delete.php?id={$row['id']}'    
                                         class='btn btn-danger btn-sm'    
-                                        onclick=\"return confirm('Bạn có chắc chắn muốn xóa sản phẩm này không?');\">   
+                                        onclick=\"return confirm('⚠️ XÁC NHẬN XÓA SẢN PHẨM\\n\\n📌 Lưu ý:\\n- Nếu đã bán: Sẽ ẨN khỏi website (khách không xem được)\\n- Nếu chưa bán: Sẽ XÓA HOÀN TOÀN khỏi hệ thống\\n\\n❓ Bạn có chắc chắn muốn tiếp tục?');\">   
                                         <i class='fas fa-trash'></i>
                                       </a>
                                     </td>";
                             echo "</tr>";
                         }
                       } else {
-                          echo "<tr><td colspan='8' class='text-center'>Hiện chưa có sản phẩm nào.</td></tr>";
+                          echo "<tr><td colspan='9' class='text-center'>Hiện chưa có sản phẩm nào.</td></tr>";
                         }
                   ?>
 
@@ -113,7 +116,7 @@ $result = $conn->query($sql);
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
-      <form action="process/product_add.php" method="POST">
+      <form action="process/product_add.php" method="POST" enctype="multipart/form-data">
         <div class="modal-body">
           <div class="row">
             <div class="col-md-6">
@@ -136,6 +139,16 @@ $result = $conn->query($sql);
                     }
                   ?>
                 </select>
+              </div>
+              
+              <div class="form-group">
+                <label for="img">Hình Ảnh Sản Phẩm</label>
+                <input type="file" class="form-control-file" id="img" name="img" accept="image/*" onchange="previewImage(event)">
+                <small class="form-text text-muted">Chọn ảnh định dạng JPG, PNG, GIF (tối đa 2MB)</small>
+              </div>
+              
+              <div class="form-group text-center">
+                <img id="imagePreview" src="../assets/uploads/products/default-product.jpg" alt="Preview" style="max-width: 200px; max-height: 200px; display: block; margin: 10px auto; border: 2px dashed #ddd; padding: 5px; border-radius: 5px;">
               </div>
             </div>
 
@@ -174,4 +187,17 @@ $result = $conn->query($sql);
     </div>
   </div>
 </div>
+
+<script>
+// Preview image before upload
+function previewImage(event) {
+    const reader = new FileReader();
+    reader.onload = function() {
+        const output = document.getElementById('imagePreview');
+        output.src = reader.result;
+    };
+    reader.readAsDataURL(event.target.files[0]);
+}
+</script>
+
 <?php include 'layout/footer.php'; ?>

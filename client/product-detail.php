@@ -1,15 +1,12 @@
 <?php 
 require_once '../config/db.php';
 
-// Lấy product_id từ URL
 $product_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($product_id == 0) {
     header('Location: products.php');
     exit;
 }
-
-// Query chi tiết sản phẩm - CHỈ LẤY STATUS = 'active'
 $sql = "SELECT p.*, c.name AS category_name 
         FROM products p 
         LEFT JOIN categories c ON p.category_id = c.id 
@@ -17,18 +14,21 @@ $sql = "SELECT p.*, c.name AS category_name
 $result = $conn->query($sql);
 
 if ($result->num_rows == 0) {
-    // Sản phẩm không tồn tại hoặc đã bị ẩn
     echo "<script>alert('Sản phẩm không tồn tại hoặc đã ngừng kinh doanh!'); window.location.href='products.php';</script>";
     exit;
 }
 
 $product = $result->fetch_assoc();
-$imgPath = $product['img'] ? "../assets/uploads/products/{$product['img']}" : "../assets/uploads/products/default-product.jpg";
+
+$imageFile = $product['img'] ?? null;
+$imgPath = $imageFile ? "../assets/uploads/products/{$imageFile}" : "../assets/uploads/products/default-product.jpg";
+
+$unit = $product['unit'] ?? 'Sản phẩm';
+$stock = $product['stock_quantity'] ?? 0;
 
 include 'layout/header.php'; 
 ?>
 
-<!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
     <div class="container">
         <div class="row">
@@ -45,9 +45,6 @@ include 'layout/header.php';
         </div>
     </div>
 </section>
-<!-- Breadcrumb Section End -->
-
-<!-- Product Details Section Begin -->
 <section class="product-details-section spad">
     <div class="container">
         <div class="row">
@@ -63,13 +60,13 @@ include 'layout/header.php';
                         <h3><?php echo $product['name']; ?></h3>
                     </div>
                     <div class="pd-desc">
-                        <h4><?php echo number_format($product['selling_price'], 0, ',', '.'); ?> VNĐ</h4>
-                        <p><strong>Đơn vị:</strong> <?php echo $product['unit']; ?></p>
-                        <p><strong>Còn lại:</strong> <?php echo $product['stock_quantity']; ?> <?php echo $product['unit']; ?></p>
+                        <h4><?php echo number_format($product['selling_price'] ?? 0, 0, ',', '.'); ?> VNĐ</h4>
+                        <p><strong>Đơn vị:</strong> <?php echo $unit; ?></p>
+                        <p><strong>Còn lại:</strong> <?php echo $stock; ?> <?php echo $unit; ?></p>
                     </div>
                     <div class="quantity">
                         <div class="pro-qty">
-                            <input type="number" value="1" min="1" max="<?php echo $product['stock_quantity']; ?>" id="quantity">
+                            <input type="number" value="1" min="1" max="<?php echo $stock; ?>" id="quantity">
                         </div>
                         <a href="#" class="primary-btn pd-cart" onclick="addToCart(<?php echo $product['id']; ?>); return false;">Thêm vào giỏ</a>
                     </div>
@@ -95,36 +92,51 @@ include 'layout/header.php';
             <div class="tab-content">
                 <div class="tab-pane active" id="tabs-1" role="tabpanel">
                     <div class="product-content">
-                        <!-- TODO: Hiển thị mô tả chi tiết từ database -->
-                        <p>Mô tả chi tiết sản phẩm...</p>
+                        <p><?php echo $product['description'] ?? 'Chưa có mô tả cho sản phẩm này.'; ?></p>
                     </div>
                 </div>
                 <div class="tab-pane" id="tabs-2" role="tabpanel">
                     <div class="product-content">
-                        <!-- TODO: Hiển thị thông số kỹ thuật -->
-                        <p>Thông số kỹ thuật...</p>
+                        <p>Đang cập nhật...</p>
                     </div>
                 </div>
                 <div class="tab-pane" id="tabs-3" role="tabpanel">
                     <div class="product-content">
-                        <!-- TODO: Hiển thị các đánh giá -->
-                        <p>Đánh giá...</p>
+                        <p>Đang cập nhật...</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </section>
-<!-- Product Details Section End -->
-
 <script>
-function addToCart() {
-    // TODO: Implement AJAX để thêm sản phẩm vào giỏ hàng
-    var productId = <?php echo isset($_GET['id']) ? $_GET['id'] : 0; ?>;
+
+function addToCart(productId) {
     var quantity = document.getElementById('quantity').value;
-    
-    console.log('Adding to cart: Product ID ' + productId + ', Quantity: ' + quantity);
-    // AJAX call to ajax/cart-add.php
+    var formData = new FormData();
+    formData.append('product_id', productId);
+    formData.append('quantity', quantity);
+    fetch('ajax/cart-add.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success === true) {
+            if (confirm(data.message + "\nBạn có muốn chuyển đến Giỏ hàng để thanh toán không?")) {
+                window.location.href = "cart.php";
+            }
+        } else {
+            alert('Thông báo: ' + data.message);
+            if (data.redirect) {
+                window.location.href = data.redirect;
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Có lỗi xảy ra kết nối với máy chủ, vui lòng thử lại!');
+    });
 }
 </script>
 

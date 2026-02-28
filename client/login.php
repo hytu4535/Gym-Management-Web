@@ -1,10 +1,16 @@
 <?php 
-session_start();
-// TODO: Kiểm tra nếu đã đăng nhập thì redirect về trang chủ
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+if (isset($_SESSION['user_id'])) {
+    header('Location: index.php');
+    exit();
+}
+
 include 'layout/header.php'; 
 ?>
 
-<!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
     <div class="container">
         <div class="row">
@@ -20,9 +26,6 @@ include 'layout/header.php';
         </div>
     </div>
 </section>
-<!-- Breadcrumb Section End -->
-
-<!-- Login Section Begin -->
 <section class="login-section spad">
     <div class="container">
         <div class="row">
@@ -32,11 +35,11 @@ include 'layout/header.php';
                     <form id="login-form">
                         <div class="form-group">
                             <label>Tên đăng nhập hoặc Email <span>*</span></label>
-                            <input type="text" id="username" name="username" required>
+                            <input type="text" id="username" name="username" class="form-control" required>
                         </div>
                         <div class="form-group">
                             <label>Mật khẩu <span>*</span></label>
-                            <input type="password" id="password" name="password" required>
+                            <input type="password" id="password" name="password" class="form-control" required>
                         </div>
                         <div class="form-group">
                             <div class="switch-wrap d-flex justify-content-between">
@@ -51,25 +54,26 @@ include 'layout/header.php';
                                 </div>
                             </div>
                         </div>
-                        <div id="message-container"></div>
-                        <button type="submit" class="site-btn">Đăng nhập</button>
+                        <div id="message-container" class="mt-3 mb-3"></div>
+                        <button type="submit" class="site-btn w-100">Đăng nhập</button>
                     </form>
-                    <div class="switch-login">
-                        <p>Chưa có tài khoản? <a href="register.php">Đăng ký ngay</a></p>
+                    <div class="switch-login mt-4 text-center">
+                        <p>Chưa có tài khoản? <a href="register.php" style="color: #e7ab3c; font-weight: bold;">Đăng ký ngay</a></p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </section>
-<!-- Login Section End -->
-
 <script>
-// TODO: Implement AJAX login
 document.getElementById('login-form').addEventListener('submit', function(e) {
     e.preventDefault();
     
     var formData = new FormData(this);
+    var btnSubmit = this.querySelector('button[type="submit"]');
+    
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = 'Đang xử lý...';
     
     fetch('ajax/login-process.php', {
         method: 'POST',
@@ -84,11 +88,15 @@ document.getElementById('login-form').addEventListener('submit', function(e) {
             }, 1000);
         } else {
             showMessage(data.message, 'error');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = 'Đăng nhập';
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showMessage('Có lỗi xảy ra!', 'error');
+        showMessage('Có lỗi xảy ra kết nối với máy chủ!', 'error');
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = 'Đăng nhập';
     });
 });
 

@@ -6,12 +6,16 @@
 
 // Include main config
 require_once __DIR__ . '/../includes/config.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 
 // Create database connection
-$servername = DB_HOST;
-$username = DB_USER;
-$password = DB_PASS;
-$dbname = DB_NAME;
+$servername = 'localhost';
+$username = 'root';
+$password = '123456';
+$dbname = 'gym_management';
 
 // Create connection using mysqli
 $conn = new mysqli($servername, $username, $password, $dbname);

@@ -1,5 +1,7 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 // Lấy trang hiện tại để active menu
 $current_page = basename($_SERVER['PHP_SELF']);
 
@@ -120,11 +122,11 @@ if (isset($_SESSION['user_id'])) {
                             <a href="search.php" title="Tìm kiếm"><i class="fa fa-search"></i></a>
                         </div>
                         <div class="to-social">
-                            <a href="cart.php" title="Giỏ hàng" style="position: relative;">
+                            <<a href="cart.php" title="Giỏ hàng" style="position: relative;">
                                 <i class="fa fa-shopping-cart"></i>
-                                <?php if ($cart_count > 0): ?>
-                                    <span class="cart-badge" style="position: absolute; top: -8px; right: -8px; background: #f36100; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; display: flex; align-items: center; justify-content: center;"><?php echo $cart_count; ?></span>
-                                <?php endif; ?>
+                                <span class="cart-badge" style="position: absolute; top: -8px; right: -8px; background: #f36100; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; align-items: center; justify-content: center; display: <?php echo (!empty($cart_count) && $cart_count > 0) ? 'flex' : 'none'; ?>;">
+                                    <?php echo $cart_count ?? 0; ?>
+                                </span>
                             </a>
                             <?php if(isset($_SESSION['user_id'])): ?>
                                 <a href="profile.php" title="Tài khoản"><i class="fa fa-user"></i></a>

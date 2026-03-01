@@ -1,6 +1,13 @@
-<?php 
+<?php
+require_once '../includes/functions.php';
+
+$db = getDB();
+
+$usageStmt = $db->query("SELECT pu.id, pu.member_id, pu.promotion_id, pu.order_id, pu.applied_amount, pu.applied_at, m.full_name AS member_name, mt.name AS tier_name, tp.name AS promotion_name FROM promotion_usage pu INNER JOIN members m ON m.id = pu.member_id LEFT JOIN member_tiers mt ON mt.id = m.tier_id INNER JOIN tier_promotions tp ON tp.id = pu.promotion_id ORDER BY pu.applied_at DESC, pu.id DESC");
+$promotionUsages = $usageStmt->fetchAll();
+
 $page_title = "Lịch Sử Sử Dụng Khuyến Mãi";
-include 'layout/header.php'; 
+include 'layout/header.php';
 include 'layout/sidebar.php';
 ?>
 
@@ -47,30 +54,39 @@ include 'layout/sidebar.php';
                   </tr>
                   </thead>
                   <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>Nguyễn Văn A</td>
-                    <td><span class="badge badge-light">Bạc</span></td>
-                    <td>Giảm PT cho hội viên Bạc</td>
-                    <td>#DH001</td>
-                    <td>50,000 VNĐ</td>
-                    <td>05/02/2024 10:30</td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>Trần Thị B</td>
-                    <td><span class="badge badge-warning">Vàng</span></td>
-                    <td>Tặng 1 buổi tập Vàng</td>
-                    <td>#DH002</td>
-                    <td>100,000 VNĐ</td>
-                    <td>06/02/2024 14:20</td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                    </td>
-                  </tr>
+                  <?php if (empty($promotionUsages)): ?>
+                    <tr>
+                      <td colspan="8" class="text-center">Chưa có lịch sử sử dụng khuyến mãi.</td>
+                    </tr>
+                  <?php else: ?>
+                    <?php foreach ($promotionUsages as $usage): ?>
+                      <?php
+                        $tierBadgeClass = 'badge-light';
+                        $tierName = $usage['tier_name'] ?: 'N/A';
+                        if (stripos($tierName, 'Vàng') !== false || stripos($tierName, 'Kim') !== false) {
+                          $tierBadgeClass = 'badge-warning';
+                        } elseif (stripos($tierName, 'Bạc') !== false) {
+                          $tierBadgeClass = 'badge-secondary';
+                        }
+
+                        $orderDisplay = $usage['order_id'] ? ('#DH' . str_pad((string) $usage['order_id'], 3, '0', STR_PAD_LEFT)) : 'N/A';
+                      ?>
+                      <tr>
+                        <td><?= $usage['id'] ?></td>
+                        <td><?= htmlspecialchars($usage['member_name']) ?></td>
+                        <td><span class="badge <?= $tierBadgeClass ?>"><?= htmlspecialchars($tierName) ?></span></td>
+                        <td><?= htmlspecialchars($usage['promotion_name']) ?></td>
+                        <td><?= $orderDisplay ?></td>
+                        <td><?= number_format((float) $usage['applied_amount'], 0, ',', '.') ?> VNĐ</td>
+                        <td><?= date('d/m/Y H:i', strtotime($usage['applied_at'])) ?></td>
+                        <td>
+                          <button type="button" class="btn btn-info btn-sm" title="ID hội viên: <?= $usage['member_id'] ?> | ID khuyến mãi: <?= $usage['promotion_id'] ?>">
+                            <i class="fas fa-eye"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
                   </tbody>
                 </table>
               </div>

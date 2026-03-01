@@ -1,20 +1,61 @@
-<?php 
-session_start();
-$page_title = "Thông báo";
-include '../includes/config.php';
-include '../includes/database.php';
-include '../includes/functions.php';
+<?php
+require_once '../includes/functions.php';
 
-// Get all users for notification recipient selection
-try {
-    $db = getDB();
-    $stmt = $db->query("SELECT id, name FROM users ORDER BY name");
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    $users = [];
+$db = getDB();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['user_id'])) {
+  $userId = intval($_POST['user_id']);
+  $title = sanitize($_POST['title']);
+  $content = sanitize($_POST['content']);
+
+  $userCheckStmt = $db->prepare("SELECT COUNT(*) FROM users WHERE id = ?");
+  $userCheckStmt->execute([$userId]);
+  if ((int) $userCheckStmt->fetchColumn() === 0) {
+    echo "<script>alert('Người nhận không tồn tại!');window.location='notifications.php';</script>";
+    exit;
+  }
+
+  $insertStmt = $db->prepare("INSERT INTO notifications (user_id, title, content, is_read) VALUES (?, ?, ?, 0)");
+  if ($insertStmt->execute([$userId, $title, $content])) {
+    echo "<script>alert('Tạo thông báo thành công!');window.location='notifications.php';</script>";
+  } else {
+    echo "<script>alert('Lỗi khi tạo thông báo!');window.location='notifications.php';</script>";
+  }
+  exit;
 }
 
-include 'layout/header.php'; 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_read_notification_id'])) {
+  $notificationId = intval($_POST['mark_read_notification_id']);
+  $markReadStmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
+
+  if ($markReadStmt->execute([$notificationId])) {
+    echo "<script>alert('Đã đánh dấu thông báo là đã đọc!');window.location='notifications.php';</script>";
+  } else {
+    echo "<script>alert('Lỗi khi cập nhật trạng thái thông báo!');window.location='notifications.php';</script>";
+  }
+  exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_notification_id'])) {
+  $notificationId = intval($_POST['delete_notification_id']);
+  $deleteStmt = $db->prepare("DELETE FROM notifications WHERE id = ?");
+
+  if ($deleteStmt->execute([$notificationId])) {
+    echo "<script>alert('Xóa thông báo thành công!');window.location='notifications.php';</script>";
+  } else {
+    echo "<script>alert('Lỗi khi xóa thông báo!');window.location='notifications.php';</script>";
+  }
+  exit;
+}
+
+$usersStmt = $db->query("SELECT id, username, email FROM users WHERE status = 'active' ORDER BY username ASC");
+$users = $usersStmt->fetchAll();
+
+$notificationsStmt = $db->query("SELECT n.id, n.title, n.content, n.created_at, n.is_read, u.username, u.email FROM notifications n INNER JOIN users u ON n.user_id = u.id ORDER BY n.id DESC");
+$notifications = $notificationsStmt->fetchAll();
+
+$page_title = "Quản lý Notifications";
+include 'layout/header.php';
 include 'layout/sidebar.php';
 ?>
 
@@ -25,12 +66,12 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1 class="m-0">Quản lý Thông Báo</h1>
+            <h1 class="m-0">Quản lý Notifications</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item active">Thông Báo</li>
+              <li class="breadcrumb-item active">Notifications</li>
             </ol>
           </div>
         </div>
@@ -44,26 +85,55 @@ include 'layout/sidebar.php';
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title">Các Thông Báo</h3>
+                <h3 class="card-title">Danh sách Notifications</h3>
                 <div class="card-tools">
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addNotificationModal">
-                    <i class="fas fa-plus"></i> Gửi Thông Báo
+                    <i class="fas fa-plus"></i> Tạo thông báo
                   </button>
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped table-hover" id="notificationsTable">
-                  <thead class="table-dark">
+                <table class="table table-bordered table-striped data-table">
+                  <thead>
                   <tr>
-                    <th style="width: 50px;">ID</th>
-                    <th>Tiêu Đề</th>
-                    <th>Người Nhận</th>
-                    <th style="width: 130px;">Ngày Tạo</th>
-                    <th style="width: 80px;">Trạng Thái</th>
-                    <th style="width: 120px;">Hành Động</th>
+                    <th>ID</th>
+                    <th>Tiêu đề</th>
+                    <th>Nội dung</th>
+                    <th>Người nhận</th>
+                    <th>Ngày gửi</th>
+                    <th>Trạng thái</th>
+                    <th>Hành động</th>
                   </tr>
                   </thead>
-                  <tbody id="notificationsTableBody">
+                  <tbody>
+                  <?php foreach ($notifications as $notification): ?>
+                  <tr>
+                    <td><?= $notification['id'] ?></td>
+                    <td><?= htmlspecialchars($notification['title']) ?></td>
+                    <td><?= htmlspecialchars($notification['content']) ?></td>
+                    <td><?= htmlspecialchars($notification['username']) ?> (<?= htmlspecialchars($notification['email']) ?>)</td>
+                    <td><?= date('d/m/Y H:i', strtotime($notification['created_at'])) ?></td>
+                    <td>
+                      <?php if ((int) $notification['is_read'] === 1): ?>
+                        <span class="badge badge-success">Đã đọc</span>
+                      <?php else: ?>
+                        <span class="badge badge-warning">Chưa đọc</span>
+                      <?php endif; ?>
+                    </td>
+                    <td>
+                      <?php if ((int) $notification['is_read'] === 0): ?>
+                        <form method="POST" action="notifications.php" style="display:inline-block;">
+                          <input type="hidden" name="mark_read_notification_id" value="<?= $notification['id'] ?>">
+                          <button type="submit" class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
+                        </form>
+                      <?php endif; ?>
+                      <form method="POST" action="notifications.php" style="display:inline-block;">
+                        <input type="hidden" name="delete_notification_id" value="<?= $notification['id'] ?>">
+                        <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
+                      </form>
+                    </td>
+                  </tr>
+                  <?php endforeach; ?>
                   </tbody>
                 </table>
               </div>
@@ -73,151 +143,48 @@ include 'layout/sidebar.php';
       </div>
     </section>
 
-  </div>
+<?php include 'layout/footer.php'; ?>
 
-<!-- Add Notification Modal -->
-<div class="modal fade" id="addNotificationModal" tabindex="-1" role="dialog">
+<div class="modal fade" id="addNotificationModal" tabindex="-1" role="dialog" aria-labelledby="addNotificationModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Gửi Thông Báo</h5>
-        <button type="button" class="close" data-dismiss="modal">
-          <span>&times;</span>
-        </button>
-      </div>
-      <form id="addNotificationForm">
+      <form method="POST" action="notifications.php">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addNotificationModalLabel">Tạo thông báo</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
         <div class="modal-body">
-          <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
-          
+          <?php if (empty($users)): ?>
+            <div class="alert alert-warning mb-3">Chưa có người dùng active để gửi thông báo.</div>
+          <?php endif; ?>
+
           <div class="form-group">
-            <label for="notificationUser">Gửi Tới *</label>
-            <select class="form-control" id="notificationUser" name="user_id" required>
-              <option value="">-- Chọn Người Dùng --</option>
+            <label for="user_id">Người nhận</label>
+            <select class="form-control" id="user_id" name="user_id" required <?= empty($users) ? 'disabled' : '' ?>>
+              <option value="">-- Chọn người nhận --</option>
               <?php foreach ($users as $user): ?>
-                <option value="<?php echo $user['id']; ?>"><?php echo htmlspecialchars($user['name']); ?></option>
+                <option value="<?= $user['id'] ?>"><?= htmlspecialchars($user['username']) ?> (<?= htmlspecialchars($user['email']) ?>)</option>
               <?php endforeach; ?>
             </select>
           </div>
-          
+
           <div class="form-group">
-            <label for="notificationTitle">Tiêu Đề *</label>
-            <input type="text" class="form-control" id="notificationTitle" name="title" required placeholder="Nhập tiêu đề thông báo">
+            <label for="title">Tiêu đề</label>
+            <input type="text" class="form-control" id="title" name="title" required maxlength="255">
           </div>
-          
+
           <div class="form-group">
-            <label for="notificationContent">Nội Dung *</label>
-            <textarea class="form-control" id="notificationContent" name="content" rows="4" required placeholder="Nhập nội dung thông báo..."></textarea>
+            <label for="content">Nội dung</label>
+            <textarea class="form-control" id="content" name="content" rows="4" required></textarea>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
-          <button type="submit" class="btn btn-primary" id="submitNotificationBtn">Gửi Thông Báo</button>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary" <?= empty($users) ? 'disabled' : '' ?>>Gửi thông báo</button>
         </div>
       </form>
     </div>
   </div>
 </div>
-
-<?php include 'layout/footer.php'; ?>
-
-<script>
-$(document).ready(function() {
-    loadNotifications();
-    
-    $('#addNotificationForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        
-        $.ajax({
-            type: 'POST',
-            url: 'send-notification.php',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) {
-                if (response.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Thành công',
-                        text: 'Gửi thông báo thành công',
-                        timer: 1500
-                    });
-                    $('#addNotificationModal').modal('hide');
-                    $('#addNotificationForm')[0].reset();
-                    loadNotifications();
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Lỗi',
-                        text: response.message || 'Có lỗi xảy ra'
-                    });
-                }
-            }
-        });
-    });
-});
-
-function loadNotifications() {
-    $.ajax({
-        type: 'GET',
-        url: 'get-notifications.php',
-        dataType: 'json',
-        success: function(response) {
-            if (response.success) {
-                renderTable(response.data);
-            }
-        }
-    });
-}
-
-function renderTable(notifications) {
-    const tbody = $('#notificationsTableBody');
-    tbody.empty();
-    
-    if (notifications.length === 0) {
-        tbody.append('<tr><td colspan="6" class="text-center">Không có thông báo</td></tr>');
-        return;
-    }
-    
-    notifications.forEach(function(notif) {
-        const createdAt = new Date(notif.created_at).toLocaleDateString('vi-VN');
-        let readBadge = notif.is_read ? '<span class="badge badge-success">Đã đọc</span>' : '<span class="badge badge-warning">Chưa đọc</span>';
-        
-        const row = `
-            <tr>
-                <td>${notif.id}</td>
-                <td>${notif.title}</td>
-                <td>${notif.user_name}</td>
-                <td>${createdAt}</td>
-                <td>${readBadge}</td>
-                <td>
-                    <button class="btn btn-info btn-sm" onclick="viewNotification(${notif.id})" title="Xem">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-        tbody.append(row);
-    });
-}
-
-function viewNotification(id) {
-    $.ajax({
-        type: 'GET',
-        url: 'get-notifications.php?id=' + id,
-        dataType: 'json',
-        success: function(response) {
-            if (response.success) {
-                const notif = response.data;
-                Swal.fire({
-                    title: notif.title,
-                    html: '<div style="text-align: left;">' + notif.content.replace(/\n/g, '<br>') + '</div>',
-                    icon: 'info',
-                    confirmButtonText: 'Đóng'
-                });
-            }
-        }
-    });
-}
-</script>

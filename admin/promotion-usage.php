@@ -56,7 +56,14 @@ include 'layout/sidebar.php';
                   <tbody>
                   <?php if (empty($promotionUsages)): ?>
                     <tr>
-                      <td colspan="8" class="text-center">Chưa có lịch sử sử dụng khuyến mãi.</td>
+                      <td class="text-center">-</td>
+                      <td class="text-center">-</td>
+                      <td class="text-center">-</td>
+                      <td class="text-center">Chưa có lịch sử sử dụng khuyến mãi.</td>
+                      <td class="text-center">-</td>
+                      <td class="text-center">-</td>
+                      <td class="text-center">-</td>
+                      <td class="text-center">-</td>
                     </tr>
                   <?php else: ?>
                     <?php foreach ($promotionUsages as $usage): ?>

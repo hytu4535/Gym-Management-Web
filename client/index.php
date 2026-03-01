@@ -1,513 +1,477 @@
-<?php include 'layout/header.php'; ?>
+<?php
+require_once '../includes/functions.php';
 
-<!-- Hero Section Begin -->
-<section class="hero-section">
-    <div class="hs-slider owl-carousel">
-        <div class="hs-item set-bg" data-setbg="assets/img/hero/hero-1.jpg">
-            <div class="container">
-                <div class="row">
-                    <div class="col-lg-6 offset-lg-6">
-                        <div class="hi-text">
-                            <span>Định hình cơ thể bạn</span>
-                            <h1>Hãy <strong>mạnh mẽ</strong> luyện tập chăm chỉ</h1>
-                            <a href="packages.php" class="primary-btn">Xem gói tập</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="hs-item set-bg" data-setbg="assets/img/hero/hero-2.jpg">
-            <div class="container">
-                <div class="row">
-                    <div class="col-lg-6 offset-lg-6">
-                        <div class="hi-text">
-                            <span>Định hình cơ thể bạn</span>
-                            <h1>Hãy <strong>mạnh mẽ</strong> luyện tập chăm chỉ</h1>
-                            <a href="packages.php" class="primary-btn">Xem gói tập</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-<!-- Hero Section End -->
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-<!-- ChoseUs Section Begin -->
-<section class="choseus-section spad">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="section-title">
-                    <span>Tại sao chọn chúng tôi?</span>
-                    <h2>ĐẨY GIỚI HẠN CỦA BẠN LÊN CAO HƠN</h2>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-lg-3 col-sm-6">
-                <div class="cs-item">
-                    <span class="flaticon-034-stationary-bike"></span>
-                    <h4>Thiết bị hiện đại</h4>
-                    <p>Trang bị đầy đủ các thiết bị tập luyện hiện đại, chất lượng cao từ các thương hiệu hàng đầu.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="cs-item">
-                    <span class="flaticon-033-juice"></span>
-                    <h4>Chế độ dinh dưỡng</h4>
-                    <p>Kế hoạch dinh dưỡng khoa học, phù hợp với từng mục tiêu tập luyện của bạn.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="cs-item">
-                    <span class="flaticon-002-dumbell"></span>
-                    <h4>Kế hoạch tập chuyên nghiệp</h4>
-                    <p>Lộ trình tập luyện được thiết kế bởi các huấn luyện viên chuyên nghiệp có chứng chỉ quốc tế.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="cs-item">
-                    <span class="flaticon-014-heart-beat"></span>
-                    <h4>Phù hợp với nhu cầu</h4>
-                    <p>Chương trình tập luyện được cá nhân hóa theo sức khỏe và mục tiêu của từng học viên.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-<!-- ChoseUs Section End -->
+$db = getDB();
 
-<!-- Classes Section Begin -->
-<section class="classes-section spad">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="section-title">
-                    <span>Lớp học của chúng tôi</span>
-                    <h2>CHÚNG TÔI CÓ THỂ CUNG CẤP</h2>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-1.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>SỨC MẠNH</span>
-                        <h5>Cử tạ</h5>
-                        <a href="classes.php"><i class="fa fa-angle-right"></i></a>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-2.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>CARDIO</span>
-                        <h5>Đạp xe trong nhà</h5>
-                        <a href="classes.php"><i class="fa fa-angle-right"></i></a>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-3.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>SỨC MẠNH</span>
-                        <h5>Kettlebell</h5>
-                        <a href="classes.php"><i class="fa fa-angle-right"></i></a>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-6 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-4.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>CARDIO</span>
-                        <h4>Đạp xe trong nhà</h4>
-                        <a href="classes.php"><i class="fa fa-angle-right"></i></a>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-5.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>LUYỆN TẬP</span>
-                        <h4>Boxing</h4>
-                        <a href="classes.php"><i class="fa fa-angle-right"></i></a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-<!-- ChoseUs Section End -->
+function resolveCurrentMember(PDO $db)
+{
+    $sessionUserId = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
 
-<!-- Banner Section Begin -->
-<section class="banner-section set-bg" data-setbg="assets/img/banner-bg.jpg">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12 text-center">
-                <div class="bs-text">
-                    <h2>Đăng ký ngay để nhận thêm ưu đãi</h2>
-                    <div class="bt-tips">Nơi sức khỏe, sắc đẹp và thể hình gặp nhau.</div>
-                    <a href="contact.php" class="primary-btn  btn-normal">Liên hệ ngay</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-<!-- Banner Section End -->
-
-<!-- Featured Products Section Begin -->
-<section class="featured-products-section spad">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="section-title">
-                    <span>Sản phẩm nổi bật</span>
-                    <h2>SẢN PHẨM BÁN CHẠY</h2>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <!-- TODO: Load sản phẩm nổi bật từ database -->
-            <div class="col-lg-3 col-md-4 col-sm-6">
-                <div class="product-item">
-                    <div class="pi-pic">
-                        <img src="assets/img/products/product-1.jpg" alt="" style="width: 100%; height: 250px; object-fit: cover;">
-                        <div class="sale">Sale</div>
-                        <ul class="pi-links">
-                            <li><a href="product-detail.php?id=1" class="view-btn"><i class="fa fa-eye"></i></a></li>
-                            <li><a href="#" class="add-cart" onclick="addToCart(1); return false;"><i class="fa fa-shopping-cart"></i></a></li>
-                        </ul>
-                    </div>
-                    <div class="pi-text">
-                        <div class="catagory-name">Thực phẩm bổ sung</div>
-                        <a href="product-detail.php?id=1">
-                            <h5>Whey Protein</h5>
-                        </a>
-                        <div class="product-price">
-                            1.200.000 VNĐ
-                            <span>1.500.000 VNĐ</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-4 col-sm-6">
-                <div class="product-item">
-                    <div class="pi-pic">
-                        <img src="assets/img/products/product-2.jpg" alt="" style="width: 100%; height: 250px; object-fit: cover;">
-                        <ul class="pi-links">
-                            <li><a href="product-detail.php?id=2" class="view-btn"><i class="fa fa-eye"></i></a></li>
-                            <li><a href="#" class="add-cart" onclick="addToCart(2); return false;"><i class="fa fa-shopping-cart"></i></a></li>
-                        </ul>
-                    </div>
-                    <div class="pi-text">
-                        <div class="catagory-name">Phụ kiện tập luyện</div>
-                        <a href="product-detail.php?id=2">
-                            <h5>Găng tay tập Gym</h5>
-                        </a>
-                        <div class="product-price">
-                            250.000 VNĐ
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-4 col-sm-6">
-                <div class="product-item">
-                    <div class="pi-pic">
-                        <img src="assets/img/products/product-3.jpg" alt="" style="width: 100%; height: 250px; object-fit: cover;">
-                        <ul class="pi-links">
-                            <li><a href="product-detail.php?id=3" class="view-btn"><i class="fa fa-eye"></i></a></li>
-                            <li><a href="#" class="add-cart" onclick="addToCart(3); return false;"><i class="fa fa-shopping-cart"></i></a></li>
-                        </ul>
-                    </div>
-                    <div class="pi-text">
-                        <div class="catagory-name">Thiết bị tập</div>
-                        <a href="product-detail.php?id=3">
-                            <h5>Tạ tay 5kg</h5>
-                        </a>
-                        <div class="product-price">
-                            350.000 VNĐ
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-4 col-sm-6">
-                <div class="product-item">
-                    <div class="pi-pic">
-                        <img src="assets/img/products/product-4.jpg" alt="" style="width: 100%; height: 250px; object-fit: cover;">
-                        <div class="sale">Hot</div>
-                        <ul class="pi-links">
-                            <li><a href="product-detail.php?id=4" class="view-btn"><i class="fa fa-eye"></i></a></li>
-                            <li><a href="#" class="add-cart" onclick="addToCart(4); return false;"><i class="fa fa-shopping-cart"></i></a></li>
-                        </ul>
-                    </div>
-                    <div class="pi-text">
-                        <div class="catagory-name">Thực phẩm bổ sung</div>
-                        <a href="product-detail.php?id=4">
-                            <h5>Mass Gainer</h5>
-                        </a>
-                        <div class="product-price">
-                            950.000 VNĐ
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-lg-12 text-center">
-                <a href="products.php" class="primary-btn btn-normal">Xem tất cả sản phẩm</a>
-            </div>
-        </div>
-    </div>
-</section>
-<!-- Featured Products Section End -->
-
-<!-- Pricing Section Begin -->
-<section class="pricing-section spad">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="section-title">
-                    <span>Gói tập của chúng tôi</span>
-                    <h2>Chọn gói tập phù hợp với bạn</h2>
-                </div>
-            </div>
-        </div>
-        <div class="row justify-content-center">
-            <div class="col-lg-4 col-md-8">
-                <div class="ps-item">
-                    <h3>Gói Cơ Bản</h3>
-                    <div class="pi-price">
-                        <h2>500.000đ</h2>
-                        <span>1 THÁNG</span>
-                    </div>
-                    <ul>
-                        <li>Tập luyện tự do</li>
-                        <li>Sử dụng thiết bị không giới hạn</li>
-                        <li>Phòng tắm & tủ đồ</li>
-                        <li>Không giới hạn thời gian</li>
-                    </ul>
-                    <a href="packages.php" class="primary-btn pricing-btn">Đăng ký ngay</a>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-8">
-                <div class="ps-item">
-                    <h3>Gói 12 Tháng</h3>
-                    <div class="pi-price">
-                        <h2>5.000.000đ</h2>
-                        <span>12 THÁNG</span>
-                    </div>
-                    <ul>
-                        <li>Tập luyện tự do</li>
-                        <li>Sử dụng thiết bị không giới hạn</li>
-                        <li>Huấn luyện viên cá nhân</li>
-                        <li>Lớp học giảm cân</li>
-                        <li>Phòng tắm & tủ đồ</li>
-                        <li>Không giới hạn thời gian</li>
-                    </ul>
-                    <a href="packages.php" class="primary-btn pricing-btn">Đăng ký ngay</a>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-8">
-                <div class="ps-item">
-                    <h3>Gói 6 Tháng</h3>
-                    <div class="pi-price">
-                        <h2>2.700.000đ</h2>
-                        <span>6 THÁNG</span>
-                    </div>
-                    <ul>
-                        <li>Tập luyện tự do</li>
-                        <li>Sử dụng thiết bị không giới hạn</li>
-                        <li>Huấn luyện viên cá nhân</li>
-                        <li>Lớp học giảm cân</li>
-                        <li>Phòng tắm & tủ đồ</li>
-                        <li>Không giới hạn thời gian</li>
-                    </ul>
-                    <a href="packages.php" class="primary-btn pricing-btn">Đăng ký ngay</a>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-<!-- Pricing Section End -->
-
-<!-- Gallery Section Begin -->
-<div class="gallery-section">
-    <div class="gallery">
-        <div class="grid-sizer"></div>
-        <div class="gs-item grid-wide set-bg" data-setbg="assets/img/gallery/gallery-1.jpg">
-            <a href="assets/img/gallery/gallery-1.jpg" class="thumb-icon image-popup"><i class="fa fa-picture-o"></i></a>
-        </div>
-        <div class="gs-item set-bg" data-setbg="assets/img/gallery/gallery-2.jpg">
-            <a href="assets/img/gallery/gallery-2.jpg" class="thumb-icon image-popup"><i class="fa fa-picture-o"></i></a>
-        </div>
-        <div class="gs-item set-bg" data-setbg="assets/img/gallery/gallery-3.jpg">
-            <a href="assets/img/gallery/gallery-3.jpg" class="thumb-icon image-popup"><i class="fa fa-picture-o"></i></a>
-        </div>
-        <div class="gs-item set-bg" data-setbg="assets/img/gallery/gallery-4.jpg">
-            <a href="assets/img/gallery/gallery-4.jpg" class="thumb-icon image-popup"><i class="fa fa-picture-o"></i></a>
-        </div>
-        <div class="gs-item set-bg" data-setbg="assets/img/gallery/gallery-5.jpg">
-            <a href="assets/img/gallery/gallery-5.jpg" class="thumb-icon image-popup"><i class="fa fa-picture-o"></i></a>
-        </div>
-        <div class="gs-item grid-wide set-bg" data-setbg="assets/img/gallery/gallery-6.jpg">
-            <a href="assets/img/gallery/gallery-6.jpg" class="thumb-icon image-popup"><i class="fa fa-picture-o"></i></a>
-        </div>
-    </div>
-</div>
-<!-- Gallery Section End -->
-
-<!-- Team Section Begin -->
-<section class="team-section spad">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="team-title">
-                    <div class="section-title">
-                        <span>Đội ngũ của chúng tôi</span>
-                        <h2>LUYỆN TẬP CÙNG CHUYÊN GIA</h2>
-                    </div>
-                    <a href="trainers.php" class="primary-btn btn-normal appoinment-btn">Xem tất cả</a>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="ts-slider owl-carousel">
-                <div class="col-lg-4">
-                    <div class="ts-item set-bg" data-setbg="assets/img/team/team-1.jpg">
-                        <div class="ts_text">
-                            <h4>John Doe</h4>
-                            <span>Huấn luyện viên Gym</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-4">
-                    <div class="ts-item set-bg" data-setbg="assets/img/team/team-2.jpg">
-                        <div class="ts_text">
-                            <h4>Jane Smith</h4>
-                            <span>Huấn luyện viên Yoga</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-4">
-                    <div class="ts-item set-bg" data-setbg="assets/img/team/team-3.jpg">
-                        <div class="ts_text">
-                            <h4>Mike Johnson</h4>
-                            <span>Huấn luyện viên Cardio</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-<!-- Team Section End -->
-
-<!-- Get In Touch Section Begin -->
-<div class="gettouch-section">
-    <div class="container">
-        <div class="row">
-            <div class="col-md-4">
-                <div class="gt-text">
-                    <i class="fa fa-map-marker"></i>
-                    <p>123 Đường ABC, Quận 1,<br/> TP. Hồ Chí Minh</p>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="gt-text">
-                    <i class="fa fa-mobile"></i>
-                    <ul>
-                        <li>(028) 1234-5678</li>
-                        <li>(028) 8765-4321</li>
-                    </ul>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="gt-text email">
-                    <i class="fa fa-envelope"></i>
-                    <p>support@gymcenter.vn</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- Get In Touch Section End -->
-
-<script>
-// Function thêm sản phẩm vào giỏ hàng
-function addToCart(productId) {
-    <?php if(!isset($_SESSION['user_id'])): ?>
-        alert('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!');
-        window.location.href = 'login.php';
-        return;
-    <?php endif; ?>
-    
-    // AJAX call to add product to cart
-    fetch('ajax/cart-add.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'product_id=' + productId + '&quantity=1'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            // Update cart count in header if needed
-            if (data.cart_count) {
-                updateCartCount(data.cart_count);
-            }
-        } else {
-            if (data.redirect) {
-                window.location.href = data.redirect;
-            } else {
-                alert(data.message);
-            }
+    if ($sessionUserId > 0) {
+        $stmt = $db->prepare("SELECT * FROM members WHERE users_id = ? LIMIT 1");
+        $stmt->execute([$sessionUserId]);
+        $member = $stmt->fetch();
+        if ($member) {
+            return $member;
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Có lỗi xảy ra!');
+    }
+
+    $memberIdFromQuery = isset($_GET['member_id']) ? intval($_GET['member_id']) : 0;
+    if ($memberIdFromQuery > 0) {
+        $stmt = $db->prepare("SELECT * FROM members WHERE id = ? LIMIT 1");
+        $stmt->execute([$memberIdFromQuery]);
+        $member = $stmt->fetch();
+        if ($member) {
+            return $member;
+        }
+    }
+
+    $fallbackStmt = $db->query("SELECT * FROM members ORDER BY id ASC LIMIT 1");
+    return $fallbackStmt->fetch();
+}
+
+$currentMember = resolveCurrentMember($db);
+?>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Portal - <?php echo APP_NAME; ?></title>
+    <link rel="stylesheet" href="../assets/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="../assets/plugins/fontawesome-free/css/all.min.css">
+    <style>
+        .card-tools-inline {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .small-muted {
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .result-card {
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body class="hold-transition layout-top-nav">
+<div class="wrapper">
+    <nav class="main-header navbar navbar-expand-md navbar-light navbar-white">
+        <div class="container">
+            <a href="index.php" class="navbar-brand">
+                <i class="fas fa-dumbbell text-primary"></i>
+                <span class="brand-text font-weight-light">Gym User Portal</span>
+            </a>
+            <ul class="order-1 order-md-3 navbar-nav navbar-no-expand ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="../index.php"><i class="fas fa-home"></i> Trang chủ</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="content-wrapper">
+        <div class="content-header">
+            <div class="container">
+                <div class="row mb-2">
+                    <div class="col-sm-8">
+                        <h1 class="m-0">Service & Package System</h1>
+                        <?php if ($currentMember): ?>
+                            <small class="small-muted">Đang xem với hội viên: <strong><?php echo htmlspecialchars($currentMember['full_name']); ?></strong> (ID: <?php echo (int) $currentMember['id']; ?>)</small>
+                        <?php else: ?>
+                            <small class="small-muted text-danger">Chưa có dữ liệu hội viên. Vui lòng tạo hội viên trước.</small>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="input-group input-group-sm float-sm-right">
+                            <input type="text" id="globalSearch" class="form-control" placeholder="Search gói tập, dịch vụ, dinh dưỡng, ưu đãi...">
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" id="searchBtn"><i class="fas fa-search"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="container">
+                <div id="alertBox"></div>
+
+                <div class="card card-primary card-outline" id="searchResultsCard" style="display:none;">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-search"></i> Kết quả Search</h3>
+                    </div>
+                    <div class="card-body" id="searchResults"></div>
+                </div>
+
+                <div class="card card-outline card-secondary">
+                    <div class="card-header p-0 border-bottom-0">
+                        <ul class="nav nav-tabs" id="userTabs" role="tablist">
+                            <li class="nav-item"><a class="nav-link active" id="packages-tab" data-toggle="pill" href="#packages" role="tab">Gói tập</a></li>
+                            <li class="nav-item"><a class="nav-link" id="services-tab" data-toggle="pill" href="#services" role="tab">Dịch vụ</a></li>
+                            <li class="nav-item"><a class="nav-link" id="nutrition-tab" data-toggle="pill" href="#nutrition" role="tab">Dinh dưỡng</a></li>
+                            <li class="nav-item"><a class="nav-link" id="promotions-tab" data-toggle="pill" href="#promotions" role="tab">Ưu đãi cá nhân</a></li>
+                            <li class="nav-item"><a class="nav-link" id="feedback-tab" data-toggle="pill" href="#feedback" role="tab">Feedback</a></li>
+                            <li class="nav-item"><a class="nav-link" id="notifications-tab" data-toggle="pill" href="#notifications" role="tab">Thông báo</a></li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="userTabsContent">
+                            <div class="tab-pane fade show active" id="packages" role="tabpanel">
+                                <h5>Danh sách gói tập</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Tên gói</th>
+                                                <th>Thời hạn</th>
+                                                <th>Giá</th>
+                                                <th>Mô tả</th>
+                                                <th>Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="packageTableBody"></tbody>
+                                    </table>
+                                </div>
+                                <hr>
+                                <h6>Gói đã đăng ký</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead>
+                                            <tr>
+                                                <th>Gói</th>
+                                                <th>Bắt đầu</th>
+                                                <th>Kết thúc</th>
+                                                <th>Trạng thái</th>
+                                                <th>Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="registeredPackageTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="services" role="tabpanel">
+                                <h5>Danh sách dịch vụ</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Tên dịch vụ</th>
+                                                <th>Loại</th>
+                                                <th>Giá</th>
+                                                <th>Mô tả</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="serviceTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="nutrition" role="tabpanel">
+                                <h5>Kế hoạch dinh dưỡng</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Tên kế hoạch</th>
+                                                <th>Loại</th>
+                                                <th>Calo</th>
+                                                <th>BMI phù hợp</th>
+                                                <th>Giá</th>
+                                                <th>Mô tả</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="nutritionTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="promotions" role="tabpanel">
+                                <h5>Ưu đãi cá nhân</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Tên ưu đãi</th>
+                                                <th>Loại giảm</th>
+                                                <th>Giá trị</th>
+                                                <th>Thời gian áp dụng</th>
+                                                <th>Lượt dùng tối đa</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="promotionTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="feedback" role="tabpanel">
+                                <h5>Gửi Feedback</h5>
+                                <form id="feedbackForm">
+                                    <div class="form-group">
+                                        <label for="feedbackRating">Đánh giá (1-5)</label>
+                                        <select class="form-control" id="feedbackRating" required>
+                                            <option value="5">5 - Rất tốt</option>
+                                            <option value="4">4 - Tốt</option>
+                                            <option value="3">3 - Bình thường</option>
+                                            <option value="2">2 - Chưa tốt</option>
+                                            <option value="1">1 - Kém</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="feedbackContent">Nội dung</label>
+                                        <textarea class="form-control" id="feedbackContent" rows="4" required></textarea>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Gửi Feedback</button>
+                                </form>
+                                <hr>
+                                <h6>Lịch sử feedback</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead>
+                                            <tr>
+                                                <th>Thời gian</th>
+                                                <th>Đánh giá</th>
+                                                <th>Nội dung</th>
+                                                <th>Trạng thái</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="feedbackTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="notifications" role="tabpanel">
+                                <h5>Thông báo của bạn</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Tiêu đề</th>
+                                                <th>Nội dung</th>
+                                                <th>Thời gian</th>
+                                                <th>Trạng thái</th>
+                                                <th>Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="notificationTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../assets/plugins/jquery/jquery.min.js"></script>
+<script src="../assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script>
+const currentMemberId = <?php echo $currentMember ? (int) $currentMember['id'] : 0; ?>;
+
+function showAlert(type, message) {
+    const html = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">${message}<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button></div>`;
+    $('#alertBox').html(html);
+}
+
+function money(value) {
+    return new Intl.NumberFormat('vi-VN').format(value || 0) + ' VNĐ';
+}
+
+function renderDashboard(data) {
+    const packageRows = (data.packages || []).map(item => {
+        const disabled = item.already_registered ? 'disabled' : '';
+        const btnText = item.already_registered ? 'Đã đăng ký' : 'Đăng ký';
+        const badge = item.already_registered ? '<span class="badge badge-success">Đã đăng ký</span>' : '';
+        return `<tr>
+            <td>${item.package_name} ${badge}</td>
+            <td>${item.duration_months} tháng</td>
+            <td>${money(item.price)}</td>
+            <td>${item.description || ''}</td>
+            <td><button class="btn btn-primary btn-sm register-package-btn" data-id="${item.id}" ${disabled}><i class="fas fa-plus"></i> ${btnText}</button></td>
+        </tr>`;
+    }).join('');
+    $('#packageTableBody').html(packageRows || '<tr><td colspan="5" class="text-center">Chưa có gói tập</td></tr>');
+
+    const regRows = (data.member_packages || []).map(item => `<tr>
+        <td>${item.package_name}</td>
+        <td>${item.start_date}</td>
+        <td>${item.end_date}</td>
+        <td><span class="badge badge-${item.status === 'active' ? 'success' : 'secondary'}">${item.status}</span></td>
+        <td>${item.status === 'active' ? `<button class="btn btn-danger btn-sm cancel-package-btn" data-member-package-id="${item.member_package_id || ''}" data-package-id="${item.package_id || ''}"><i class="fas fa-times"></i> Huỷ đăng ký</button>` : ''}</td>
+    </tr>`).join('');
+    $('#registeredPackageTableBody').html(regRows || '<tr><td colspan="5" class="text-center">Bạn chưa đăng ký gói tập nào</td></tr>');
+
+    const serviceRows = (data.services || []).map(item => `<tr>
+        <td>${item.name}</td><td>${item.type}</td><td>${money(item.price)}</td><td>${item.description || ''}</td>
+    </tr>`).join('');
+    $('#serviceTableBody').html(serviceRows || '<tr><td colspan="4" class="text-center">Chưa có dịch vụ</td></tr>');
+
+    const nutritionRows = (data.nutrition_plans || []).map(item => `<tr>
+        <td>${item.name}</td><td>${item.type}</td><td>${item.calories || '-'}</td><td>${item.bmi_range || '-'}</td><td>${money(item.price || 0)}</td><td>${item.description || ''}</td>
+    </tr>`).join('');
+    $('#nutritionTableBody').html(nutritionRows || '<tr><td colspan="6" class="text-center">Chưa có kế hoạch dinh dưỡng</td></tr>');
+
+    const promoRows = (data.promotions || []).map(item => `<tr>
+        <td>${item.name}</td><td>${item.discount_type}</td><td>${item.discount_value}</td><td>${item.start_date} - ${item.end_date}</td><td>${item.usage_limit || 'Không giới hạn'}</td>
+    </tr>`).join('');
+    $('#promotionTableBody').html(promoRows || '<tr><td colspan="5" class="text-center">Hiện chưa có ưu đãi cá nhân</td></tr>');
+
+    const feedbackRows = (data.feedbacks || []).map(item => `<tr>
+        <td>${item.created_at}</td><td>${item.rating}</td><td>${item.content}</td><td><span class="badge badge-info">${item.status}</span></td>
+    </tr>`).join('');
+    $('#feedbackTableBody').html(feedbackRows || '<tr><td colspan="4" class="text-center">Bạn chưa gửi feedback nào</td></tr>');
+
+    const notiRows = (data.notifications || []).map(item => `<tr>
+        <td>${item.title}</td><td>${item.content}</td><td>${item.created_at}</td>
+        <td>${item.is_read == 1 ? '<span class="badge badge-success">Đã đọc</span>' : '<span class="badge badge-warning">Chưa đọc</span>'}</td>
+        <td>${item.is_read == 1 ? '' : `<button class="btn btn-info btn-sm mark-read-btn" data-id="${item.id}"><i class="fas fa-eye"></i> Đánh dấu đã đọc</button>`}</td>
+    </tr>`).join('');
+    $('#notificationTableBody').html(notiRows || '<tr><td colspan="5" class="text-center">Chưa có thông báo</td></tr>');
+}
+
+function loadDashboard() {
+    if (!currentMemberId) {
+        showAlert('warning', 'Không tìm thấy hội viên để tải dữ liệu.');
+        return;
+    }
+    $.getJSON('api.php', { action: 'dashboard', member_id: currentMemberId }, function(response) {
+        if (!response.success) {
+            showAlert('danger', response.message || 'Không tải được dữ liệu');
+            return;
+        }
+        renderDashboard(response.data);
+    }).fail(function() {
+        showAlert('danger', 'Lỗi kết nối khi tải dữ liệu user.');
     });
 }
 
-// Update cart count badge
-function updateCartCount(count) {
-    var badge = document.querySelector('.cart-badge');
-    if (count > 0) {
-        if (!badge) {
-            var cartLink = document.querySelector('a[href="cart.php"]');
-            if (cartLink) {
-                badge = document.createElement('span');
-                badge.className = 'cart-badge';
-                badge.style.cssText = 'position: absolute; top: -8px; right: -8px; background: #f36100; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; display: flex; align-items: center; justify-content: center;';
-                cartLink.appendChild(badge);
-            }
-        }
-        if (badge) {
-            badge.textContent = count;
-        }
-    } else if (badge) {
-        badge.remove();
+function performSearch() {
+    const keyword = $('#globalSearch').val().trim();
+    if (!keyword) {
+        $('#searchResultsCard').hide();
+        return;
     }
+    $.getJSON('api.php', { action: 'search', member_id: currentMemberId, q: keyword }, function(response) {
+        if (!response.success) {
+            showAlert('danger', response.message || 'Search thất bại');
+            return;
+        }
+        const data = response.data || {};
+        let html = '';
+        const blocks = [
+            { key: 'packages', label: 'Gói tập' },
+            { key: 'services', label: 'Dịch vụ' },
+            { key: 'nutrition_plans', label: 'Dinh dưỡng' },
+            { key: 'promotions', label: 'Ưu đãi cá nhân' }
+        ];
+
+        blocks.forEach(block => {
+            const list = data[block.key] || [];
+            html += `<div class="mb-3"><h6>${block.label} (${list.length})</h6>`;
+            if (!list.length) {
+                html += '<p class="small-muted">Không có kết quả</p></div>';
+                return;
+            }
+            list.forEach(item => {
+                html += `<div class="p-2 mb-2 border rounded result-card"><strong>${item.title || item.name || item.package_name}</strong><br><small>${item.subtitle || item.description || ''}</small></div>`;
+            });
+            html += '</div>';
+        });
+        $('#searchResults').html(html);
+        $('#searchResultsCard').show();
+    }).fail(function() {
+        showAlert('danger', 'Lỗi kết nối khi search.');
+    });
 }
+
+$(document).on('click', '.register-package-btn', function() {
+    const packageId = $(this).data('id');
+    $.post('api.php', { action: 'register_package', member_id: currentMemberId, package_id: packageId }, function(response) {
+        if (response.success) {
+            showAlert('success', response.message || 'Đăng ký gói tập thành công');
+            loadDashboard();
+        } else {
+            showAlert('warning', response.message || 'Không thể đăng ký gói tập');
+        }
+    }, 'json').fail(function() {
+        showAlert('danger', 'Lỗi kết nối khi đăng ký gói tập');
+    });
+});
+
+$(document).on('click', '.cancel-package-btn', function() {
+    const memberPackageId = $(this).data('member-package-id');
+    const packageId = $(this).data('package-id');
+
+    if (!confirm('Bạn có chắc muốn huỷ đăng ký gói tập này?')) {
+        return;
+    }
+
+    $.post('api.php', {
+        action: 'cancel_package',
+        member_id: currentMemberId,
+        member_package_id: memberPackageId,
+        package_id: packageId
+    }, function(response) {
+        if (response.success) {
+            showAlert('success', response.message || 'Huỷ đăng ký gói tập thành công');
+            loadDashboard();
+        } else {
+            showAlert('warning', response.message || 'Không thể huỷ đăng ký gói tập');
+        }
+    }, 'json').fail(function() {
+        showAlert('danger', 'Lỗi kết nối khi huỷ đăng ký gói tập');
+    });
+});
+
+$(document).on('click', '.mark-read-btn', function() {
+    const notificationId = $(this).data('id');
+    $.post('api.php', { action: 'mark_notification_read', member_id: currentMemberId, notification_id: notificationId }, function(response) {
+        if (response.success) {
+            loadDashboard();
+        } else {
+            showAlert('warning', response.message || 'Không thể cập nhật thông báo');
+        }
+    }, 'json');
+});
+
+$('#feedbackForm').on('submit', function(e) {
+    e.preventDefault();
+    const rating = $('#feedbackRating').val();
+    const content = $('#feedbackContent').val().trim();
+    if (!content) {
+        showAlert('warning', 'Vui lòng nhập nội dung feedback');
+        return;
+    }
+    $.post('api.php', { action: 'submit_feedback', member_id: currentMemberId, rating: rating, content: content }, function(response) {
+        if (response.success) {
+            showAlert('success', response.message || 'Gửi feedback thành công');
+            $('#feedbackContent').val('');
+            loadDashboard();
+        } else {
+            showAlert('warning', response.message || 'Không thể gửi feedback');
+        }
+    }, 'json').fail(function() {
+        showAlert('danger', 'Lỗi kết nối khi gửi feedback');
+    });
+});
+
+$('#searchBtn').on('click', performSearch);
+$('#globalSearch').on('keypress', function(e) {
+    if (e.which === 13) {
+        performSearch();
+    }
+});
+
+loadDashboard();
 </script>
-
-<?php include 'layout/footer.php'; ?>
-
+</body>
+</html>

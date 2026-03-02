@@ -282,60 +282,109 @@ function showAlert(type, message) {
     $('#alertBox').html(html);
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function money(value) {
     return new Intl.NumberFormat('vi-VN').format(value || 0) + ' VNĐ';
 }
 
+function emptyRow(colspan, title, hint = '') {
+    const hintHtml = hint ? `<div class="small text-muted mt-1">${escapeHtml(hint)}</div>` : '';
+    return `<tr><td colspan="${colspan}" class="text-center py-4"><strong>${escapeHtml(title)}</strong>${hintHtml}</td></tr>`;
+}
+
+function formatDate(value) {
+    if (!value) {
+        return '-';
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return escapeHtml(value);
+    }
+
+    return parsed.toLocaleDateString('vi-VN');
+}
+
+function promoValueText(item) {
+    const type = String(item.discount_type || '').toLowerCase();
+    const value = item.discount_value;
+
+    if (type === 'percentage') {
+        return `${Number(value || 0)}%`;
+    }
+
+    if (type === 'fixed') {
+        return money(value || 0);
+    }
+
+    return escapeHtml(value);
+}
+
 function renderDashboard(data) {
+    const hasAnyData = ['packages', 'member_packages', 'services', 'nutrition_plans', 'promotions', 'feedbacks', 'notifications']
+        .some(key => Array.isArray(data[key]) && data[key].length > 0);
+
+    if (!hasAnyData) {
+        showAlert('info', 'Hiện chưa có dữ liệu cho hội viên này. Vui lòng thêm gói tập, dịch vụ, kế hoạch dinh dưỡng hoặc thông báo trong hệ thống để hiển thị tại đây.');
+    }
+
     const packageRows = (data.packages || []).map(item => {
         const disabled = item.already_registered ? 'disabled' : '';
         const btnText = item.already_registered ? 'Đã đăng ký' : 'Đăng ký';
         const badge = item.already_registered ? '<span class="badge badge-success">Đã đăng ký</span>' : '';
         return `<tr>
-            <td>${item.package_name} ${badge}</td>
-            <td>${item.duration_months} tháng</td>
+            <td>${escapeHtml(item.package_name)} ${badge}</td>
+            <td>${escapeHtml(item.duration_months)} tháng</td>
             <td>${money(item.price)}</td>
-            <td>${item.description || ''}</td>
+            <td>${escapeHtml(item.description || '')}</td>
             <td><button class="btn btn-primary btn-sm register-package-btn" data-id="${item.id}" ${disabled}><i class="fas fa-plus"></i> ${btnText}</button></td>
         </tr>`;
     }).join('');
-    $('#packageTableBody').html(packageRows || '<tr><td colspan="5" class="text-center">Chưa có gói tập</td></tr>');
+    $('#packageTableBody').html(packageRows || emptyRow(5, 'Chưa có gói tập đang mở bán'));
 
     const regRows = (data.member_packages || []).map(item => `<tr>
-        <td>${item.package_name}</td>
-        <td>${item.start_date}</td>
-        <td>${item.end_date}</td>
-        <td><span class="badge badge-${item.status === 'active' ? 'success' : 'secondary'}">${item.status}</span></td>
+        <td>${escapeHtml(item.package_name)}</td>
+        <td>${formatDate(item.start_date)}</td>
+        <td>${formatDate(item.end_date)}</td>
+        <td><span class="badge badge-${item.status === 'active' ? 'success' : 'secondary'}">${escapeHtml(item.status)}</span></td>
         <td>${item.status === 'active' ? `<button class="btn btn-danger btn-sm cancel-package-btn" data-member-package-id="${item.member_package_id || ''}" data-package-id="${item.package_id || ''}"><i class="fas fa-times"></i> Huỷ đăng ký</button>` : ''}</td>
     </tr>`).join('');
-    $('#registeredPackageTableBody').html(regRows || '<tr><td colspan="5" class="text-center">Bạn chưa đăng ký gói tập nào</td></tr>');
+    $('#registeredPackageTableBody').html(regRows || emptyRow(5, 'Bạn chưa đăng ký gói tập nào', 'Chọn một gói trong danh sách phía trên để đăng ký.'));
 
     const serviceRows = (data.services || []).map(item => `<tr>
-        <td>${item.name}</td><td>${item.type}</td><td>${money(item.price)}</td><td>${item.description || ''}</td>
+        <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.type)}</td><td>${money(item.price)}</td><td>${escapeHtml(item.description || '')}</td>
     </tr>`).join('');
-    $('#serviceTableBody').html(serviceRows || '<tr><td colspan="4" class="text-center">Chưa có dịch vụ</td></tr>');
+    $('#serviceTableBody').html(serviceRows || emptyRow(4, 'Chưa có dịch vụ khả dụng'));
 
     const nutritionRows = (data.nutrition_plans || []).map(item => `<tr>
-        <td>${item.name}</td><td>${item.type}</td><td>${item.calories || '-'}</td><td>${item.bmi_range || '-'}</td><td>${money(item.price || 0)}</td><td>${item.description || ''}</td>
+        <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.calories || '-')}</td><td>${escapeHtml(item.bmi_range || '-')}</td><td>${money(item.price || 0)}</td><td>${escapeHtml(item.description || '')}</td>
     </tr>`).join('');
-    $('#nutritionTableBody').html(nutritionRows || '<tr><td colspan="6" class="text-center">Chưa có kế hoạch dinh dưỡng</td></tr>');
+    $('#nutritionTableBody').html(nutritionRows || emptyRow(6, 'Chưa có kế hoạch dinh dưỡng', 'Kế hoạch sẽ hiển thị khi được tạo và kích hoạt trong hệ thống.'));
 
     const promoRows = (data.promotions || []).map(item => `<tr>
-        <td>${item.name}</td><td>${item.discount_type}</td><td>${item.discount_value}</td><td>${item.start_date} - ${item.end_date}</td><td>${item.usage_limit || 'Không giới hạn'}</td>
+        <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.discount_type)}</td><td>${promoValueText(item)}</td><td>${formatDate(item.start_date)} - ${formatDate(item.end_date)}</td><td>${item.usage_limit || 'Không giới hạn'}</td>
     </tr>`).join('');
-    $('#promotionTableBody').html(promoRows || '<tr><td colspan="5" class="text-center">Hiện chưa có ưu đãi cá nhân</td></tr>');
+    $('#promotionTableBody').html(promoRows || emptyRow(5, 'Hiện chưa có ưu đãi cá nhân', 'Ưu đãi chỉ xuất hiện khi còn hạn và đúng hạng hội viên của bạn.'));
 
     const feedbackRows = (data.feedbacks || []).map(item => `<tr>
-        <td>${item.created_at}</td><td>${item.rating}</td><td>${item.content}</td><td><span class="badge badge-info">${item.status}</span></td>
+        <td>${escapeHtml(item.created_at)}</td><td>${escapeHtml(item.rating)}</td><td>${escapeHtml(item.content)}</td><td><span class="badge badge-info">${escapeHtml(item.status)}</span></td>
     </tr>`).join('');
-    $('#feedbackTableBody').html(feedbackRows || '<tr><td colspan="4" class="text-center">Bạn chưa gửi feedback nào</td></tr>');
+    $('#feedbackTableBody').html(feedbackRows || emptyRow(4, 'Bạn chưa gửi feedback nào', 'Hãy gửi đánh giá để bộ phận chăm sóc hội viên hỗ trợ tốt hơn.'));
 
     const notiRows = (data.notifications || []).map(item => `<tr>
-        <td>${item.title}</td><td>${item.content}</td><td>${item.created_at}</td>
+        <td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.content)}</td><td>${escapeHtml(item.created_at)}</td>
         <td>${item.is_read == 1 ? '<span class="badge badge-success">Đã đọc</span>' : '<span class="badge badge-warning">Chưa đọc</span>'}</td>
         <td>${item.is_read == 1 ? '' : `<button class="btn btn-info btn-sm mark-read-btn" data-id="${item.id}"><i class="fas fa-eye"></i> Đánh dấu đã đọc</button>`}</td>
     </tr>`).join('');
-    $('#notificationTableBody').html(notiRows || '<tr><td colspan="5" class="text-center">Chưa có thông báo</td></tr>');
+    $('#notificationTableBody').html(notiRows || emptyRow(5, 'Chưa có thông báo nào', 'Thông báo mới sẽ xuất hiện tại đây khi hệ thống gửi đến tài khoản của bạn.'));
 }
 
 function loadDashboard() {
@@ -382,7 +431,7 @@ function performSearch() {
                 return;
             }
             list.forEach(item => {
-                html += `<div class="p-2 mb-2 border rounded result-card"><strong>${item.title || item.name || item.package_name}</strong><br><small>${item.subtitle || item.description || ''}</small></div>`;
+                html += `<div class="p-2 mb-2 border rounded result-card"><strong>${escapeHtml(item.title || item.name || item.package_name)}</strong><br><small>${escapeHtml(item.subtitle || item.description || '')}</small></div>`;
             });
             html += '</div>';
         });
@@ -395,6 +444,10 @@ function performSearch() {
 
 $(document).on('click', '.register-package-btn', function() {
     const packageId = $(this).data('id');
+    if (!packageId) {
+        showAlert('warning', 'Không xác định được gói tập để đăng ký.');
+        return;
+    }
     $.post('api.php', { action: 'register_package', member_id: currentMemberId, package_id: packageId }, function(response) {
         if (response.success) {
             showAlert('success', response.message || 'Đăng ký gói tập thành công');
@@ -440,7 +493,9 @@ $(document).on('click', '.mark-read-btn', function() {
         } else {
             showAlert('warning', response.message || 'Không thể cập nhật thông báo');
         }
-    }, 'json');
+    }, 'json').fail(function() {
+        showAlert('danger', 'Lỗi kết nối khi cập nhật thông báo');
+    });
 });
 
 $('#feedbackForm').on('submit', function(e) {

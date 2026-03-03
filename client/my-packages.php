@@ -59,6 +59,9 @@ $sql = "SELECT mp.*, p.package_name, p.price, p.duration, p.description
                         <a href="my-packages.php" class="sidebar-item active">
                             <i class="fa fa-ticket"></i> Gói tập của tôi
                         </a>
+                        <a href="my-schedules.php" class="sidebar-item">
+                            <i class="fa fa-calendar"></i> Lịch tập của tôi
+                        </a>
                         <a href="order-history.php" class="sidebar-item">
                             <i class="fa fa-shopping-bag"></i> Lịch sử mua hàng
                         </a>

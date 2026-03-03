@@ -193,6 +193,72 @@ INSERT INTO `categories` VALUES (1,'test','test','active');
 UNLOCK TABLES;
 
 --
+-- Table structure for table `class_schedules`
+--
+
+DROP TABLE IF EXISTS `class_schedules`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `class_schedules` (
+  `id`             int          NOT NULL AUTO_INCREMENT,
+  `class_name`     varchar(100) NOT NULL    COMMENT 'Tên lớp tập',
+  `class_type`     varchar(50)  NOT NULL    COMMENT 'cardio, yoga, strength, hiit, boxing...',
+  `trainer_id`     int          DEFAULT NULL,
+  `schedule_time`  varchar(50)  DEFAULT NULL COMMENT 'VD: 06:00 - 07:30',
+  `schedule_days`  varchar(100) DEFAULT NULL COMMENT 'VD: Thứ 2, Thứ 4, Thứ 6',
+  `capacity`       int          DEFAULT 20  COMMENT 'Sức chứa tối đa',
+  `enrolled_count` int          DEFAULT 0   COMMENT 'Số người đã đăng ký',
+  `room`           varchar(50)  DEFAULT NULL COMMENT 'Phòng tập',
+  `status`         enum('active','inactive') DEFAULT 'active',
+  `created_at`     timestamp    NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_class_trainer` (`trainer_id`),
+  KEY `idx_class_status` (`status`),
+  CONSTRAINT `fk_class_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `trainers` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lớp tập nhóm';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `class_schedules`
+--
+
+LOCK TABLES `class_schedules` WRITE;
+/*!40000 ALTER TABLE `class_schedules` DISABLE KEYS */;
+/*!40000 ALTER TABLE `class_schedules` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `class_registrations`
+--
+
+DROP TABLE IF EXISTS `class_registrations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `class_registrations` (
+  `id`            int      NOT NULL AUTO_INCREMENT,
+  `member_id`     int      NOT NULL,
+  `class_id`      int      NOT NULL,
+  `registered_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `status`        enum('active','cancelled') DEFAULT 'active',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_reg` (`member_id`, `class_id`),
+  KEY `idx_reg_member` (`member_id`),
+  KEY `idx_reg_class` (`class_id`),
+  CONSTRAINT `fk_reg_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_reg_class`  FOREIGN KEY (`class_id`)  REFERENCES `class_schedules` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Đăng ký lớp tập nhóm';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `class_registrations`
+--
+
+LOCK TABLES `class_registrations` WRITE;
+/*!40000 ALTER TABLE `class_registrations` DISABLE KEYS */;
+/*!40000 ALTER TABLE `class_registrations` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `equipment`
 --
 
@@ -1057,6 +1123,45 @@ LOCK TABLES `training_schedules` WRITE;
 /*!40000 ALTER TABLE `training_schedules` DISABLE KEYS */;
 INSERT INTO `training_schedules` VALUES (1,2,1,'2026-02-20 11:00:00','test');
 /*!40000 ALTER TABLE `training_schedules` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `member_training_schedules`
+--
+
+DROP TABLE IF EXISTS `member_training_schedules`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `member_training_schedules` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `member_id` int NOT NULL COMMENT 'ID hội viên',
+  `trainer_id` int DEFAULT NULL COMMENT 'ID huấn luyện viên (NULL = tập tự do)',
+  `training_date` datetime NOT NULL COMMENT 'Ngày giờ tập',
+  `duration` int DEFAULT 60 COMMENT 'Thời lượng tập (phút)',
+  `activity_type` varchar(50) DEFAULT NULL COMMENT 'Loại hoạt động: cardio, strength, yoga, hiit, boxing...',
+  `intensity` enum('thấp','trung bình','cao','rất cao') DEFAULT 'trung bình' COMMENT 'Cường độ tập',
+  `calories_burned` int DEFAULT 0 COMMENT 'Lượng calo đốt cháy (ước tính)',
+  `note` text COMMENT 'Ghi chú của PT hoặc hội viên',
+  `status` enum('dự kiến','đang tập','hoàn thành','huỷ') DEFAULT 'dự kiến' COMMENT 'Trạng thái buổi tập',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_member` (`member_id`),
+  KEY `idx_trainer` (`trainer_id`),
+  KEY `idx_training_date` (`training_date`),
+  KEY `idx_status` (`status`),
+  CONSTRAINT `fk_mts_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mts_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `trainers` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch tập cá nhân của hội viên';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `member_training_schedules`
+--
+
+LOCK TABLES `member_training_schedules` WRITE;
+/*!40000 ALTER TABLE `member_training_schedules` DISABLE KEYS */;
+/*!40000 ALTER TABLE `member_training_schedules` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --

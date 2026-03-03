@@ -1,4 +1,42 @@
-<?php include 'layout/header.php'; ?>
+<?php
+if (session_status() === PHP_SESSION_NONE) session_start();
+require_once '../config/db.php';
+
+$member_id = $_SESSION['user_id'] ?? null;
+
+// Lấy danh sách lớp tập nhóm đang mở
+$sql = "SELECT 
+            cs.id,
+            cs.class_name,
+            cs.class_type,
+            cs.schedule_time,
+            cs.schedule_days,
+            cs.capacity,
+            cs.enrolled_count,
+            cs.room,
+            t.full_name AS trainer_name,
+            t.type      AS trainer_type
+        FROM class_schedules cs
+        LEFT JOIN trainers t ON cs.trainer_id = t.id
+        WHERE cs.status = 'active'
+        ORDER BY cs.id ASC";
+$result = $conn->query($sql);
+
+// Lấy danh sách lớp member đã đăng ký (active)
+$registered_ids = [];
+if ($member_id) {
+    $stmt = $conn->prepare("SELECT class_id FROM class_registrations WHERE member_id = ? AND status = 'active'");
+    $stmt->bind_param("i", $member_id);
+    $stmt->execute();
+    $reg_result = $stmt->get_result();
+    while ($row = $reg_result->fetch_assoc()) {
+        $registered_ids[] = $row['class_id'];
+    }
+    $stmt->close();
+}
+
+include 'layout/header.php';
+?>
 
 <!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
@@ -24,129 +62,102 @@
         <div class="row">
             <div class="col-lg-12">
                 <div class="section-title">
-                    <span>Lớp học của chúng tôi</span>
-                    <h2>CHÚNG TÔI CÓ THỂ CUNG CẤP</h2>
+                    <span>Lịch tập sắp tới</span>
+                    <h2>LỊCH TRÌNH TẬP LUYỆN</h2>
                 </div>
             </div>
         </div>
+
         <div class="row">
+            <?php
+            $type_icons = [
+                'cardio'   => 'fa-heartbeat',
+                'yoga'     => 'fa-leaf',
+                'strength' => 'fa-bold',
+                'hiit'     => 'fa-fire',
+                'boxing'   => 'fa-hand-rock-o',
+            ];
+            $img_counter = 1;
+            if ($result && $result->num_rows > 0):
+                while ($class = $result->fetch_assoc()):
+                    $img_num  = (($img_counter - 1) % 5) + 1;
+                    $img_path = "assets/img/classes/class-{$img_num}.jpg";
+                    $is_full  = $class['enrolled_count'] >= $class['capacity'];
+                    $is_registered = in_array($class['id'], $registered_ids);
+                    $icon = $type_icons[strtolower($class['class_type'] ?? '')] ?? 'fa-dumbbell';
+                    $img_counter++;
+            ?>
             <div class="col-lg-4 col-md-6">
                 <div class="class-item">
                     <div class="ci-pic">
-                        <img src="assets/img/classes/class-1.jpg" alt="">
+                        <img src="<?php echo htmlspecialchars($img_path); ?>" alt="<?php echo htmlspecialchars($class['class_name']); ?>">
                     </div>
                     <div class="ci-text">
-                        <span>SỨC MẠNH</span>
-                        <h5>Cử tạ</h5>
-                        <p>Thời gian: 6:00 - 8:00 (Thứ 2, 4, 6)</p>
-                        <p>Huấn luyện viên: John Doe</p>
+                        <span><i class="fa <?php echo $icon; ?>"></i> <?php echo htmlspecialchars($class['class_type'] ?? ''); ?></span>
+                        <h5><?php echo htmlspecialchars($class['class_name']); ?></h5>
+
+                        <?php if (!empty($class['schedule_days'])): ?>
+                        <p><i class="fa fa-calendar"></i> <?php echo htmlspecialchars($class['schedule_days']); ?></p>
+                        <?php endif; ?>
+
+                        <?php if (!empty($class['schedule_time'])): ?>
+                        <p><i class="fa fa-clock-o"></i> <?php echo htmlspecialchars($class['schedule_time']); ?></p>
+                        <?php endif; ?>
+
+                        <?php if (!empty($class['room'])): ?>
+                        <p><i class="fa fa-map-marker"></i> Phòng: <?php echo htmlspecialchars($class['room']); ?></p>
+                        <?php endif; ?>
+
+                        <p><i class="fa fa-user"></i> HLV: <?php echo htmlspecialchars($class['trainer_name'] ?? 'Chưa có'); ?></p>
+
+                        <p>
+                            <i class="fa fa-users"></i>
+                            Sĩ số: <?php echo $class['enrolled_count']; ?>/<?php echo $class['capacity']; ?>
+                            <?php if ($is_full): ?>
+                            <span style="color:#e74c3c;font-weight:bold;"> — Đã đầy</span>
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                    <!-- Button nằm ngoài ci-text để không bị overflow -->
+                    <div style="padding:10px 20px 20px;">
+                        <?php if ($member_id): ?>
+                            <?php if ($is_registered): ?>
+                            <button class="primary-btn btn-cancel-class"
+                                    data-id="<?php echo $class['id']; ?>"
+                                    style="width:100%;background:#e74c3c;border:none;cursor:pointer;padding:10px;">
+                                <i class="fa fa-times"></i> Hủy đăng ký
+                            </button>
+                            <?php elseif (!$is_full): ?>
+                            <a href="class-register.php?id=<?php echo $class['id']; ?>"
+                               class="primary-btn"
+                               style="display:block;text-align:center;padding:10px;">
+                                <i class="fa fa-check"></i> Đăng ký ngay
+                            </a>
+                            <?php else: ?>
+                            <button class="primary-btn" disabled
+                                    style="width:100%;opacity:0.5;cursor:not-allowed;padding:10px;">
+                                <i class="fa fa-ban"></i> Lớp đã đầy
+                            </button>
+                            <?php endif; ?>
+                        <?php else: ?>
+                        <a href="login.php?redirect=classes.php" class="primary-btn"
+                           style="display:block;text-align:center;padding:10px;">
+                            <i class="fa fa-sign-in"></i> Đăng nhập để đăng ký
+                        </a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-2.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>CARDIO</span>
-                        <h5>Đạp xe trong nhà</h5>
-                        <p>Thời gian: 7:00 - 8:00 (Thứ 3, 5, 7)</p>
-                        <p>Huấn luyện viên: Mike Johnson</p>
-                    </div>
+            <?php
+                endwhile;
+            else:
+            ?>
+            <div class="col-lg-12 text-center">
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle"></i> Hiện tại chưa có lớp tập nào đang mở.
                 </div>
             </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-3.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>SỨC MẠNH</span>
-                        <h5>Kettlebell Power</h5>
-                        <p>Thời gian: 18:00 - 19:00 (Thứ 2, 4, 6)</p>
-                        <p>Huấn luyện viên: David Brown</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-4.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>CARDIO</span>
-                        <h5>Indoor Cycling</h5>
-                        <p>Thời gian: 19:00 - 20:00 (Hàng ngày)</p>
-                        <p>Huấn luyện viên: Emily Wilson</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-5.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>LUYỆN TẬP</span>
-                        <h5>Boxing</h5>
-                        <p>Thời gian: 17:00 - 18:30 (Thứ 3, 5, 7)</p>
-                        <p>Huấn luyện viên: David Brown</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-1.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>YOGA</span>
-                        <h5>Yoga & Pilates</h5>
-                        <p>Thời gian: 8:00 - 9:30 (Thứ 2, 4, 6)</p>
-                        <p>Huấn luyện viên: Jane Smith</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-2.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>DANCE</span>
-                        <h5>Zumba</h5>
-                        <p>Thời gian: 19:00 - 20:00 (Thứ 3, 5)</p>
-                        <p>Huấn luyện viên: Emily Wilson</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-3.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>FITNESS</span>
-                        <h5>Body Combat</h5>
-                        <p>Thời gian: 18:30 - 19:30 (Thứ 2, 4, 6)</p>
-                        <p>Huấn luyện viên: John Doe</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="class-item">
-                    <div class="ci-pic">
-                        <img src="assets/img/classes/class-4.jpg" alt="">
-                    </div>
-                    <div class="ci-text">
-                        <span>STRENGTH</span>
-                        <h5>CrossFit</h5>
-                        <p>Thời gian: 6:00 - 7:30 (Hàng ngày)</p>
-                        <p>Huấn luyện viên: David Brown</p>
-                    </div>
-                </div>
-            </div>
+            <?php endif; ?>
         </div>
     </div>
 </section>
@@ -158,9 +169,9 @@
         <div class="row">
             <div class="col-lg-12 text-center">
                 <div class="bs-text">
-                    <h2>Đăng ký lớp học ngay hôm nay</h2>
-                    <div class="bt-tips">Trải nghiệm lớp học đầu tiên miễn phí.</div>
-                    <a href="contact.php" class="primary-btn btn-normal">Đăng ký ngay</a>
+                    <h2>Đăng ký lịch tập ngay hôm nay</h2>
+                    <div class="bt-tips">Huấn luyện viên cá nhân chuyên nghiệp.</div>
+                    <a href="contact.php" class="primary-btn btn-normal">Liên hệ ngay</a>
                 </div>
             </div>
         </div>
@@ -168,4 +179,36 @@
 </section>
 <!-- Banner Section End -->
 
-<?php include 'layout/footer.php'; ?>
+<?php
+$conn->close();
+include 'layout/footer.php';
+?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    function handleClass(btn, url, successMsg) {
+        const classId = btn.dataset.id;
+        btn.disabled = true;
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'class_id=' + classId
+        })
+        .then(r => r.json())
+        .then(data => {
+            alert(data.message);
+            if (data.success) location.reload();
+            else btn.disabled = false;
+        })
+        .catch(() => { alert('Lỗi kết nối!'); btn.disabled = false; });
+    }
+
+    document.querySelectorAll('.btn-cancel-class').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (confirm('Bạn có chắc muốn hủy đăng ký lớp này?'))
+                handleClass(btn, 'ajax/class-cancel.php', 'Hủy thành công!');
+        });
+    });
+});
+</script>

@@ -35,6 +35,16 @@ function resolveCurrentMember(PDO $db)
 }
 
 $currentMember = resolveCurrentMember($db);
+
+function resolveMemberDisplayName($member)
+{
+    $name = trim((string) ($member['full_name'] ?? ''));
+    if ($name === '' || strpos($name, '?') !== false) {
+        return 'Hoi vien #' . intval($member['id'] ?? 0);
+    }
+
+    return $name;
+}
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -82,7 +92,7 @@ $currentMember = resolveCurrentMember($db);
                     <div class="col-sm-8">
                         <h1 class="m-0">Service & Package System</h1>
                         <?php if ($currentMember): ?>
-                            <small class="small-muted">Đang xem với hội viên: <strong><?php echo htmlspecialchars($currentMember['full_name']); ?></strong> (ID: <?php echo (int) $currentMember['id']; ?>)</small>
+                            <small class="small-muted">Đang xem với hội viên: <strong><?php echo htmlspecialchars(resolveMemberDisplayName($currentMember)); ?></strong> (ID: <?php echo (int) $currentMember['id']; ?>)</small>
                         <?php else: ?>
                             <small class="small-muted text-danger">Chưa có dữ liệu hội viên. Vui lòng tạo hội viên trước.</small>
                         <?php endif; ?>
@@ -184,7 +194,6 @@ $currentMember = resolveCurrentMember($db);
                                                 <th>Loại</th>
                                                 <th>Calo</th>
                                                 <th>BMI phù hợp</th>
-                                                <th>Giá</th>
                                                 <th>Mô tả</th>
                                             </tr>
                                         </thead>
@@ -291,6 +300,17 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function normalizeBrokenText(value, fallback = '') {
+    const text = String(value ?? '').trim();
+    if (!text) {
+        return fallback;
+    }
+    if (text.includes('?')) {
+        return fallback || text;
+    }
+    return text;
+}
+
 function money(value) {
     return new Intl.NumberFormat('vi-VN').format(value || 0) + ' VNĐ';
 }
@@ -340,18 +360,20 @@ function renderDashboard(data) {
         const disabled = item.already_registered ? 'disabled' : '';
         const btnText = item.already_registered ? 'Đã đăng ký' : 'Đăng ký';
         const badge = item.already_registered ? '<span class="badge badge-success">Đã đăng ký</span>' : '';
+        const packageName = normalizeBrokenText(item.package_name, `Goi tap #${item.id || ''}`);
+        const packageDescription = normalizeBrokenText(item.description, 'Mo ta dang duoc cap nhat.');
         return `<tr>
-            <td>${escapeHtml(item.package_name)} ${badge}</td>
+            <td>${escapeHtml(packageName)} ${badge}</td>
             <td>${escapeHtml(item.duration_months)} tháng</td>
             <td>${money(item.price)}</td>
-            <td>${escapeHtml(item.description || '')}</td>
+            <td>${escapeHtml(packageDescription)}</td>
             <td><button class="btn btn-primary btn-sm register-package-btn" data-id="${item.id}" ${disabled}><i class="fas fa-plus"></i> ${btnText}</button></td>
         </tr>`;
     }).join('');
     $('#packageTableBody').html(packageRows || emptyRow(5, 'Chưa có gói tập đang mở bán'));
 
     const regRows = (data.member_packages || []).map(item => `<tr>
-        <td>${escapeHtml(item.package_name)}</td>
+        <td>${escapeHtml(normalizeBrokenText(item.package_name, `Goi tap #${item.package_id || ''}`))}</td>
         <td>${formatDate(item.start_date)}</td>
         <td>${formatDate(item.end_date)}</td>
         <td><span class="badge badge-${item.status === 'active' ? 'success' : 'secondary'}">${escapeHtml(item.status)}</span></td>
@@ -365,9 +387,9 @@ function renderDashboard(data) {
     $('#serviceTableBody').html(serviceRows || emptyRow(4, 'Chưa có dịch vụ khả dụng'));
 
     const nutritionRows = (data.nutrition_plans || []).map(item => `<tr>
-        <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.calories || '-')}</td><td>${escapeHtml(item.bmi_range || '-')}</td><td>${money(item.price || 0)}</td><td>${escapeHtml(item.description || '')}</td>
+        <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.calories || '-')}</td><td>${escapeHtml(item.bmi_range || '-')}</td><td>${escapeHtml(item.description || '')}</td>
     </tr>`).join('');
-    $('#nutritionTableBody').html(nutritionRows || emptyRow(6, 'Chưa có kế hoạch dinh dưỡng', 'Kế hoạch sẽ hiển thị khi được tạo và kích hoạt trong hệ thống.'));
+    $('#nutritionTableBody').html(nutritionRows || emptyRow(5, 'Chưa có kế hoạch dinh dưỡng', 'Kế hoạch sẽ hiển thị khi được tạo và kích hoạt trong hệ thống.'));
 
     const promoRows = (data.promotions || []).map(item => `<tr>
         <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.discount_type)}</td><td>${promoValueText(item)}</td><td>${formatDate(item.start_date)} - ${formatDate(item.end_date)}</td><td>${item.usage_limit || 'Không giới hạn'}</td>

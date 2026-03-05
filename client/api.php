@@ -9,6 +9,105 @@ header('Content-Type: application/json; charset=utf-8');
 
 $db = getDB();
 
+function hasCorruptedText($value)
+{
+    $text = trim((string) $value);
+    return $text !== '' && strpos($text, '?') !== false;
+}
+
+function packageNameFallbackById($packageId)
+{
+    $map = [
+        1 => 'Gói 1 Tháng',
+        2 => 'Gói 3 Tháng',
+        3 => 'Gói 6 Tháng',
+        4 => 'Gói 12 Tháng'
+    ];
+
+    return $map[intval($packageId)] ?? '';
+}
+
+function packageDescriptionFallbackById($packageId)
+{
+    $map = [
+        1 => 'Tập gym không giới hạn 1 tháng',
+        2 => 'Tiết kiệm hơn so với gói lẻ',
+        3 => 'Ưu đãi mạnh cho hội viên lâu dài',
+        4 => 'Gói năm - rẻ nhất'
+    ];
+
+    return $map[intval($packageId)] ?? '';
+}
+
+function normalizeMemberData($member)
+{
+    if (!is_array($member)) {
+        return $member;
+    }
+
+    if (array_key_exists('full_name', $member) && hasCorruptedText($member['full_name'])) {
+        $member['full_name'] = 'Hoi vien #' . intval($member['id'] ?? 0);
+    }
+
+    return $member;
+}
+
+function normalizeDashboardData($data)
+{
+    if (!is_array($data)) {
+        return $data;
+    }
+
+    if (!empty($data['packages']) && is_array($data['packages'])) {
+        foreach ($data['packages'] as &$pkg) {
+            $pkgId = intval($pkg['id'] ?? 0);
+            if (hasCorruptedText($pkg['package_name'] ?? '')) {
+                $fallbackName = packageNameFallbackById($pkgId);
+                $pkg['package_name'] = $fallbackName !== '' ? $fallbackName : ('Goi tap #' . $pkgId);
+            }
+            if (hasCorruptedText($pkg['description'] ?? '')) {
+                $fallbackDesc = packageDescriptionFallbackById($pkgId);
+                $pkg['description'] = $fallbackDesc !== '' ? $fallbackDesc : 'Mo ta dang duoc cap nhat.';
+            }
+        }
+        unset($pkg);
+    }
+
+    if (!empty($data['member_packages']) && is_array($data['member_packages'])) {
+        foreach ($data['member_packages'] as &$memberPkg) {
+            $pkgId = intval($memberPkg['package_id'] ?? 0);
+            if (hasCorruptedText($memberPkg['package_name'] ?? '')) {
+                $fallbackName = packageNameFallbackById($pkgId);
+                $memberPkg['package_name'] = $fallbackName !== '' ? $fallbackName : ('Goi tap #' . $pkgId);
+            }
+        }
+        unset($memberPkg);
+    }
+
+    return $data;
+}
+
+function normalizeSearchData($data)
+{
+    if (!is_array($data)) {
+        return $data;
+    }
+
+    if (!empty($data['packages']) && is_array($data['packages'])) {
+        foreach ($data['packages'] as &$pkg) {
+            if (hasCorruptedText($pkg['title'] ?? '')) {
+                $pkg['title'] = 'Goi tap';
+            }
+            if (hasCorruptedText($pkg['description'] ?? '')) {
+                $pkg['description'] = 'Mo ta dang duoc cap nhat.';
+            }
+        }
+        unset($pkg);
+    }
+
+    return $data;
+}
+
 function jsonResponse($success, $message = '', $data = null)
 {
     echo json_encode([
@@ -27,7 +126,7 @@ function resolveCurrentMember(PDO $db)
         $stmt->execute([$memberId]);
         $member = $stmt->fetch();
         if ($member) {
-            return $member;
+            return normalizeMemberData($member);
         }
     }
 
@@ -37,12 +136,12 @@ function resolveCurrentMember(PDO $db)
         $stmt->execute([$sessionUserId]);
         $member = $stmt->fetch();
         if ($member) {
-            return $member;
+            return normalizeMemberData($member);
         }
     }
 
     $fallbackStmt = $db->query("SELECT * FROM members ORDER BY id ASC LIMIT 1");
-    return $fallbackStmt->fetch();
+    return normalizeMemberData($fallbackStmt->fetch());
 }
 
 function getDashboardData(PDO $db, $member)
@@ -80,7 +179,7 @@ function getDashboardData(PDO $db, $member)
     $serviceStmt = $db->query("SELECT id, name, type, price, description FROM services WHERE status = 'hoạt động' ORDER BY id DESC");
     $services = $serviceStmt->fetchAll();
 
-    $nutritionStmt = $db->query("SELECT id, name, type, calories, bmi_range, price, description FROM nutrition_plans WHERE status = 'hoạt động' ORDER BY id DESC");
+    $nutritionStmt = $db->query("SELECT id, name, type, calories, bmi_range, description FROM nutrition_plans WHERE status = 'hoạt động' ORDER BY id DESC");
     $nutritionPlans = $nutritionStmt->fetchAll();
 
     $promotionStmt = $db->prepare(
@@ -117,21 +216,22 @@ function getDashboardData(PDO $db, $member)
     ];
 }
 
-$action = isset($_REQUEST['action']) ? $_REQUEST['action'] : 'dashboard';
-$member = resolveCurrentMember($db);
+try {
+    $action = isset($_REQUEST['action']) ? $_REQUEST['action'] : 'dashboard';
+    $member = resolveCurrentMember($db);
 
-if (!$member) {
-    jsonResponse(false, 'Không tìm thấy hội viên trong hệ thống.');
-}
+    if (!$member) {
+        jsonResponse(false, 'Không tìm thấy hội viên trong hệ thống.');
+    }
 
-$memberId = intval($member['id']);
-$userId = intval($member['users_id']);
+    $memberId = intval($member['id']);
+    $userId = intval($member['users_id']);
 
-if ($action === 'dashboard') {
-    jsonResponse(true, 'OK', getDashboardData($db, $member));
-}
+    if ($action === 'dashboard') {
+        jsonResponse(true, 'OK', normalizeDashboardData(getDashboardData($db, $member)));
+    }
 
-if ($action === 'register_package') {
+    if ($action === 'register_package') {
     $packageId = isset($_POST['package_id']) ? intval($_POST['package_id']) : 0;
 
     if ($packageId <= 0) {
@@ -163,13 +263,13 @@ if ($action === 'register_package') {
             $notifyStmt = $db->prepare("INSERT INTO notifications (user_id, title, content, is_read) VALUES (?, ?, ?, 0)");
             $notifyStmt->execute([$userId, 'Đăng ký gói tập', 'Bạn đã đăng ký thành công gói: ' . $pkg['package_name']]);
         }
-        jsonResponse(true, 'Đăng ký gói tập thành công.', getDashboardData($db, $member));
+        jsonResponse(true, 'Đăng ký gói tập thành công.', normalizeDashboardData(getDashboardData($db, $member)));
     }
 
     jsonResponse(false, 'Lỗi khi đăng ký gói tập.');
-}
+    }
 
-if ($action === 'cancel_package') {
+    if ($action === 'cancel_package') {
     $memberPackageId = isset($_POST['member_package_id']) ? intval($_POST['member_package_id']) : 0;
 
     if ($memberPackageId <= 0) {
@@ -190,13 +290,13 @@ if ($action === 'cancel_package') {
             $notifyStmt = $db->prepare("INSERT INTO notifications (user_id, title, content, is_read) VALUES (?, ?, ?, 0)");
             $notifyStmt->execute([$userId, 'Huỷ đăng ký gói tập', 'Bạn đã huỷ đăng ký một gói tập thành công.']);
         }
-        jsonResponse(true, 'Huỷ đăng ký gói tập thành công.', getDashboardData($db, $member));
+        jsonResponse(true, 'Huỷ đăng ký gói tập thành công.', normalizeDashboardData(getDashboardData($db, $member)));
     }
 
     jsonResponse(false, 'Lỗi khi huỷ đăng ký gói tập.');
-}
+    }
 
-if ($action === 'submit_feedback') {
+    if ($action === 'submit_feedback') {
     $content = isset($_POST['content']) ? sanitize($_POST['content']) : '';
     $rating = isset($_POST['rating']) ? intval($_POST['rating']) : 0;
 
@@ -210,13 +310,13 @@ if ($action === 'submit_feedback') {
 
     $stmt = $db->prepare("INSERT INTO feedback (member_id, content, rating, status) VALUES (?, ?, ?, 'new')");
     if ($stmt->execute([$memberId, $content, $rating])) {
-        jsonResponse(true, 'Gửi feedback thành công.', getDashboardData($db, $member));
+        jsonResponse(true, 'Gửi feedback thành công.', normalizeDashboardData(getDashboardData($db, $member)));
     }
 
     jsonResponse(false, 'Lỗi khi gửi feedback.');
-}
+    }
 
-if ($action === 'mark_notification_read') {
+    if ($action === 'mark_notification_read') {
     $notificationId = isset($_POST['notification_id']) ? intval($_POST['notification_id']) : 0;
     if ($notificationId <= 0 || $userId <= 0) {
         jsonResponse(false, 'Thông báo không hợp lệ.');
@@ -224,13 +324,13 @@ if ($action === 'mark_notification_read') {
 
     $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?");
     if ($stmt->execute([$notificationId, $userId]) && $stmt->rowCount() > 0) {
-        jsonResponse(true, 'Đã đánh dấu thông báo là đã đọc.', getDashboardData($db, $member));
+        jsonResponse(true, 'Đã đánh dấu thông báo là đã đọc.', normalizeDashboardData(getDashboardData($db, $member)));
     }
 
     jsonResponse(false, 'Không tìm thấy thông báo hợp lệ để cập nhật.');
-}
+    }
 
-if ($action === 'search') {
+    if ($action === 'search') {
     $q = isset($_GET['q']) ? trim($_GET['q']) : '';
     if ($q === '') {
         jsonResponse(true, 'OK', [
@@ -262,7 +362,11 @@ if ($action === 'search') {
         'promotions' => $promotionStmt->fetchAll()
     ];
 
-    jsonResponse(true, 'OK', $result);
-}
+    jsonResponse(true, 'OK', normalizeSearchData($result));
+    }
 
-jsonResponse(false, 'Action không hợp lệ.');
+    jsonResponse(false, 'Action không hợp lệ.');
+} catch (Throwable $e) {
+    error_log('client/api.php error: ' . $e->getMessage());
+    jsonResponse(false, 'Có lỗi máy chủ khi xử lý dữ liệu user.');
+}

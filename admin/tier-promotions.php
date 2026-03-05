@@ -117,6 +117,23 @@ $tiers = $tiersStmt->fetchAll();
 $promotionsStmt = $db->query("SELECT tp.*, mt.name AS tier_name FROM tier_promotions tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id ORDER BY tp.id DESC");
 $promotions = $promotionsStmt->fetchAll();
 
+function resolveTierDisplayName($tierId, $tierName) {
+  $fallbackMap = [
+    1 => 'Đồng',
+    2 => 'Bạc',
+    3 => 'Vàng',
+    4 => 'Bạch Kim',
+    5 => 'Kim Cương',
+  ];
+
+  $name = trim((string) $tierName);
+  if ($name === '' || strpos($name, '?') !== false) {
+    return $fallbackMap[(int) $tierId] ?? $name;
+  }
+
+  return $name;
+}
+
 $page_title = "Quản lý Khuyến Mãi Theo Hạng";
 include 'layout/header.php';
 include 'layout/sidebar.php';
@@ -188,7 +205,7 @@ include 'layout/sidebar.php';
                   <tr>
                     <td><?= $promotion['id'] ?></td>
                     <td><?= htmlspecialchars($promotion['name']) ?></td>
-                    <td><span class="badge badge-light"><?= htmlspecialchars($promotion['tier_name']) ?></span></td>
+                    <td><span class="badge badge-light"><?= htmlspecialchars(resolveTierDisplayName($promotion['tier_id'], $promotion['tier_name'])) ?></span></td>
                     <td><?= $discountTypeLabel ?></td>
                     <td><?= $discountValueLabel ?></td>
                     <td><?= date('d/m/Y', strtotime($promotion['start_date'])) ?> - <?= date('d/m/Y', strtotime($promotion['end_date'])) ?></td>
@@ -253,7 +270,7 @@ include 'layout/sidebar.php';
             <select class="form-control" id="tier_id" name="tier_id" required>
               <option value="">-- Chọn hạng --</option>
               <?php foreach ($tiers as $tier): ?>
-                <option value="<?= $tier['id'] ?>"><?= htmlspecialchars($tier['name']) ?></option>
+                <option value="<?= $tier['id'] ?>"><?= htmlspecialchars(resolveTierDisplayName($tier['id'], $tier['name'])) ?></option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -325,7 +342,7 @@ include 'layout/sidebar.php';
             <label for="edit_tier_id">Hạng Áp Dụng</label>
             <select class="form-control" id="edit_tier_id" name="edit_tier_id" required>
               <?php foreach ($tiers as $tier): ?>
-                <option value="<?= $tier['id'] ?>"><?= htmlspecialchars($tier['name']) ?></option>
+                <option value="<?= $tier['id'] ?>"><?= htmlspecialchars(resolveTierDisplayName($tier['id'], $tier['name'])) ?></option>
               <?php endforeach; ?>
             </select>
           </div>

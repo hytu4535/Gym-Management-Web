@@ -179,7 +179,7 @@ CREATE TABLE `categories` (
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -188,7 +188,7 @@ CREATE TABLE `categories` (
 
 LOCK TABLES `categories` WRITE;
 /*!40000 ALTER TABLE `categories` DISABLE KEYS */;
-INSERT INTO `categories` VALUES (1,'test','test','active'),(2,'Whey Protein','Các loại whey protein tăng cơ, phục hồi cơ bắp.','active'),(3,'Thực phẩm bổ sung','Vitamin, BCAA, Creatine và các sản phẩm hỗ trợ tập luyện.','active'),(4,'Nước uống thể thao','Nước điện giải và đồ uống bổ sung năng lượng.','active'),(5,'Phụ kiện tập gym','Găng tay, đai lưng, dây kéo, bình nước tập gym.','active'),(6,'Thiết bị tập cá nhân','Dụng cụ tập tại nhà như dây kháng lực, tạ tay.','active'),(7,'Quần áo thể thao','Trang phục tập gym cho nam và nữ.','active'),(8,'Combo khuyến mãi','Các gói sản phẩm bán theo combo ưu đãi.','inactive'),(9,'Hàng nhập khẩu','Sản phẩm nhập khẩu chính hãng từ Mỹ và châu Âu.','active'),(10,'Sản phẩm giảm cân','Các sản phẩm hỗ trợ giảm mỡ, kiểm soát cân nặng.','active'),(11,'Sản phẩm tăng cân','Mass gainer và thực phẩm hỗ trợ tăng cân.','active');
+INSERT INTO `categories` VALUES (1,'test','test','active');
 /*!40000 ALTER TABLE `categories` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -461,7 +461,7 @@ CREATE TABLE `member_tiers` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_tier_name` (`name`),
   UNIQUE KEY `uk_tier_level` (`level`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -764,7 +764,6 @@ CREATE TABLE `products` (
   `id` int NOT NULL AUTO_INCREMENT,
   `category_id` int DEFAULT NULL,
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `img` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Đường dẫn hình ảnh sản phẩm',
   `unit` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hộp' COMMENT 'Đơn vị tính: hộp, chai, cái...',
   `stock_quantity` int DEFAULT '0' COMMENT 'Số lượng tồn kho',
   `selling_price` decimal(15,2) DEFAULT '0.00' COMMENT 'Giá bán lẻ cho hội viên',
@@ -772,7 +771,7 @@ CREATE TABLE `products` (
   PRIMARY KEY (`id`),
   KEY `fk_product_category` (`category_id`),
   CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -781,7 +780,7 @@ CREATE TABLE `products` (
 
 LOCK TABLES `products` WRITE;
 /*!40000 ALTER TABLE `products` DISABLE KEYS */;
-INSERT INTO `products` VALUES (1,2,'Whey Gold Standard 5lbs','product_1771589404_1838.jpg','Hộp',20,1850000.00,'active'),(2,1,'Nước khoáng Lavie 500ml','product_1771589404_1838.jpg','Chai',100,10000.00,'active'),(3,1,'Găng tay tập Gym Adidas','product_1771589404_1838.jpg','Đôi',15,450000.00,'active'),(4,1,'test_product','product_1771589404_1838.jpg','chai',30,50000.00,'inactive'),(8,2,'Creatine Monohydrate 300g','product_1771589404_1838.jpg','hộp',60,450000.00,'active'),(9,2,'BCAA 2:1:1 400g','product_1771589404_1838.jpg','hộp',35,550000.00,'active'),(10,3,'Nước điện giải Pocari 500ml','product_1771589404_1838.jpg','chai',200,15000.00,'active'),(12,4,'Găng tay tập gym cao cấp','product_1771589404_1838.jpg','cái',70,120000.00,'active'),(13,4,'Đai lưng tập gym','product_1771589404_1838.jpg','cái',30,250000.00,'active'),(14,5,'Dây kháng lực 5 mức','product_1771589404_1838.jpg','bộ',45,180000.00,'active'),(16,7,'Combo Whey + Creatine','product_1771589404_1838.jpg','combo',20,2100000.00,'inactive'),(17,8,'Whey Dymatize Elite 5lbs','product_1771589404_1838.jpg','hộp',25,1950000.00,'active'),(18,9,'Fat Burner L-Carnitine','product_1771589404_1838.jpg','hộp',30,650000.00,'active'),(19,10,'Mass Gainer Serious Mass 6lbs','product_1771589404_1838.jpg','hộp',20,1350000.00,'active');
+INSERT INTO `products` VALUES (1,1,'Whey Gold Standard 5lbs','Hộp',20,1850000.00,'active'),(2,1,'Nước khoáng Lavie 500ml','Chai',100,10000.00,'active'),(3,1,'Găng tay tập Gym Adidas','Đôi',15,450000.00,'active'),(4,1,'test_product','chai',30,50000.00,'active');
 /*!40000 ALTER TABLE `products` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1102,4 +1101,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-03-05 15:21:03
+-- Dump completed on 2026-02-20  7:10:10

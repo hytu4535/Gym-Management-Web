@@ -12,10 +12,23 @@ if (empty($_POST['class_id'])) {
     exit();
 }
 
-require_once '../../config/db.php';
+require_once '../config/db.php';
 
-$member_id = intval($_SESSION['user_id']);
+$user_id = intval($_SESSION['user_id']);
 $class_id  = intval($_POST['class_id']);
+
+// Lấy member_id từ users_id
+$stmt = $conn->prepare("SELECT id FROM members WHERE users_id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$memb_result = $stmt->get_result();
+if ($memb_result->num_rows === 0) {
+    echo json_encode(['success' => false, 'message' => 'Không tìm thấy thông tin thành viên!']);
+    exit();
+}
+$member = $memb_result->fetch_assoc();
+$member_id = $member['id'];
+$stmt->close();
 
 // Kiểm tra lớp tồn tại và còn chỗ
 $stmt = $conn->prepare("SELECT id, capacity, enrolled_count FROM class_schedules WHERE id = ? AND status = 'active'");

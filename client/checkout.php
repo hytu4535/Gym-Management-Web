@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once '../config/db.php';
+require_once '../includes/discount_helper.php';
 
 
 if (!isset($_SESSION['user_id'])) {
@@ -31,12 +32,32 @@ if ($cart_result->num_rows === 0) {
 
 $cart_items = [];
 $subtotal = 0;
+$subtotal_original = 0;
+$total_discount = 0;
+
 while ($row = $cart_result->fetch_assoc()) {
+    // Tính giá sau giảm theo tier (chỉ base_discount)
+    $price_info = calculateDiscountedPrice($row['selling_price'], $user_id, $conn);
+    
+    $row['final_price'] = $price_info['final_price'];
+    $row['original_price'] = $price_info['original_price'];
+    $row['discount_percent'] = $price_info['discount_percent'];
+    $row['has_discount'] = $price_info['has_discount'];
+    
     $cart_items[] = $row;
-    $subtotal += ($row['selling_price'] * $row['quantity']);
+    
+    $subtotal += ($price_info['final_price'] * $row['quantity']);
+    $subtotal_original += ($price_info['original_price'] * $row['quantity']);
 }
 $stmt_cart->close();
 
+$total_discount = $subtotal_original - $subtotal;
+
+// Áp dụng promotion (nếu có chọn trong session)
+$selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
+$cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
+
+$subtotal = $cart_total['final_subtotal']; // Tổng sau base + promotion
 $shipping_fee = 30000; 
 $total = $subtotal + $shipping_fee;
 
@@ -136,17 +157,55 @@ include 'layout/header.php';
                 <div class="col-lg-4">
                     <div class="checkout-cart" style="background: #f5f5f5; padding: 30px; border-radius: 5px;">
                         <h5 style="border-bottom: 1px solid #e1e1e1; padding-bottom: 15px; margin-bottom: 20px;">Đơn hàng của bạn</h5>
+                        
+                        <?php 
+                        $tier_info = getMemberTierDiscount($user_id, $conn);
+                        $total_saved = $cart_total['base_discount_amount'] + $cart_total['promotion_discount'];
+                        
+                        if ($total_saved > 0): 
+                        ?>
+                        <div class="alert alert-success" style="padding: 10px 15px; font-size: 13px; margin-bottom: 20px;">
+                            <i class="fa fa-gift"></i> <strong>Hạng <?php echo $tier_info['tier_name']; ?></strong><br>
+                            Tổng tiết kiệm: <strong><?php echo number_format($total_saved, 0, ',', '.'); ?>đ</strong>
+                        </div>
+                        <?php endif; ?>
+                        
                         <ul id="order-summary" style="list-style: none; padding: 0;">
                             <?php foreach ($cart_items as $item): ?>
                                 <li style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 14px;">
-                                    <span style="color: #444; width: 70%;"><?php echo htmlspecialchars($item['name']); ?> <strong style="color: #e7ab3c;">x <?php echo $item['quantity']; ?></strong></span>
-                                    <span style="font-weight: bold;"><?php echo number_format($item['selling_price'] * $item['quantity'], 0, ',', '.'); ?>đ</span>
+                                    <span style="color: #444; width: 70%;">
+                                        <?php echo htmlspecialchars($item['name']); ?> 
+                                        <strong style="color: #e7ab3c;">x <?php echo $item['quantity']; ?></strong>
+                                        <?php if ($item['has_discount']): ?>
+                                            <br><small style="color: #28a745; font-weight: bold;">-<?php echo number_format($item['discount_percent'], 0); ?>%</small>
+                                        <?php endif; ?>
+                                    </span>
+                                    <span style="font-weight: bold;"><?php echo number_format($item['final_price'] * $item['quantity'], 0, ',', '.'); ?>đ</span>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
                         
                         <ul class="total-cost mt-3" style="list-style: none; padding: 0; border-top: 1px solid #e1e1e1; padding-top: 20px;">
-                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px;">Tạm tính <span><?php echo number_format($subtotal, 0, ',', '.'); ?>đ</span></li>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
+                                Giá gốc 
+                                <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span>
+                            </li>
+                            <?php if ($cart_total['base_discount_amount'] > 0): ?>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #28a745;">
+                                Giảm hạng (<?php echo $tier_info['tier_name']; ?> <?php echo number_format($tier_info['base_discount'], 0); ?>%)
+                                <span>-<?php echo number_format($cart_total['base_discount_amount'], 0, ',', '.'); ?>đ</span>
+                            </li>
+                            <?php endif; ?>
+                            <?php if ($cart_total['has_promotion']): ?>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #ff4444; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 4px;">
+                                <span><i class="fa fa-gift"></i> <?php echo $cart_total['promotion_info']['name']; ?></span>
+                                <span>-<?php echo number_format($cart_total['promotion_discount'], 0, ',', '.'); ?>đ</span>
+                            </li>
+                            <?php endif; ?>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: bold;">
+                                Tạm tính 
+                                <span><?php echo number_format($subtotal, 0, ',', '.'); ?>đ</span>
+                            </li>
                             <li style="display: flex; justify-content: space-between; margin-bottom: 15px;">Phí vận chuyển <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
                             <li style="display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; color: #e7ab3c; border-top: 1px solid #e1e1e1; padding-top: 15px;">Tổng cộng <span><?php echo number_format($total, 0, ',', '.'); ?>đ</span></li>
                         </ul>

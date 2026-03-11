@@ -128,11 +128,11 @@ include 'layout/header.php';
                                 <i class="fa fa-times"></i> Hủy đăng ký
                             </button>
                             <?php elseif (!$is_full): ?>
-                            <a href="class-register.php?id=<?php echo $class['id']; ?>"
-                               class="primary-btn"
-                               style="display:block;text-align:center;padding:10px;">
+                            <button class="primary-btn btn-register-class"
+                                    data-id="<?php echo $class['id']; ?>"
+                                    style="width:100%;display:block;text-align:center;padding:10px;border:none;cursor:pointer;">
                                 <i class="fa fa-check"></i> Đăng ký ngay
-                            </a>
+                            </button>
                             <?php else: ?>
                             <button class="primary-btn" disabled
                                     style="width:100%;opacity:0.5;cursor:not-allowed;padding:10px;">
@@ -208,6 +208,12 @@ document.addEventListener('DOMContentLoaded', function () {
         btn.addEventListener('click', () => {
             if (confirm('Bạn có chắc muốn hủy đăng ký lớp này?'))
                 handleClass(btn, 'ajax/class-cancel.php', 'Hủy thành công!');
+        });
+    });
+
+    document.querySelectorAll('.btn-register-class').forEach(btn => {
+        btn.addEventListener('click', () => {
+            handleClass(btn, 'class-register.php', 'Đăng ký thành công!');
         });
     });
 });

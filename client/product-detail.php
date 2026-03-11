@@ -3,8 +3,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once '../config/db.php';
+require_once '../includes/discount_helper.php';
 
 $product_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0;
 
 if ($product_id == 0) {
     header('Location: products.php');
@@ -28,6 +30,9 @@ $imgPath = $imageFile ? "../assets/uploads/products/{$imageFile}" : "../assets/u
 
 $unit = $product['unit'] ?? 'Sản phẩm';
 $stock = $product['stock_quantity'] ?? 0;
+
+// Tính giá sau giảm theo tier
+$price_info = calculateDiscountedPrice($product['selling_price'], $user_id, $conn);
 
 include 'layout/header.php'; 
 ?>
@@ -62,8 +67,29 @@ include 'layout/header.php';
                         <span><?php echo $product['category_name'] ?? 'Chưa phân loại'; ?></span>
                         <h3><?php echo $product['name']; ?></h3>
                     </div>
+                    <?php if ($price_info['has_discount']): ?>
+                    <div class="alert alert-info" style="background: #e7f3ff; border-left: 4px solid #2196F3; padding: 10px 15px; margin-bottom: 20px;">
+                        <i class="fa fa-gift"></i> <strong>Hạng <?php echo $price_info['tier_name']; ?></strong> - 
+                        Giảm ngay <?php echo number_format($price_info['discount_percent'], 0); ?>% 
+                        (Tiết kiệm <?php echo number_format($price_info['discount_amount'], 0, ',', '.'); ?>đ)
+                    </div>
+                    <?php endif; ?>
                     <div class="pd-desc">
-                        <h4><?php echo number_format($product['selling_price'] ?? 0, 0, ',', '.'); ?> VNĐ</h4>
+                        <?php if ($price_info['has_discount']): ?>
+                            <h4 style="text-decoration: line-through; color: #999; font-size: 20px; margin-bottom: 5px;">
+                                <?php echo number_format($price_info['original_price'], 0, ',', '.'); ?> VNĐ
+                            </h4>
+                            <h4 style="color: #e7ab3c; font-size: 28px; font-weight: bold;">
+                                <?php echo number_format($price_info['final_price'], 0, ',', '.'); ?> VNĐ
+                                <span style="background: #ff4444; color: white; padding: 5px 10px; border-radius: 3px; font-size: 16px; margin-left: 10px;">
+                                    -<?php echo number_format($price_info['discount_percent'], 0); ?>%
+                                </span>
+                            </h4>
+                        <?php else: ?>
+                            <h4 style="color: #e7ab3c; font-size: 28px; font-weight: bold;">
+                                <?php echo number_format($product['selling_price'], 0, ',', '.'); ?> VNĐ
+                            </h4>
+                        <?php endif; ?>
                         <p><strong>Đơn vị:</strong> <?php echo $unit; ?></p>
                         <p><strong>Còn lại:</strong> <?php echo $stock; ?> <?php echo $unit; ?></p>
                     </div>

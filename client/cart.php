@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once '../config/db.php';
+require_once '../includes/discount_helper.php';
 
 // Kiểm tra đăng nhập
 $is_logged_in = isset($_SESSION['user_id']);
@@ -46,6 +47,8 @@ include 'layout/header.php';
                         <tbody id="cart-items">
                             <?php 
                             $totalAmount = 0;
+                            $totalDiscount = 0;
+                            $originalTotal = 0;
                             
                             if ($is_logged_in) {
                                 $query = "
@@ -69,8 +72,16 @@ include 'layout/header.php';
                                     if ($result->num_rows > 0) {
                                         while ($item = $result->fetch_assoc()) {
                                             $id = $item['product_id'];
-                                            $itemTotal = $item['selling_price'] * $item['quantity'];
+                                            
+                                            // Tính giá sau giảm
+                                            $price_info = calculateDiscountedPrice($item['selling_price'], $user_id, $conn);
+                                            
+                                            $itemTotal = $price_info['final_price'] * $item['quantity'];
+                                            $itemOriginal = $price_info['original_price'] * $item['quantity'];
+                                            
                                             $totalAmount += $itemTotal;
+                                            $originalTotal += $itemOriginal;
+                                            $totalDiscount += ($itemOriginal - $itemTotal);
                                             
                                             $imgPath = "../assets/uploads/products/default-product.jpg";
                                 ?>
@@ -80,8 +91,24 @@ include 'layout/header.php';
                                                 </td>
                                                 <td class="cart-title first-row">
                                                     <h5><?php echo htmlspecialchars($item['name']); ?></h5>
+                                                    <?php if ($price_info['has_discount']): ?>
+                                                        <small style="color: #ff4444; font-weight: bold;">
+                                                            <i class="fa fa-tag"></i> Giảm <?php echo number_format($price_info['discount_percent'], 0); ?>%
+                                                        </small>
+                                                    <?php endif; ?>
                                                 </td>
-                                                <td class="p-price first-row"><?php echo number_format($item['selling_price'], 0, ',', '.'); ?>đ</td>
+                                                <td class="p-price first-row">
+                                                    <?php if ($price_info['has_discount']): ?>
+                                                        <span style="text-decoration: line-through; color: #999; font-size: 12px; display: block;">
+                                                            <?php echo number_format($price_info['original_price'], 0, ',', '.'); ?>đ
+                                                        </span>
+                                                        <span style="color: #e7ab3c; font-weight: bold;">
+                                                            <?php echo number_format($price_info['final_price'], 0, ',', '.'); ?>đ
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <?php echo number_format($item['selling_price'], 0, ',', '.'); ?>đ
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td class="qua-col first-row">
                                                     <div class="quantity">
                                                         <div class="custom-pro-qty">
@@ -113,12 +140,89 @@ include 'layout/header.php';
                         <div class="cart-buttons">
                             <a href="products.php" class="site-btn" style="background: #333; color: white;">Tiếp tục mua hàng</a>
                         </div>
+                        
+                        <?php if ($is_logged_in && $totalAmount > 0): 
+                            $tier_info = getMemberTierDiscount($user_id, $conn);
+                            $available_promotions = getAvailablePromotions($tier_info['tier_id'], $conn);
+                            
+                            if (!empty($available_promotions)):
+                        ?>
+                        <div class="promotion-box mt-4" style="background: #f9f9f9; padding: 20px; border-radius: 8px; border: 2px dashed #e7ab3c;">
+                            <h5 style="margin-bottom: 15px; color: #333;">
+                                <i class="fa fa-gift" style="color: #e7ab3c;"></i> Ưu đãi đặc biệt
+                            </h5>
+                            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Chọn 1 ưu đãi để áp dụng:</p>
+                            
+                            <?php 
+                            $selected_promotion = isset($_SESSION['selected_promotion']) ? $_SESSION['selected_promotion'] : 0;
+                            foreach ($available_promotions as $promo): 
+                                $checked = ($promo['id'] == $selected_promotion) ? 'checked' : '';
+                                $discount_text = '';
+                                if ($promo['discount_type'] == 'percentage') {
+                                    $discount_text = "Giảm " . number_format($promo['discount_value'], 0) . "%";
+                                } elseif ($promo['discount_type'] == 'fixed') {
+                                    $discount_text = "Giảm " . number_format($promo['discount_value'], 0, ',', '.') . "đ";
+                                }
+                                
+                                // Hiển thị số lượt còn lại
+                                $usage_text = '';
+                                if ($promo['usage_limit'] !== null) {
+                                    $remaining = $promo['usage_limit'] - $promo['used_count'];
+                                    $usage_text = " | Còn " . $remaining . " lượt";
+                                }
+                            ?>
+                            <div class="form-check mb-3" style="background: white; padding: 12px; border-radius: 5px; border: 1px solid #e1e1e1;">
+                                <input class="form-check-input promotion-radio" type="radio" name="promotion" 
+                                       id="promo_<?php echo $promo['id']; ?>" 
+                                       value="<?php echo $promo['id']; ?>" 
+                                       <?php echo $checked; ?>
+                                       style="margin-top: 8px; cursor: pointer;">
+                                <label class="form-check-label" for="promo_<?php echo $promo['id']; ?>" style="cursor: pointer; width: 100%;">
+                                    <strong style="color: #e7ab3c;"><?php echo $discount_text; ?></strong><br>
+                                    <small style="color: #666;"><?php echo $promo['name']; ?></small><br>
+                                    <small style="color: #999; font-size: 11px;">
+                                        HSD: <?php echo date('d/m/Y', strtotime($promo['end_date'])); ?><?php echo $usage_text; ?>
+                                    </small>
+                                </label>
+                            </div>
+                            <?php endforeach; ?>
+                            
+                            <div class="form-check" style="padding: 10px;">
+                                <input class="form-check-input promotion-radio" type="radio" name="promotion" 
+                                       id="no_promo" value="0" <?php echo ($selected_promotion == 0) ? 'checked' : ''; ?>
+                                       style="cursor: pointer;">
+                                <label class="form-check-label" for="no_promo" style="cursor: pointer; color: #999;">
+                                    Không sử dụng ưu đãi
+                                </label>
+                            </div>
+                        </div>
+                        <?php endif; endif; ?>
                     </div>
                     <div class="col-lg-4 offset-lg-4">
                         <div class="proceed-checkout">
                             <ul>
-                                <li class="subtotal">Tạm tính <span><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
-                                <li class="cart-total">Tổng cộng <span><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
+                                <?php if ($totalDiscount > 0): 
+                                    $tier_info = getMemberTierDiscount($user_id, $conn);
+                                    
+                                    // Tính tổng có áp dụng promotion (nếu có)
+                                    $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
+                                    $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
+                                ?>
+                                    <li class="subtotal">Giá gốc <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span></li>
+                                    <li class="subtotal">Giảm giá hạng (<?php echo $tier_info['tier_name']; ?> <?php echo number_format($tier_info['base_discount'], 0); ?>%)
+                                        <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($cart_total['base_discount_amount'], 0, ',', '.'); ?>đ</span>
+                                    </li>
+                                    <?php if ($cart_total['has_promotion']): ?>
+                                    <li class="subtotal" style="background: #e7f3ff; padding: 8px; margin: 5px -10px; border-radius: 4px;">
+                                        <i class="fa fa-gift" style="color: #e7ab3c;"></i> Ưu đãi: <?php echo $cart_total['promotion_info']['name']; ?>
+                                        <span style="color: #ff4444; font-weight: bold;">-<?php echo number_format($cart_total['promotion_discount'], 0, ',', '.'); ?>đ</span>
+                                    </li>
+                                    <?php endif; ?>
+                                    <li class="cart-total">Tổng cộng <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($cart_total['final_subtotal'], 0, ',', '.'); ?>đ</span></li>
+                                <?php else: ?>
+                                    <li class="subtotal">Tạm tính <span><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
+                                    <li class="cart-total">Tổng cộng <span><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
+                                <?php endif; ?>
                             </ul>
                             <?php if ($totalAmount > 0): ?>
                                 <a href="checkout.php" class="proceed-btn">Tiến hành thanh toán</a>
@@ -199,6 +303,39 @@ function removeFromCart(productId) {
         .catch(error => console.error('Error:', error));
     }
 }
+
+// Xử lý chọn promotion
+document.addEventListener('DOMContentLoaded', function() {
+    const promotionRadios = document.querySelectorAll('.promotion-radio');
+    
+    promotionRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            const promotionId = this.value;
+            
+            var formData = new FormData();
+            formData.append('promotion_id', promotionId);
+            
+            fetch('ajax/apply-promotion.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload để cập nhật giá
+                    window.location.reload();
+                } else {
+                    alert(data.message);
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra!');
+            });
+        });
+    });
+});
 </script>
 
 <?php include 'layout/footer.php'; ?>

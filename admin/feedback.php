@@ -63,6 +63,20 @@ include 'layout/header.php';
 include 'layout/sidebar.php';
 ?>
 
+<style>
+    #feedbackTable td,
+    #feedbackTable th {
+        vertical-align: middle;
+    }
+
+    #feedbackTable td:nth-child(3) {
+        max-width: 320px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+
   <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     <!-- Content Header (Page header) -->
@@ -87,13 +101,14 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
         <div class="row">
           <div class="col-12">
-            <div class="card">
+                        <div class="card card-outline card-primary">
               <div class="card-header">
                 <h3 class="card-title">Danh sách Phản Hồi</h3>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped table-hover" id="feedbackTable">
-                  <thead class="table-dark">
+                                <div class="table-responsive">
+                                <table class="table table-bordered table-striped data-table" id="feedbackTable">
+                                    <thead>
                   <tr>
                     <th style="width: 50px;">ID</th>
                     <th>Thành Viên</th>
@@ -107,6 +122,7 @@ include 'layout/sidebar.php';
                   <tbody id="feedbackTableBody">
                   </tbody>
                 </table>
+                                </div>
               </div>
             </div>
           </div>
@@ -118,12 +134,12 @@ include 'layout/sidebar.php';
 
 <!-- View Feedback Modal -->
 <div class="modal fade" id="viewFeedbackModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
-      <div class="modal-header">
+            <div class="modal-header bg-primary text-white">
         <h5 class="modal-title">Chi Tiết Phản Hồi</h5>
         <button type="button" class="close" data-dismiss="modal">
-          <span>&times;</span>
+                    <span class="text-white">&times;</span>
         </button>
       </div>
       <div class="modal-body" id="feedbackContent">
@@ -144,9 +160,42 @@ $(document).ready(function() {
     loadFeedback();
 });
 
+function resetFeedbackTable() {
+    if ($.fn.DataTable.isDataTable('#feedbackTable')) {
+        $('#feedbackTable').DataTable().destroy();
+    }
+}
+
+function initFeedbackTable() {
+    $('#feedbackTable').DataTable({
+        responsive: true,
+        lengthChange: true,
+        autoWidth: false,
+        pageLength: 10,
+        language: {
+            search: 'Tìm kiếm:',
+            lengthMenu: 'Hiển thị _MENU_ dòng',
+            info: 'Hiển thị _START_ đến _END_ của _TOTAL_ dòng',
+            infoEmpty: 'Không có dữ liệu',
+            zeroRecords: 'Không tìm thấy dữ liệu phù hợp',
+            paginate: {
+                first: 'Đầu',
+                last: 'Cuối',
+                next: 'Tiếp',
+                previous: 'Trước'
+            }
+        },
+        columnDefs: [
+            { orderable: false, targets: 6 }
+        ]
+    });
+}
+
 function loadFeedback() {
     const feedbackData = <?php echo json_encode($feedback); ?>;
+    resetFeedbackTable();
     renderTable(feedbackData);
+    initFeedbackTable();
 }
 
 function renderTable(feedbacks) {
@@ -154,7 +203,7 @@ function renderTable(feedbacks) {
     tbody.empty();
     
     if (feedbacks.length === 0) {
-        tbody.append('<tr><td colspan="7" class="text-center">Không có phản hồi</td></tr>');
+        tbody.append('<tr><td colspan="7" class="text-center text-muted">Không có phản hồi</td></tr>');
         return;
     }
     
@@ -185,12 +234,14 @@ function renderTable(feedbacks) {
                 <td>${createdAt}</td>
                 <td>${statusBadge}</td>
                 <td>
-                    <button class="btn btn-info btn-sm" onclick="viewFeedback(${fb.id})">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteFeedbackItem(${fb.id})">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-info" onclick="viewFeedback(${fb.id})" title="Xem chi tiết">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteFeedbackItem(${fb.id})" title="Xóa phản hồi">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;

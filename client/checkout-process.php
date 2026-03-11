@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../config/db.php';
+require_once '../includes/discount_helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     echo "<script>alert('Vui lòng đăng nhập!'); window.location.href='login.php';</script>";
@@ -77,11 +78,21 @@ try {
         if ($row['quantity'] > $row['stock_quantity']) {
             throw new Exception("Sản phẩm '{$row['name']}' chỉ còn {$row['stock_quantity']} cái. Vui lòng giảm số lượng.");
         }
+        
+        // Tính giá sau giảm theo tier (chỉ base_discount)
+        $price_info = calculateDiscountedPrice($row['selling_price'], $user_id, $conn);
+        $row['final_price'] = $price_info['final_price']; // Giá sau base_discount
+        
         $cart_items[] = $row;
-        $subtotal += ($row['selling_price'] * $row['quantity']);
         $cart_id = $row['cart_id']; 
     }
     $stmt_cart->close();
+    
+    // Tính tổng có áp dụng promotion (nếu có)
+    $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
+    $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
+    
+    $subtotal = $cart_total['final_subtotal']; // Tổng sau base + promotion
 
     $shipping_fee = 30000;
     $total_amount = $subtotal + $shipping_fee;
@@ -104,7 +115,9 @@ try {
     $stmt_update_stock = $conn->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
     
     foreach ($cart_items as $item) {
-        $stmt_item->bind_param("isisdi", $order_id, $item_type, $item['product_id'], $item['name'], $item['selling_price'], $item['quantity']);
+        // Sử dụng giá sau giảm (final_price) thay vì selling_price
+        $price_to_save = $item['final_price'];
+        $stmt_item->bind_param("isisdi", $order_id, $item_type, $item['product_id'], $item['name'], $price_to_save, $item['quantity']);
         $stmt_item->execute();
         
         $stmt_update_stock->bind_param("ii", $item['quantity'], $item['product_id']);
@@ -117,6 +130,18 @@ try {
     $stmt_del_cart->bind_param("i", $cart_id);
     $stmt_del_cart->execute();
     $stmt_del_cart->close();
+    
+    // Lưu promotion usage (nếu có dùng promotion)
+    if ($selected_promotion_id > 0 && $cart_total['has_promotion']) {
+        $applied_amount = $cart_total['promotion_discount'];
+        $stmt_promo_usage = $conn->prepare("
+            INSERT INTO promotion_usage (member_id, promotion_id, order_id, applied_amount, applied_at) 
+            VALUES (?, ?, ?, ?, NOW())
+        ");
+        $stmt_promo_usage->bind_param("iiid", $member_id, $selected_promotion_id, $order_id, $applied_amount);
+        $stmt_promo_usage->execute();
+        $stmt_promo_usage->close();
+    }
 
     // Cập nhật total_spent cho member
     $stmt_update_spent = $conn->prepare("UPDATE members SET total_spent = total_spent + ? WHERE id = ?");
@@ -160,6 +185,10 @@ try {
     }
 
     $conn->commit();
+    
+    // Xóa promotion khỏi session sau khi đặt hàng thành công
+    unset($_SESSION['selected_promotion']);
+    
     header("Location: invoice.php?order_id=" . $order_id);
     exit();
 

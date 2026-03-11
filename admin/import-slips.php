@@ -85,8 +85,65 @@ $suppliers = $suppliersStmt->fetchAll();
 $staffStmt = $db->query("SELECT id, full_name FROM staff ORDER BY full_name ASC");
 $staffs = $staffStmt->fetchAll();
 
-$importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.status, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
+$importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.note, i.status, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
 $importSlips = $importSlipsStmt->fetchAll();
+
+$importSlipDetailsMap = [];
+if (!empty($importSlips)) {
+  $importIds = array_map(static function ($row) {
+    return (int) $row['id'];
+  }, $importSlips);
+
+  $placeholders = implode(',', array_fill(0, count($importIds), '?'));
+  $detailsSql = "SELECT d.import_id,
+                        d.quantity,
+                        d.import_price,
+                        e.name AS equipment_name,
+                        p.name AS product_name
+                 FROM import_details d
+                 LEFT JOIN equipment e ON e.id = d.equipment_id
+                 LEFT JOIN products p ON p.id = d.product_id
+                 WHERE d.import_id IN ($placeholders)
+                 ORDER BY d.id ASC";
+  $detailsStmt = $db->prepare($detailsSql);
+  $detailsStmt->execute($importIds);
+  $detailRows = $detailsStmt->fetchAll();
+
+  foreach ($detailRows as $detail) {
+    $importId = (int) $detail['import_id'];
+    if (!isset($importSlipDetailsMap[$importId])) {
+      $importSlipDetailsMap[$importId] = [];
+    }
+
+    $itemName = $detail['product_name'] ?: $detail['equipment_name'];
+    $itemType = $detail['product_name'] ? 'Sản phẩm' : 'Thiết bị';
+
+    $importSlipDetailsMap[$importId][] = [
+      'item_name' => $itemName ?: 'N/A',
+      'item_type' => $itemType,
+      'quantity' => (int) $detail['quantity'],
+      'import_price' => (float) $detail['import_price'],
+    ];
+  }
+}
+
+$importSlipsForJs = [];
+foreach ($importSlips as $importSlip) {
+  $importId = (int) $importSlip['id'];
+  $details = $importSlipDetailsMap[$importId] ?? [];
+
+  $importSlipsForJs[$importId] = [
+    'id' => $importId,
+    'code' => '#PN' . str_pad((string) $importId, 3, '0', STR_PAD_LEFT),
+    'supplier_name' => $importSlip['supplier_name'],
+    'staff_name' => $importSlip['staff_name'],
+    'total_amount' => (float) $importSlip['total_amount'],
+    'import_date_display' => date('d/m/Y H:i', strtotime($importSlip['import_date'])),
+    'status' => $importSlip['status'],
+    'note' => $importSlip['note'] ?? '',
+    'details' => $details,
+  ];
+}
 
 $page_title = "Quản lý Phiếu Nhập Kho";
 include 'layout/header.php';
@@ -157,8 +214,12 @@ include 'layout/sidebar.php';
                       <?php endif; ?>
                     </td>
                     <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-primary btn-sm"><i class="fas fa-print"></i></button>
+                      <button type="button" class="btn btn-info btn-sm view-import-btn" data-id="<?= (int) $importSlip['id'] ?>" title="Xem phiếu nhập">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                      <button type="button" class="btn btn-primary btn-sm print-import-btn" data-id="<?= (int) $importSlip['id'] ?>" title="In phiếu nhập">
+                        <i class="fas fa-print"></i>
+                      </button>
                       <?php if ($importSlip['status'] === 'Đang chờ duyệt'): ?>
                         <form method="POST" action="import-slips.php" style="display:inline-block;">
                           <input type="hidden" name="update_import_status_id" value="<?= $importSlip['id'] ?>">
@@ -257,3 +318,176 @@ include 'layout/sidebar.php';
     </div>
   </div>
 </div>
+
+<!-- Modal Xem Phiếu Nhập -->
+<div class="modal fade" id="viewImportModal" tabindex="-1" role="dialog" aria-labelledby="viewImportModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewImportModalLabel">Chi tiết phiếu nhập</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="row mb-2">
+          <div class="col-md-6"><strong>Mã phiếu:</strong> <span id="view_import_code">-</span></div>
+          <div class="col-md-6"><strong>Ngày nhập:</strong> <span id="view_import_date">-</span></div>
+        </div>
+        <div class="row mb-2">
+          <div class="col-md-6"><strong>Nhà cung cấp:</strong> <span id="view_supplier">-</span></div>
+          <div class="col-md-6"><strong>Nhân viên:</strong> <span id="view_staff">-</span></div>
+        </div>
+        <div class="row mb-2">
+          <div class="col-md-6"><strong>Trạng thái:</strong> <span id="view_status">-</span></div>
+          <div class="col-md-6"><strong>Tổng tiền:</strong> <span id="view_total">-</span></div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-12"><strong>Ghi chú:</strong> <span id="view_note">-</span></div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Loại</th>
+                <th>Tên mục</th>
+                <th class="text-right">SL</th>
+                <th class="text-right">Đơn giá nhập</th>
+                <th class="text-right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody id="view_import_details_body">
+              <tr>
+                <td colspan="5" class="text-center text-muted">Không có dữ liệu chi tiết.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const importSlipMap = <?= json_encode($importSlipsForJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+    function formatCurrency(value) {
+      const amount = Number(value) || 0;
+      return amount.toLocaleString('vi-VN') + ' VNĐ';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getStatusBadge(status) {
+      if (status === 'Đã nhập') {
+        return '<span class="badge badge-success">Đã nhập</span>';
+      }
+      if (status === 'Đang chờ duyệt') {
+        return '<span class="badge badge-warning">Đang chờ duyệt</span>';
+      }
+      return '<span class="badge badge-danger">Đã hủy</span>';
+    }
+
+    function buildDetailsRows(details) {
+      if (!Array.isArray(details) || details.length === 0) {
+        return '<tr><td colspan="5" class="text-center text-muted">Không có dữ liệu chi tiết.</td></tr>';
+      }
+
+      return details.map(function (detail) {
+        const quantity = Number(detail.quantity) || 0;
+        const importPrice = Number(detail.import_price) || 0;
+        const lineTotal = quantity * importPrice;
+
+        return '<tr>'
+          + '<td>' + escapeHtml(detail.item_type) + '</td>'
+          + '<td>' + escapeHtml(detail.item_name) + '</td>'
+          + '<td class="text-right">' + quantity.toLocaleString('vi-VN') + '</td>'
+          + '<td class="text-right">' + formatCurrency(importPrice) + '</td>'
+          + '<td class="text-right">' + formatCurrency(lineTotal) + '</td>'
+          + '</tr>';
+      }).join('');
+    }
+
+    function renderImportDetails(importData) {
+      $('#view_import_code').text(importData.code);
+      $('#view_import_date').text(importData.import_date_display);
+      $('#view_supplier').text(importData.supplier_name || '-');
+      $('#view_staff').text(importData.staff_name || '-');
+      $('#view_status').html(getStatusBadge(importData.status));
+      $('#view_total').text(formatCurrency(importData.total_amount));
+      $('#view_note').text(importData.note || 'Không có ghi chú');
+      $('#view_import_details_body').html(buildDetailsRows(importData.details));
+    }
+
+    function openPrintWindow(importData) {
+      const detailsRows = buildDetailsRows(importData.details);
+      const printHtml = '<!DOCTYPE html>'
+        + '<html lang="vi"><head><meta charset="UTF-8"><title>Phiếu nhập ' + escapeHtml(importData.code) + '</title>'
+        + '<style>'
+        + 'body{font-family:Arial,sans-serif;padding:20px;color:#222;}'
+        + 'h2{margin:0 0 10px;} .meta{margin-bottom:16px;line-height:1.7;}'
+        + 'table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;}'
+        + 'th{background:#f5f5f5;text-align:left;} .text-right{text-align:right;} .total{margin-top:12px;font-weight:700;text-align:right;}'
+        + '</style></head><body>'
+        + '<h2>PHIẾU NHẬP KHO ' + escapeHtml(importData.code) + '</h2>'
+        + '<div class="meta">'
+        + '<div><strong>Ngày nhập:</strong> ' + escapeHtml(importData.import_date_display) + '</div>'
+        + '<div><strong>Nhà cung cấp:</strong> ' + escapeHtml(importData.supplier_name || '-') + '</div>'
+        + '<div><strong>Nhân viên:</strong> ' + escapeHtml(importData.staff_name || '-') + '</div>'
+        + '<div><strong>Trạng thái:</strong> ' + escapeHtml(importData.status || '-') + '</div>'
+        + '<div><strong>Ghi chú:</strong> ' + escapeHtml(importData.note || 'Không có ghi chú') + '</div>'
+        + '</div>'
+        + '<table><thead><tr><th>Loại</th><th>Tên mục</th><th class="text-right">SL</th><th class="text-right">Đơn giá nhập</th><th class="text-right">Thành tiền</th></tr></thead>'
+        + '<tbody>' + detailsRows + '</tbody></table>'
+        + '<div class="total">Tổng tiền: ' + formatCurrency(importData.total_amount) + '</div>'
+        + '</body></html>';
+
+      const printWindow = window.open('', '_blank', 'width=900,height=700');
+      if (!printWindow) {
+        alert('Trình duyệt đã chặn popup in. Vui lòng cho phép popup và thử lại.');
+        return;
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(printHtml);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    }
+
+    $(document).on('click', '.view-import-btn', function () {
+      const importId = String($(this).data('id'));
+      const importData = importSlipMap[importId];
+      if (!importData) {
+        alert('Không tìm thấy dữ liệu phiếu nhập.');
+        return;
+      }
+
+      renderImportDetails(importData);
+      $('#viewImportModal').modal('show');
+    });
+
+    $(document).on('click', '.print-import-btn', function () {
+      const importId = String($(this).data('id'));
+      const importData = importSlipMap[importId];
+      if (!importData) {
+        alert('Không tìm thấy dữ liệu phiếu nhập để in.');
+        return;
+      }
+
+      openPrintWindow(importData);
+    });
+  })();
+</script>

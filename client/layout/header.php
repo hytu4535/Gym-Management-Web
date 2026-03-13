@@ -75,7 +75,10 @@ if (isset($_SESSION['user_id'])) {
                 <li class="<?php echo ($current_page == 'classes.php') ? 'active' : ''; ?>"><a href="classes.php">Lớp tập</a></li>
                 <li class="<?php echo ($current_page == 'services.php') ? 'active' : ''; ?>"><a href="services.php">Dịch vụ</a></li>
                 <li class="<?php echo ($current_page == 'trainers.php') ? 'active' : ''; ?>"><a href="trainers.php">Huấn luyện viên</a></li>
+<<<<<<< HEAD
                 <li class="<?php echo ($current_page == 'pt-booking.php') ? 'active' : ''; ?>"><a href="pt-booking.php">Lịch tập với PT</a></li>
+=======
+>>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                 <li class="<?php echo ($current_page == 'packages.php') ? 'active' : ''; ?>"><a href="packages.php">Gói tập</a></li>
                 <li class="<?php echo ($current_page == 'products.php' || $current_page == 'product-detail.php') ? 'active' : ''; ?>"><a href="products.php">Sản phẩm</a></li>
                 <li><a href="#">Khác</a>
@@ -117,7 +120,10 @@ if (isset($_SESSION['user_id'])) {
                             <li class="<?php echo ($current_page == 'classes.php') ? 'active' : ''; ?>"><a href="classes.php">Lớp tập</a></li>
                             <li class="<?php echo ($current_page == 'services.php') ? 'active' : ''; ?>"><a href="services.php">Dịch vụ</a></li>
                             <li class="<?php echo ($current_page == 'trainers.php') ? 'active' : ''; ?>"><a href="trainers.php">Huấn luyện viên</a></li>
+<<<<<<< HEAD
                             <li class="<?php echo ($current_page == 'pt-booking.php') ? 'active' : ''; ?>"><a href="pt-booking.php">Lịch tập với PT</a></li>
+=======
+>>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                             <li class="<?php echo ($current_page == 'packages.php') ? 'active' : ''; ?>"><a href="packages.php">Gói tập</a></li>
                             <li class="<?php echo ($current_page == 'products.php' || $current_page == 'product-detail.php') ? 'active' : ''; ?>"><a href="products.php">Sản phẩm</a></li>
                             <li><a href="#">Khác</a>
@@ -170,9 +176,12 @@ if (isset($_SESSION['user_id'])) {
                                         <a href="my-schedules.php" style="display:block;padding:9px 16px;color:#ccc;text-decoration:none;font-size:13px;">
                                             <i class="fa fa-calendar" style="width:18px;color:#f36100;"></i> Lịch tập của tôi
                                         </a>
+<<<<<<< HEAD
                                         <a href="pt-booking.php" style="display:block;padding:9px 16px;color:#ccc;text-decoration:none;font-size:13px;">
                                             <i class="fa fa-handshake-o" style="width:18px;color:#f36100;"></i> Đặt lịch PT 1-1
                                         </a>
+=======
+>>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                                         <a href="order-history.php" style="display:block;padding:9px 16px;color:#ccc;text-decoration:none;font-size:13px;">
                                             <i class="fa fa-shopping-bag" style="width:18px;color:#f36100;"></i> Lịch sử mua hàng
                                         </a>

@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 require_once '../config/db.php';
 
+<<<<<<< HEAD
 $user_id = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
 $member_id = null;
 
@@ -16,6 +17,9 @@ if ($user_id) {
         $member_id = (int) $memberData['id'];
     }
 }
+=======
+$member_id = $_SESSION['user_id'] ?? null;
+>>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
 
 // Lấy danh sách lớp tập nhóm đang mở
 $sql = "SELECT 
@@ -226,7 +230,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.querySelectorAll('.btn-register-class').forEach(btn => {
         btn.addEventListener('click', () => {
+<<<<<<< HEAD
             handleClass(btn, 'ajax/class-register-process.php', 'Đăng ký thành công!');
+=======
+            handleClass(btn, 'class-register.php', 'Đăng ký thành công!');
+>>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
         });
     });
 });

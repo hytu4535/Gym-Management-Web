@@ -1222,3 +1222,41 @@ UNLOCK TABLES;
 /* chi de sua n to n de de hoat dong thui :3 */
 ALTER TABLE roles DROP FOREIGN KEY roles_ibfk_1;
 ALTER TABLE roles DROP COLUMN permission_id;
+
+/* cap nhat roles, permission, role_permissions*/
+
+/*roles*/
+UPDATE roles SET description = 'Quản trị toàn hệ thống', status = 'active' WHERE name = 'Admin';
+UPDATE roles SET description = 'Nhân viên hỗ trợ khách hàng', status = 'active' WHERE name = 'Staff';
+UPDATE roles SET description = 'Hội viên sử dụng dịch vụ', status = 'active' WHERE name = 'Member';
+
+/*permission*/
+INSERT INTO permission (id, code) VALUES
+(4, 'MANAGE_PACKAGES'),
+(5, 'MANAGE_TRAINERS'),
+(6, 'MANAGE_SERVICES_NUTRITION'),
+(7, 'MANAGE_SALES'),
+(8, 'MANAGE_INVENTORY'),
+(9, 'MANAGE_EQUIPMENT'),
+(10, 'MANAGE_FEEDBACK'),
+(11, 'MANAGE_PROMOTIONS'),
+(12, 'VIEW_REPORTS')
+ON DUPLICATE KEY UPDATE code = VALUES(code);
+
+/*role_permissions*/
+-- Admin có toàn quyền
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(4, 1) -- Admin có MANAGE_ALL
+ON DUPLICATE KEY UPDATE permission_id = VALUES(permission_id);
+
+-- Staff có quyền quản lý hội viên, nhân viên, gói tập, xem báo cáo
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(5, 2), -- HANDLE_CUSTOMERS
+(5, 4), -- MANAGE_PACKAGES
+(5, 12) -- VIEW_REPORTS
+ON DUPLICATE KEY UPDATE permission_id = VALUES(permission_id);
+
+-- Member có quyền sử dụng dịch vụ
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(6, 3) -- USE_SERVICES
+ON DUPLICATE KEY UPDATE permission_id = VALUES(permission_id);

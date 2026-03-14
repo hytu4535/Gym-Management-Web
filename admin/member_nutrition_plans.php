@@ -1,6 +1,19 @@
-<?php 
+<?php
+session_start(); // luôn khởi tạo session
+
 $page_title = "Gán dinh dưỡng cho hội viên";
-require_once '../includes/session.php';
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_SERVICES_NUTRITION
+checkPermission('MANAGE_SERVICES_NUTRITION');
+
+include '../includes/functions.php';
 
 $db = getDB();
 

@@ -1,9 +1,21 @@
-<?php 
+<?php
+session_start(); // luôn khởi tạo session
+
 $page_title = "Quản lý Vai trò";
+
+// kiểm tra đăng nhập
 include '../includes/auth.php'; 
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_ALL
+checkPermission('MANAGE_ALL');
+
+// layout chung
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
-include '../includes/database.php';
 
 $db = getDB();
 

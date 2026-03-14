@@ -1,9 +1,13 @@
 <?php 
 session_start();
 $page_title = "Quản lý Phản hồi";
+
 include '../includes/config.php';
 include '../includes/database.php';
+include '../includes/auth_permission.php'; 
 include '../includes/functions.php';
+
+checkPermission('MANAGE_FEEDBACK');
 
 // Handle AJAX actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {

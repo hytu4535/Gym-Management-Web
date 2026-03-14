@@ -1,5 +1,14 @@
-<?php 
+<?php
+session_start();
 $page_title = "Quản lý Báo Cáo";
+
+include '../includes/config.php';
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+include '../includes/functions.php';
+
+checkPermission('VIEW_REPORTS');
+
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
 ?>

@@ -8,7 +8,7 @@
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '14092005');
-define('DB_NAME', 'gym_management');
+define('DB_NAME', 'gym-management-web');
 define('DB_CHARSET', 'utf8mb4');
 
 // Application settings

@@ -1,7 +1,24 @@
-<?php 
-$page_title = "Quản lý thiết bị";
-include 'layout/header.php'; 
+php
+<?php
+session_start(); // luôn khởi tạo session
+
+$page_title = "Quản lý Thiết bị";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_EQUIPMENT
+checkPermission('MANAGE_EQUIPMENT');
+
+// layout chung
+include 'layout/header.php';
 include 'layout/sidebar.php';
+
+$db = getDB();
 ?>
 
   <!-- Content Wrapper. Contains page content -->

@@ -1,9 +1,21 @@
-<?php 
+<?php
+session_start(); // luôn khởi tạo session
+
 $page_title = "Quản lý Staff";
-include 'layout/header.php'; 
-include 'layout/sidebar.php';
+
+// kiểm tra đăng nhập
 include '../includes/auth.php';
 
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_STAFF
+checkPermission('MANAGE_STAFF');
+
+// layout chung
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->

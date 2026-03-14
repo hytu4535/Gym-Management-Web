@@ -1,6 +1,6 @@
 <?php
 session_start();
-include '../includes/database.php'; // dùng class Database bạn đã có
+include '../includes/database.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = trim($_POST['username']);
@@ -8,32 +8,42 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     $db = getDB();
 
-    // JOIN users với roles để lấy permission_id
-    $sql = "SELECT u.*, r.permission_id, r.name AS role_name
+    // Lấy thông tin user + role
+    $sql = "SELECT u.id, u.username, u.password, r.id AS role_id, r.name AS role_name
             FROM users u
             JOIN roles r ON u.role_id = r.id
-            WHERE u.username = ? AND r.permission_id = 1
+            WHERE u.username = ?
             LIMIT 1";
     $stmt = $db->prepare($sql);
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
-    if ($user) {
-        // So sánh mật khẩu plain text
-        if ($password === $user['password']) {
-            $_SESSION['admin_logged_in'] = true;
-            $_SESSION['admin_username'] = $user['username'];
-            $_SESSION['admin_permission'] = $user['permission_id'];
-            header("Location: index.php");
-            exit();
-        } else {
-            $error = "Sai mật khẩu!";
-        }
+    // So sánh mật khẩu plain text
+    if ($user && $password === $user['password']) {
+        // Lấy danh sách quyền từ bảng role_permissions
+        $sql = "SELECT p.code 
+                FROM role_permissions rp
+                JOIN permission p ON rp.permission_id = p.id
+                WHERE rp.role_id = ?";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$user['role_id']]);
+        $permissions = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        // Lưu vào session
+        $_SESSION['admin_logged_in'] = true;
+        $_SESSION['admin_username'] = $user['username'];
+        $_SESSION['role'] = $user['role_name'];
+        $_SESSION['role_id'] = $user['role_id']; // thêm dòng này để lưu role_id
+        $_SESSION['permissions'] = $permissions;
+
+        header("Location: index.php");
+        exit();
     } else {
-        $error = "Không tìm thấy tài khoản có quyền Admin!";
+        $error = "Sai tên đăng nhập hoặc mật khẩu!";
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -58,15 +68,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     .login-container h2 {
       text-align: center;
       margin-bottom: 20px;
+      color: orangered;
     }
     .login-container input {
-      width: 100%;
+      width: 95%;
       margin-bottom: 15px;
       padding: 10px;
+      border: none;
+      border-bottom: 3px solid orangered ;
     }
     .login-container button {
       width: 100%;
       padding: 10px;
+      border-radius: 10px;
+      background-color: limegreen;
+    }
+    .login-container button:hover {
+      background-color: greenyellow;
+    }
+    .login-container button:active {
+      background-color: green
     }
     .error {
       color: red;

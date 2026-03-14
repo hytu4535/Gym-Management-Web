@@ -3,7 +3,7 @@
 Muc dich: ghi nhanh cac file da can thiep va function/khối xu ly da doi de tien ghep code.
 Ngay cap nhat: 2026-03-14
 
-## 1) Client - Trang subscription (doi ten tu account)
+## 1) Client - Trang subscription
 
 ### client/subscription.php
 
@@ -51,6 +51,6 @@ Ngay cap nhat: 2026-03-14
   - `getAllFeedback($status = null)`
   - `getFeedbackById($id)`
 
-## 4) Cac file da can thiep truoc do (de ghep code)
+
 
 

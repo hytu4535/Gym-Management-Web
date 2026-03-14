@@ -874,9 +874,10 @@ function getAllFeedback($status = null) {
         
         if ($status) {
             $stmt = $db->prepare("
-                SELECT f.*, m.users_id as member_user_id, m.full_name as member_name, ru.username as responded_by_name
+                SELECT f.*, m.users_id as member_user_id, COALESCE(NULLIF(m.full_name,''), mu.username) as member_name, ru.username as responded_by_name
                 FROM feedback f
                 JOIN members m ON m.id = f.member_id
+                JOIN users mu ON mu.id = m.users_id
                 LEFT JOIN users ru ON ru.id = f.responded_by
                 WHERE f.status = ?
                 ORDER BY f.created_at DESC
@@ -884,9 +885,10 @@ function getAllFeedback($status = null) {
             $stmt->execute([$status]);
         } else {
             $stmt = $db->query("
-                SELECT f.*, m.users_id as member_user_id, m.full_name as member_name, ru.username as responded_by_name
+                SELECT f.*, m.users_id as member_user_id, COALESCE(NULLIF(m.full_name,''), mu.username) as member_name, ru.username as responded_by_name
                 FROM feedback f
                 JOIN members m ON m.id = f.member_id
+                JOIN users mu ON mu.id = m.users_id
                 LEFT JOIN users ru ON ru.id = f.responded_by
                 ORDER BY f.created_at DESC
             ");
@@ -906,9 +908,10 @@ function getFeedbackById($id) {
     try {
         $db = getDB();
         $stmt = $db->prepare("
-            SELECT f.*, m.users_id as member_user_id, m.full_name as member_name, ru.username as responded_by_name
+            SELECT f.*, m.users_id as member_user_id, COALESCE(NULLIF(m.full_name,''), mu.username) as member_name, ru.username as responded_by_name
             FROM feedback f
             JOIN members m ON m.id = f.member_id
+            JOIN users mu ON mu.id = m.users_id
             LEFT JOIN users ru ON ru.id = f.responded_by
             WHERE f.id = ?
         ");

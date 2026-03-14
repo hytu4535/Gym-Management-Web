@@ -1,10 +1,56 @@
-* GIAO DIỆN:
- ADMIN:
-1. giao diện admin tạm thời (menu chưa đầy đủ, tự bổ sung thêm các phần mình được phân công vào menu)
+# README - Tong hop file/function da chinh sua
 
-2. để chạy giao diện admin:
- 2.1: gõ lệnh terminal để cd đường dẫn tuyệt đối hoặc tương đối vào đồ án. VD: cd "d:\SGU Nam 3 HK2\Web2\DoAn"
- 2.2: tiếp tục gõ: php -S localhost:8000
- 2.3: vào trình duyệt gõ URL sau: http://localhost:8000/admin/index.php
+Muc dich: ghi nhanh cac file da can thiep va function/khối xu ly da doi de tien ghep code.
+Ngay cap nhat: 2026-03-14
 
--Đã xong phần admin, phần user còn là demo(client/index)
+## 1) Client - Trang subscription (doi ten tu account)
+
+### client/subscription.php
+
+
+### client/api.php
+- Them function:
+  - `handleDeleteNotification(PDO $db, $member, $notificationId)`
+    - Chi cho xoa thong bao cua dung user dang dang nhap
+    - Chi xoa thong bao da doc (`is_read = 1`)
+- Da cap nhat router action:
+  - `case 'delete_notification'` -> goi `handleDeleteNotification(...)`
+- Action da co va van dung:
+  - `case 'mark_notification_read'`
+
+### client/layout/header.php
+- Da cap nhat menu de tro den `subscription.php` 
+- Da cap nhat dieu kien active:
+  - `$current_page == 'subscription.php'`
+- Label menu hien tai: `Goi`
+
+
+
+
+
+## 2) Admin - Notifications (gui theo nhom)
+
+### admin/notifications.php
+- Da thay luong tao thong bao tu "gui tung user" sang "gui theo nhom".
+- POST xu ly moi:
+  - `recipient_group` (gia tri: `all`, `admin`, `staff`, `member`)
+- Logic moi:
+  - Lay danh sach user active theo nhom (hoac tat ca)
+  - Insert thong bao cho tung user trong transaction
+- Form modal da doi:
+  - Dropdown "Nguoi nhan" -> "Gui toi" voi 4 lua chon
+
+## 3) Functions dung chung - Feedback
+
+### includes/functions.php
+- Da chinh lai cac query feedback theo schema dung:
+  - `members.users_id` (khong dung `members.user_id`)
+  - `users.username` (khong dung `users.name`)
+  - `member_name`: `COALESCE(NULLIF(m.full_name,''), mu.username)`
+- Function da can thiep:
+  - `getAllFeedback($status = null)`
+  - `getFeedbackById($id)`
+
+## 4) Cac file da can thiep truoc do (de ghep code)
+
+

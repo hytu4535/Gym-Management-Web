@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Database Configuration
  * Gym Management System
@@ -7,11 +7,7 @@
 // Database connection settings
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
-<<<<<<< HEAD
-define('DB_PASS', '14092005');
-=======
 define('DB_PASS', 'thinh2014');
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
 define('DB_NAME', 'gym_management');
 define('DB_CHARSET', 'utf8mb4');
 
@@ -53,3 +49,4 @@ if ($is_development) {
 // ini_set('session.use_only_cookies', 1);
 // ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
 ?>
+

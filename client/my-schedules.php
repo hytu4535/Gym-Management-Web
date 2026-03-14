@@ -1,6 +1,6 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
-require_once '../config/db.php';
+require_once __DIR__ . '/../config/db.php';
 
 // Kiểm tra đăng nhập
 if (!isset($_SESSION['user_id'])) {
@@ -8,7 +8,6 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-<<<<<<< HEAD
 $user_id = intval($_SESSION['user_id']);
 
 $stmtMember = $conn->prepare("SELECT id FROM members WHERE users_id = ? LIMIT 1");
@@ -25,9 +24,6 @@ if (!$memberData) {
 }
 
 $member_id = (int) $memberData['id'];
-=======
-$member_id = intval($_SESSION['user_id']);
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
 
 // ── Tab 1: Lịch hẹn PT (training_schedules) ──────────────────────────────────
 $sql_ts = "SELECT 
@@ -242,13 +238,10 @@ include 'layout/header.php';
                             $intensity_css   = $intensity_map[$mts['intensity'] ?? '']['css']   ?? '';
                             $intensity_label = $intensity_map[$mts['intensity'] ?? '']['label'] ?? $mts['intensity'];
                             $status_css      = $status_map[$mts['status'] ?? ''] ?? 'du-kien';
-<<<<<<< HEAD
                             $display_note    = $mts['note'] ?? '';
                             if (strpos($display_note, '[CLASS_ID:') !== false) {
                                 $display_note = '';
                             }
-=======
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                         ?>
                         <div class="schedule-card <?php echo ($mts['status'] === 'huỷ') ? 'past' : ''; ?>">
                             <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
@@ -287,13 +280,8 @@ include 'layout/header.php';
                                 <span><i class="fa fa-user"></i> HLV: <?php echo htmlspecialchars($mts['trainer_name']); ?></span>
                                 <?php endif; ?>
 
-<<<<<<< HEAD
                                 <?php if (!empty($display_note)): ?>
                                 <span><i class="fa fa-sticky-note-o"></i> <?php echo htmlspecialchars($display_note); ?></span>
-=======
-                                <?php if (!empty($mts['note'])): ?>
-                                <span><i class="fa fa-sticky-note-o"></i> <?php echo htmlspecialchars($mts['note']); ?></span>
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                                 <?php endif; ?>
                             </div>
                         </div>

@@ -11,10 +11,7 @@
                             <span>Định hình cơ thể bạn</span>
                             <h1>Hãy <strong>mạnh mẽ</strong> luyện tập chăm chỉ</h1>
                             <a href="packages.php" class="primary-btn">Xem gói tập</a>
-<<<<<<< HEAD
                             <a href="pt-booking.php" class="primary-btn" style="margin-left:10px;">Đặt lịch PT</a>
-=======
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                         </div>
                     </div>
                 </div>
@@ -28,10 +25,7 @@
                             <span>Định hình cơ thể bạn</span>
                             <h1>Hãy <strong>mạnh mẽ</strong> luyện tập chăm chỉ</h1>
                             <a href="packages.php" class="primary-btn">Xem gói tập</a>
-<<<<<<< HEAD
                             <a href="pt-booking.php" class="primary-btn" style="margin-left:10px;">Đặt lịch PT</a>
-=======
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                         </div>
                     </div>
                 </div>
@@ -172,10 +166,7 @@
                     <h2>Đăng ký ngay để nhận thêm ưu đãi</h2>
                     <div class="bt-tips">Nơi sức khỏe, sắc đẹp và thể hình gặp nhau.</div>
                     <a href="contact.php" class="primary-btn  btn-normal">Liên hệ ngay</a>
-<<<<<<< HEAD
                     <a href="pt-booking.php" class="primary-btn btn-normal" style="margin-left:10px;">Đặt lịch PT</a>
-=======
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                 </div>
             </div>
         </div>
@@ -437,35 +428,22 @@
             <div class="col-md-4">
                 <div class="gt-text">
                     <i class="fa fa-map-marker"></i>
-<<<<<<< HEAD
                     <p>123 Đường ABC, Quận 1,<br/> TP. Hồ Chí Minh</p>
-=======
-                    <p>18/16 Phan Văn Trị, Phường 2, Quận 5,<br/> TP. Hồ Chí Minh</p>
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="gt-text">
                     <i class="fa fa-mobile"></i>
                     <ul>
-<<<<<<< HEAD
                         <li>(028) 1234-5678</li>
                         <li>(028) 8765-4321</li>
-=======
-                        <li>(078) 6026-878</li>
-                        <li>(036) 6678-351</li>
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                     </ul>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="gt-text email">
                     <i class="fa fa-envelope"></i>
-<<<<<<< HEAD
                     <p>support@gymcenter.vn</p>
-=======
-                    <p>support@trungkiengym.vn</p>
->>>>>>> b0e7d9c41fd8046e09ddc5ff4563e0a4c8d1bfef
                 </div>
             </div>
         </div>

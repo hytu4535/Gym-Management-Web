@@ -70,6 +70,8 @@ if (isset($_SESSION['user_id'])) {
                     </ul>
                 </li>
                 <li class="<?php echo ($current_page == 'contact.php') ? 'active' : ''; ?>"><a href="contact.php">Liên hệ</a></li>
+                <li class="<?php echo ($current_page == 'subscription.php') ? 'active' : ''; ?>"><a href="subscription.php">Gói</a></li>
+                <li class="<?php echo ($current_page == 'profile.php') ? 'active' : ''; ?>"><a href="profile.php">Hồ sơ</a></li>
             </ul>
         </nav>
         <div id="mobile-menu-wrap"></div>
@@ -111,6 +113,8 @@ if (isset($_SESSION['user_id'])) {
                                 </ul>
                             </li>
                             <li class="<?php echo ($current_page == 'contact.php') ? 'active' : ''; ?>"><a href="contact.php">Liên hệ</a></li>
+                            <li class="<?php echo ($current_page == 'subscription.php') ? 'active' : ''; ?>"><a href="subscription.php">Gói</a></li>
+                            <li class="<?php echo ($current_page == 'profile.php') ? 'active' : ''; ?>"><a href="profile.php">Hồ sơ</a></li>
                         </ul>
                     </nav>
                 </div>
@@ -127,7 +131,7 @@ if (isset($_SESSION['user_id'])) {
                                 <?php endif; ?>
                             </a>
                             <?php if(isset($_SESSION['user_id'])): ?>
-                                <a href="profile.php" title="Tài khoản"><i class="fa fa-user"></i></a>
+                                <a href="logout.php" title="Đăng xuất"><i class="fa fa-sign-out"></i></a>
                             <?php else: ?>
                                 <a href="login.php" title="Đăng nhập"><i class="fa fa-sign-in"></i></a>
                             <?php endif; ?>

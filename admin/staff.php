@@ -2,6 +2,8 @@
 $page_title = "Quản lý Staff";
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
+include '../includes/auth.php';
+
 ?>
 
   <!-- Content Wrapper. Contains page content -->

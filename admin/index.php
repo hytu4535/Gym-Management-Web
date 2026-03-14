@@ -1,7 +1,9 @@
 <?php 
 $page_title = "Dashboard";
+include '../includes/auth.php';
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
+
 ?>
 
   <!-- Content Wrapper. Contains page content -->

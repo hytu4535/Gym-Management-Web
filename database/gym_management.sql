@@ -1216,3 +1216,9 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-03-08  6:46:27
+
+
+
+/* chi de sua n to n de de hoat dong thui :3 */
+ALTER TABLE roles DROP FOREIGN KEY roles_ibfk_1;
+ALTER TABLE roles DROP COLUMN permission_id;

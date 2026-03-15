@@ -211,7 +211,7 @@ CREATE TABLE `class_registrations` (
   KEY `idx_reg_class` (`class_id`),
   CONSTRAINT `fk_reg_class` FOREIGN KEY (`class_id`) REFERENCES `class_schedules` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_reg_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Đăng ký lớp tập nhóm';
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Đăng ký lớp tập nhóm';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -220,7 +220,7 @@ CREATE TABLE `class_registrations` (
 
 LOCK TABLES `class_registrations` WRITE;
 /*!40000 ALTER TABLE `class_registrations` DISABLE KEYS */;
-INSERT INTO `class_registrations` VALUES (1,1,1,'2026-03-10 01:56:01','cancelled'),(2,2,2,'2026-03-02 14:15:00','cancelled'),(3,3,3,'2026-03-14 13:32:28','cancelled'),(4,13,4,'2026-03-04 16:20:00','active'),(5,1,5,'2026-03-11 16:35:49','active'),(6,1,2,'2026-03-11 16:35:45','active'),(7,1,3,'2026-03-10 01:55:59','cancelled'),(8,3,2,'2026-03-14 13:31:57','cancelled'),(9,3,5,'2026-03-14 13:33:03','active');
+INSERT INTO `class_registrations` VALUES (1,1,1,'2026-03-10 01:56:01','cancelled'),(2,2,2,'2026-03-02 14:15:00','cancelled'),(3,3,3,'2026-03-03 09:45:00','active'),(4,13,4,'2026-03-04 16:20:00','active'),(5,1,5,'2026-03-11 16:35:49','active'),(6,1,2,'2026-03-11 16:35:45','active'),(7,1,3,'2026-03-10 01:55:59','cancelled');
 /*!40000 ALTER TABLE `class_registrations` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -256,7 +256,7 @@ CREATE TABLE `class_schedules` (
 
 LOCK TABLES `class_schedules` WRITE;
 /*!40000 ALTER TABLE `class_schedules` DISABLE KEYS */;
-INSERT INTO `class_schedules` VALUES (1,'Yoga Sáng Năng Động','yoga',1,'06:00 - 07:30','Thứ 2, Thứ 4, Thứ 6',25,0,'Phòng A1','active','2026-03-07 22:44:36'),(2,'Cardio Giảm Cân','cardio',2,'18:00 - 19:00','Thứ 3, Thứ 5, Thứ 7',30,1,'Phòng B2','active','2026-03-07 22:44:36'),(3,'Boxing Cơ Bản','boxing',1,'19:30 - 21:00','Thứ 2, Thứ 5',15,0,'Phòng C1','active','2026-03-07 22:44:36'),(4,'HIIT Đốt Mỡ','hiit',2,'17:00 - 18:00','Thứ 3, Thứ 6',20,0,'Phòng B1','active','2026-03-07 22:44:36'),(5,'Strength Training','strength',1,'07:00 - 08:30','Thứ 4, Thứ 7, Chủ Nhật',18,2,'Phòng Gym','active','2026-03-07 22:44:36');
+INSERT INTO `class_schedules` VALUES (1,'Yoga Sáng Năng Động','yoga',1,'06:00 - 07:30','Thứ 2, Thứ 4, Thứ 6',25,0,'Phòng A1','active','2026-03-07 22:44:36'),(2,'Cardio Giảm Cân','cardio',2,'18:00 - 19:00','Thứ 3, Thứ 5, Thứ 7',30,1,'Phòng B2','active','2026-03-07 22:44:36'),(3,'Boxing Cơ Bản','boxing',1,'19:30 - 21:00','Thứ 2, Thứ 5',15,0,'Phòng C1','active','2026-03-07 22:44:36'),(4,'HIIT Đốt Mỡ','hiit',2,'17:00 - 18:00','Thứ 3, Thứ 6',20,0,'Phòng B1','active','2026-03-07 22:44:36'),(5,'Strength Training','strength',1,'07:00 - 08:30','Thứ 4, Thứ 7, Chủ Nhật',18,1,'Phòng Gym','active','2026-03-07 22:44:36');
 /*!40000 ALTER TABLE `class_schedules` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -338,7 +338,7 @@ CREATE TABLE `feedback` (
   CONSTRAINT `fk_feedback_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_feedback_responded_by` FOREIGN KEY (`responded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `chk_feedback_rating` CHECK (((`rating` >= 1) and (`rating` <= 5)))
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Phản hồi từ hội viên';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Phản hồi từ hội viên';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -347,7 +347,6 @@ CREATE TABLE `feedback` (
 
 LOCK TABLES `feedback` WRITE;
 /*!40000 ALTER TABLE `feedback` DISABLE KEYS */;
-INSERT INTO `feedback` VALUES (1,1,NULL,'HLV Kiên ko biết dạy, tập tay mà bắt nâng tạ bằng chân?',1,'new','2026-03-15 11:37:55');
 /*!40000 ALTER TABLE `feedback` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -572,7 +571,7 @@ CREATE TABLE `member_training_schedules` (
   KEY `idx_status` (`status`),
   CONSTRAINT `fk_mts_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_mts_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `trainers` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch tập cá nhân của hội viên';
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch tập cá nhân của hội viên';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -581,7 +580,7 @@ CREATE TABLE `member_training_schedules` (
 
 LOCK TABLES `member_training_schedules` WRITE;
 /*!40000 ALTER TABLE `member_training_schedules` DISABLE KEYS */;
-INSERT INTO `member_training_schedules` VALUES (1,1,1,'2026-03-10 06:00:00',60,'cardio','trung bình',450,'Tập chạy bộ và đạp xe','dự kiến','2026-03-07 22:44:36','2026-03-07 22:44:36'),(2,2,2,'2026-03-11 18:00:00',90,'strength','cao',600,'Tập tạ tay và chân','dự kiến','2026-03-07 22:44:36','2026-03-07 22:44:36'),(3,3,1,'2026-03-09 07:00:00',45,'yoga','thấp',200,'Yoga thư giãn','hoàn thành','2026-03-07 22:44:36','2026-03-07 22:44:36'),(4,13,NULL,'2026-03-12 19:00:00',60,'boxing','cao',550,'Tập tự do - luyện đấm bao cát','dự kiến','2026-03-07 22:44:36','2026-03-07 22:44:36'),(5,2,2,'2026-03-08 17:30:00',75,'hiit','rất cao',700,'HIIT cường độ cao, đốt calo','hoàn thành','2026-03-07 22:44:36','2026-03-07 22:44:36'),(6,3,2,'2026-03-17 18:00:00',60,'cardio','trung bình',0,'Lịch tạo tự động từ lớp Cardio Giảm Cân [CLASS_ID:2]','huỷ','2026-03-14 06:31:57','2026-03-14 06:32:23'),(7,3,1,'2026-03-16 19:30:00',60,'boxing','trung bình',0,'Lịch tạo tự động từ lớp Boxing Cơ Bản [CLASS_ID:3]','huỷ','2026-03-14 06:32:28','2026-03-14 06:33:00'),(8,3,1,'2026-03-15 07:00:00',60,'strength','trung bình',0,'Lịch tạo tự động từ lớp Strength Training [CLASS_ID:5]','dự kiến','2026-03-14 06:33:03','2026-03-14 06:33:03');
+INSERT INTO `member_training_schedules` VALUES (1,1,1,'2026-03-10 06:00:00',60,'cardio','trung bình',450,'Tập chạy bộ và đạp xe','dự kiến','2026-03-07 22:44:36','2026-03-07 22:44:36'),(2,2,2,'2026-03-11 18:00:00',90,'strength','cao',600,'Tập tạ tay và chân','dự kiến','2026-03-07 22:44:36','2026-03-07 22:44:36'),(3,3,1,'2026-03-09 07:00:00',45,'yoga','thấp',200,'Yoga thư giãn','hoàn thành','2026-03-07 22:44:36','2026-03-07 22:44:36'),(4,13,NULL,'2026-03-12 19:00:00',60,'boxing','cao',550,'Tập tự do - luyện đấm bao cát','dự kiến','2026-03-07 22:44:36','2026-03-07 22:44:36'),(5,2,2,'2026-03-08 17:30:00',75,'hiit','rất cao',700,'HIIT cường độ cao, đốt calo','hoàn thành','2026-03-07 22:44:36','2026-03-07 22:44:36');
 /*!40000 ALTER TABLE `member_training_schedules` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -618,7 +617,7 @@ CREATE TABLE `members` (
 
 LOCK TABLES `members` WRITE;
 /*!40000 ALTER TABLE `members` DISABLE KEYS */;
-INSERT INTO `members` VALUES (1,1,'Trương Trung Kiên','0912345678','aaaaaaaaaaaaaaaaaaaaaaaaa','2024-01-15','active',170.00,65.00,3,14989750.00),(2,2,'Nguyễn Tường Huy','0987654321','Quận 3, TP.HCM','2024-02-20','active',180.00,70.00,3,23390000.00),(3,3,'Nguyễn Nguyên Bảo','0903456789','Thủ Đức, TP.HCM','2023-11-05','active',165.00,70.00,2,3882000.00),(13,9,'test','0786026878','666 Võ Văn Kiệt, Gò Vấp, TP.HCM','2026-02-15','active',180.00,55.00,1,0.00);
+INSERT INTO `members` VALUES (1,1,'Trương Trung Kiên','0912345678','Quận 1, TP.HCM','2024-01-15','active',170.00,65.00,3,14989750.00),(2,2,'Nguyễn Tường Huy','0987654321','Quận 3, TP.HCM','2024-02-20','active',180.00,70.00,3,23390000.00),(3,3,'Nguyễn Nguyên Bảo','0903456789','Thủ Đức, TP.HCM','2023-11-05','active',165.00,70.00,2,3882000.00),(13,9,'test','0786026878','666 Võ Văn Kiệt, Gò Vấp, TP.HCM','2026-02-15','active',180.00,55.00,1,0.00);
 /*!40000 ALTER TABLE `members` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -667,7 +666,7 @@ CREATE TABLE `notifications` (
   PRIMARY KEY (`id`),
   KEY `idx_notifications_user_id` (`user_id`),
   CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Thông báo cho người dùng';
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Thông báo cho người dùng';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -676,7 +675,7 @@ CREATE TABLE `notifications` (
 
 LOCK TABLES `notifications` WRITE;
 /*!40000 ALTER TABLE `notifications` DISABLE KEYS */;
-INSERT INTO `notifications` VALUES (1,2,'aaa','aaa',0,'2026-03-05 09:45:25'),(2,1,'66','6677',0,'2026-03-11 09:56:56'),(3,1,'3636','363636',0,'2026-03-15 10:04:15'),(4,2,'3636','363636',0,'2026-03-15 10:04:15'),(5,3,'3636','363636',0,'2026-03-15 10:04:15'),(6,9,'3636','363636',0,'2026-03-15 10:04:15'),(7,10,'3636','363636',0,'2026-03-15 10:04:15'),(8,11,'3636','363636',0,'2026-03-15 10:04:15'),(9,12,'3636','363636',0,'2026-03-15 10:04:15'),(10,13,'3636','363636',0,'2026-03-15 10:04:15'),(11,14,'3636','363636',0,'2026-03-15 10:04:15'),(12,15,'3636','363636',0,'2026-03-15 10:04:15'),(13,16,'3636','363636',0,'2026-03-15 10:04:15'),(14,17,'3636','363636',0,'2026-03-15 10:04:15'),(15,18,'3636','363636',0,'2026-03-15 10:04:15'),(16,19,'3636','363636',0,'2026-03-15 10:04:15'),(17,20,'3636','363636',0,'2026-03-15 10:04:15'),(18,21,'3636','363636',0,'2026-03-15 10:04:15'),(19,22,'3636','363636',0,'2026-03-15 10:04:15'),(20,17,'Feedback mới từ hội viên','Hội viên Trương Trung Kiên vừa gửi feedback mới. Vui lòng kiểm tra mục Phản hồi.',0,'2026-03-15 11:37:55');
+INSERT INTO `notifications` VALUES (1,2,'aaa','aaa',0,'2026-03-05 09:45:25'),(2,1,'66','6677',0,'2026-03-11 09:56:56');
 /*!40000 ALTER TABLE `notifications` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -852,7 +851,7 @@ CREATE TABLE `permission` (
   `code` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -861,7 +860,7 @@ CREATE TABLE `permission` (
 
 LOCK TABLES `permission` WRITE;
 /*!40000 ALTER TABLE `permission` DISABLE KEYS */;
-INSERT INTO `permission` VALUES (2,'HANDLE_CUSTOMERS'),(1,'MANAGE_ALL'),(9,'MANAGE_EQUIPMENT'),(10,'MANAGE_FEEDBACK'),(8,'MANAGE_INVENTORY'),(4,'MANAGE_PACKAGES'),(11,'MANAGE_PROMOTIONS'),(7,'MANAGE_SALES'),(6,'MANAGE_SERVICES_NUTRITION'),(5,'MANAGE_TRAINERS'),(3,'USE_SERVICES'),(12,'VIEW_REPORTS');
+INSERT INTO `permission` VALUES (2,'HANDLE_CUSTOMERS'),(1,'MANAGE_ALL'),(3,'USE_SERVICES');
 /*!40000 ALTER TABLE `permission` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -884,7 +883,7 @@ CREATE TABLE `products` (
   PRIMARY KEY (`id`),
   KEY `fk_product_category` (`category_id`),
   CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -893,7 +892,7 @@ CREATE TABLE `products` (
 
 LOCK TABLES `products` WRITE;
 /*!40000 ALTER TABLE `products` DISABLE KEYS */;
-INSERT INTO `products` VALUES (1,2,'Whey Gold Standard 5lbs','product_1772922977_1291.jpg','Hộp',30,1850000.00,'active'),(2,1,'Nước khoáng Lavie 500ml','product_1771589404_1838.jpg','Chai',98,10000.00,'active'),(3,1,'Găng tay tập Gym Adidas','product_1771589404_1838.jpg','Đôi',15,450000.00,'active'),(4,1,'test_product','product_1771589404_1838.jpg','chai',30,50000.00,'inactive'),(8,2,'Creatine Monohydrate 300g','product_1771589404_1838.jpg','hộp',60,450000.00,'active'),(9,2,'BCAA 2:1:1 400g','product_1771589404_1838.jpg','hộp',34,550000.00,'active'),(10,3,'Nước điện giải Pocari 500ml','product_1771589404_1838.jpg','chai',200,15000.00,'active'),(12,4,'Găng tay tập gym cao cấp','product_1771589404_1838.jpg','cái',70,120000.00,'active'),(13,4,'Đai lưng tập gym','product_1771589404_1838.jpg','cái',30,250000.00,'active'),(14,5,'Dây kháng lực 5 mức','product_1771589404_1838.jpg','bộ',45,180000.00,'active'),(16,7,'Combo Whey + Creatine','product_1771589404_1838.jpg','combo',20,2100000.00,'inactive'),(17,8,'Whey Dymatize Elite 5lbs','product_1771589404_1838.jpg','hộp',25,1950000.00,'active'),(18,9,'Fat Burner L-Carnitine','product_1771589404_1838.jpg','hộp',30,650000.00,'active'),(19,10,'Mass Gainer Serious Mass 6lbs','product_1772920712_1461.jpg','hộp',33,1350000.00,'active'),(20,2,'kien','product_1773475707_7704.jpg','hộp',50,500000.00,'active'),(21,5,'kiên2','product_1773475759_5841.jpg','cái',2,100000.00,'active');
+INSERT INTO `products` VALUES (1,2,'Whey Gold Standard 5lbs','product_1772922977_1291.jpg','Hộp',30,1850000.00,'active'),(2,1,'Nước khoáng Lavie 500ml','product_1771589404_1838.jpg','Chai',98,10000.00,'active'),(3,1,'Găng tay tập Gym Adidas','product_1771589404_1838.jpg','Đôi',15,450000.00,'active'),(4,1,'test_product','product_1771589404_1838.jpg','chai',30,50000.00,'inactive'),(8,2,'Creatine Monohydrate 300g','product_1771589404_1838.jpg','hộp',60,450000.00,'active'),(9,2,'BCAA 2:1:1 400g','product_1771589404_1838.jpg','hộp',34,550000.00,'active'),(10,3,'Nước điện giải Pocari 500ml','product_1771589404_1838.jpg','chai',200,15000.00,'active'),(12,4,'Găng tay tập gym cao cấp','product_1771589404_1838.jpg','cái',70,120000.00,'active'),(13,4,'Đai lưng tập gym','product_1771589404_1838.jpg','cái',30,250000.00,'active'),(14,5,'Dây kháng lực 5 mức','product_1771589404_1838.jpg','bộ',45,180000.00,'active'),(16,7,'Combo Whey + Creatine','product_1771589404_1838.jpg','combo',20,2100000.00,'inactive'),(17,8,'Whey Dymatize Elite 5lbs','product_1771589404_1838.jpg','hộp',25,1950000.00,'active'),(18,9,'Fat Burner L-Carnitine','product_1771589404_1838.jpg','hộp',30,650000.00,'active'),(19,10,'Mass Gainer Serious Mass 6lbs','product_1772920712_1461.jpg','hộp',33,1350000.00,'active');
 /*!40000 ALTER TABLE `products` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -967,33 +966,6 @@ LOCK TABLES `reports` WRITE;
 UNLOCK TABLES;
 
 --
--- Table structure for table `role_permissions`
---
-
-DROP TABLE IF EXISTS `role_permissions`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `role_permissions` (
-  `role_id` int NOT NULL,
-  `permission_id` int NOT NULL,
-  PRIMARY KEY (`role_id`,`permission_id`),
-  KEY `fk_role_permissions_permission` (`permission_id`),
-  CONSTRAINT `fk_role_permissions_permission` FOREIGN KEY (`permission_id`) REFERENCES `permission` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_role_permissions_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `role_permissions`
---
-
-LOCK TABLES `role_permissions` WRITE;
-/*!40000 ALTER TABLE `role_permissions` DISABLE KEYS */;
-INSERT INTO `role_permissions` VALUES (4,1),(5,2),(7,2),(6,3),(5,4),(7,4),(5,5),(7,5),(7,6),(7,7),(7,8),(5,9),(7,9),(7,10),(7,11),(5,12);
-/*!40000 ALTER TABLE `role_permissions` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
 -- Table structure for table `roles`
 --
 
@@ -1002,12 +974,15 @@ DROP TABLE IF EXISTS `roles`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `roles` (
   `id` int NOT NULL AUTO_INCREMENT,
+  `permission_id` int NOT NULL,
   `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
   `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  UNIQUE KEY `name` (`name`),
+  KEY `permission_id` (`permission_id`),
+  CONSTRAINT `roles_ibfk_1` FOREIGN KEY (`permission_id`) REFERENCES `permission` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1016,7 +991,7 @@ CREATE TABLE `roles` (
 
 LOCK TABLES `roles` WRITE;
 /*!40000 ALTER TABLE `roles` DISABLE KEYS */;
-INSERT INTO `roles` VALUES (4,'admin','Quản trị toàn hệ thống','active'),(5,'staff','Nhân viên hỗ trợ khách hàng','active'),(6,'member','Hội viên sử dụng dịch vụ','active'),(7,'aaaaaaaaaa','aaaaaaaaaaa','active');
+INSERT INTO `roles` VALUES (4,1,'admin','Quản trị toàn hệ thống','active'),(5,2,'staff','Nhân viên hỗ trợ khách hàng','active'),(6,3,'member','Hội viên sử dụng dịch vụ','active');
 /*!40000 ALTER TABLE `roles` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1036,7 +1011,7 @@ CREATE TABLE `services` (
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `status` enum('hoạt động','không hoạt động') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hoạt động',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Dịch vụ phòng gym';
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Dịch vụ phòng gym';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1045,7 +1020,7 @@ CREATE TABLE `services` (
 
 LOCK TABLES `services` WRITE;
 /*!40000 ALTER TABLE `services` DISABLE KEYS */;
-INSERT INTO `services` VALUES (3,'test',NULL,'thư giãn',50000.00,'test','hoạt động'),(4,'test2',NULL,'thư giãn',70000.00,'test2','hoạt động'),(5,'aaa',NULL,'thư giãn',5000.00,'aaaaa','hoạt động');
+INSERT INTO `services` VALUES (3,'test',NULL,'thư giãn',50000.00,'test','hoạt động'),(4,'test2',NULL,'thư giãn',70000.00,'test2','hoạt động');
 /*!40000 ALTER TABLE `services` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1156,7 +1131,7 @@ CREATE TABLE `trainers` (
   `phone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1165,7 +1140,7 @@ CREATE TABLE `trainers` (
 
 LOCK TABLES `trainers` WRITE;
 /*!40000 ALTER TABLE `trainers` DISABLE KEYS */;
-INSERT INTO `trainers` VALUES (1,'test',NULL,'Nội bộ','0786026878','hoạt động'),(2,'Trương Trung Kiên',NULL,'Nội bộ','0786026878','hoạt động'),(3,'Nguyễn Nguyên Bảo',NULL,'Nội bộ','07860263336','hoạt động');
+INSERT INTO `trainers` VALUES (1,'test',NULL,'Nội bộ','0786026878','hoạt động'),(2,'Trương Trung Kiên',NULL,'Nội bộ','0786026878','hoạt động');
 /*!40000 ALTER TABLE `trainers` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1187,7 +1162,7 @@ CREATE TABLE `training_schedules` (
   KEY `trainer_id` (`trainer_id`),
   CONSTRAINT `training_schedules_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
   CONSTRAINT `training_schedules_ibfk_2` FOREIGN KEY (`trainer_id`) REFERENCES `trainers` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1196,7 +1171,7 @@ CREATE TABLE `training_schedules` (
 
 LOCK TABLES `training_schedules` WRITE;
 /*!40000 ALTER TABLE `training_schedules` DISABLE KEYS */;
-INSERT INTO `training_schedules` VALUES (1,2,1,'2026-02-20 11:00:00','test'),(2,3,1,'2026-03-21 13:33:00','nnnnnnnnnnnnn'),(3,3,2,'2026-03-21 17:33:00','');
+INSERT INTO `training_schedules` VALUES (1,2,1,'2026-02-20 11:00:00','test');
 /*!40000 ALTER TABLE `training_schedules` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1220,7 +1195,7 @@ CREATE TABLE `users` (
   UNIQUE KEY `email` (`email`),
   KEY `role_id` (`role_id`),
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -1229,7 +1204,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,3,'truongtrungkien','$2y$10$JsEamv3qig6Xc3h5YqlPnuOO13Z0GyZankG4dMRPVjJhLRhudLJXy','kien@gmail.com','active','2026-01-26 19:05:40'),(2,3,'nguyentuonghuy','123456','huy@gmail.com','active','2026-01-26 19:05:40'),(3,3,'nguyennguyenbao','123456','bao@gmail.com','active','2026-01-26 19:05:40'),(9,6,'test1','123456','test1@gmail.com','active','2026-02-15 11:22:23'),(10,6,'nguyenvana','123456','nguyenvana@gmail.com','active','2026-03-11 03:00:00'),(11,6,'tranthib','123456','tranthib@gmail.com','active','2026-03-11 03:05:00'),(12,6,'lethic','123456','lethic@gmail.com','active','2026-03-11 03:10:00'),(13,5,'phamvand','123456','phamvand@gmail.com','active','2026-03-11 03:15:00'),(14,5,'hoangthie','123456','hoangthie@gmail.com','active','2026-03-11 03:20:00'),(15,6,'vuhongf','123456','vuhongf@gmail.com','active','2026-03-11 03:25:00'),(16,6,'dovanh','123456','dovanh@gmail.com','active','2026-03-11 03:30:00'),(17,4,'admin2','123456','admin2@gmail.com','active','2026-03-11 03:35:00'),(18,6,'nguyenvanminh','123456','nguyenvanminh@gmail.com','active','2026-03-11 03:40:00'),(19,6,'tranthilan','123456','tranthilan@gmail.com','active','2026-03-11 03:45:00'),(20,5,'nguyenminhtuan','123456','nguyenminhtuan@gmail.com','active','2026-03-11 03:50:00'),(21,5,'tranthanhhuong','123456','tranthanhhuong@gmail.com','active','2026-03-11 03:55:00'),(22,5,'levanhai','123456','levanhai@gmail.com','active','2026-03-11 04:00:00'),(23,7,'h','1','h@gmail.com','active','2026-03-15 11:28:26');
+INSERT INTO `users` VALUES (1,3,'truongtrungkien','123456','kien@gmail.com','active','2026-01-26 19:05:40'),(2,3,'nguyentuonghuy','123456','huy@gmail.com','active','2026-01-26 19:05:40'),(3,3,'nguyennguyenbao','123456','bao@gmail.com','active','2026-01-26 19:05:40'),(9,6,'test1','123456','test1@gmail.com','active','2026-02-15 11:22:23'),(10,6,'nguyenvana','123456','nguyenvana@gmail.com','active','2026-03-11 03:00:00'),(11,6,'tranthib','123456','tranthib@gmail.com','active','2026-03-11 03:05:00'),(12,6,'lethic','123456','lethic@gmail.com','active','2026-03-11 03:10:00'),(13,5,'phamvand','123456','phamvand@gmail.com','active','2026-03-11 03:15:00'),(14,5,'hoangthie','123456','hoangthie@gmail.com','active','2026-03-11 03:20:00'),(15,6,'vuhongf','123456','vuhongf@gmail.com','active','2026-03-11 03:25:00'),(16,6,'dovanh','123456','dovanh@gmail.com','active','2026-03-11 03:30:00'),(17,4,'admin2','123456','admin2@gmail.com','active','2026-03-11 03:35:00'),(18,6,'nguyenvanminh','123456','nguyenvanminh@gmail.com','active','2026-03-11 03:40:00'),(19,6,'tranthilan','123456','tranthilan@gmail.com','active','2026-03-11 03:45:00'),(20,5,'nguyenminhtuan','123456','nguyenminhtuan@gmail.com','active','2026-03-11 03:50:00'),(21,5,'tranthanhhuong','123456','tranthanhhuong@gmail.com','active','2026-03-11 03:55:00'),(22,5,'levanhai','123456','levanhai@gmail.com','active','2026-03-11 04:00:00');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -1242,4 +1217,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-03-15 19:17:54
+-- Dump completed on 2026-03-11 17:55:36

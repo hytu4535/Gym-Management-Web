@@ -1,211 +1,200 @@
-<?php 
+<?php
+session_start(); // luôn khởi tạo session
+
 $page_title = "Quản lý Users";
+
+// gọi auth trước để kiểm tra đăng nhập
+include '../includes/auth.php';   
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_ALL
+checkPermission('MANAGE_ALL');
+
+// layout chung
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
+
+$db = getDB();
+
+// Lấy danh sách users
+$sql = "SELECT u.id, u.username, u.email, r.name AS role, u.role_id, u.status, u.created_at
+        FROM users u
+        JOIN roles r ON u.role_id = r.id";
+$stmt = $db->query($sql);
+$users = $stmt->fetchAll();
+
+// Lấy danh sách roles để dùng cho form
+$roles = $db->query("SELECT id, name FROM roles WHERE status='active'")->fetchAll();
 ?>
 
-  <!-- Content Wrapper. Contains page content -->
-  <div class="content-wrapper">
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-      <div class="container-fluid">
-        <div class="row mb-2">
-          <div class="col-sm-6">
-            <h1 class="m-0">Quản lý Users</h1>
-          </div><!-- /.col -->
-          <div class="col-sm-6">
-            <ol class="breadcrumb float-sm-right">
-              <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item active">Users</li>
-            </ol>
-          </div><!-- /.col -->
-        </div><!-- /.row -->
-      </div><!-- /.container-fluid -->
+
+<div class="content-wrapper">
+  <div class="content-header">
+    <div class="container-fluid">
+      <h1 class="m-0">Quản lý Users</h1>
     </div>
-    <!-- /.content-header -->
+  </div>
 
-    <!-- Main content -->
-    <section class="content">
-      <div class="container-fluid">
-        <div class="row">
-          <div class="col-12">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">Danh sách Users</h3>
-                <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addUserModal">
-                    <i class="fas fa-plus"></i> Thêm User
-                  </button>
-                </div>
-              </div>
-              <!-- /.card-header -->
-              <div class="card-body">
-                <table id="usersTable" class="table table-bordered table-striped data-table">
-                  <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Tên đăng nhập</th>
-                    <th>Email</th>
-                    <th>Vai trò</th>
-                    <th>Trạng thái</th>
-                    <th>Ngày tạo</th>
-                    <th>Hành động</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>admin</td>
-                    <td>admin@gym.com</td>
-                    <td><span class="badge badge-danger">Admin</span></td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>2026-01-15</td>
-                    <td>
-                      <button class="btn btn-info btn-sm" title="Xem">
-                        <i class="fas fa-eye"></i>
-                      </button>
-                      <button class="btn btn-warning btn-sm" title="Sửa">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button class="btn btn-danger btn-sm" title="Xóa">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>staff01</td>
-                    <td>staff01@gym.com</td>
-                    <td><span class="badge badge-info">Staff</span></td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>2026-01-16</td>
-                    <td>
-                      <button class="btn btn-info btn-sm" title="Xem">
-                        <i class="fas fa-eye"></i>
-                      </button>
-                      <button class="btn btn-warning btn-sm" title="Sửa">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button class="btn btn-danger btn-sm" title="Xóa">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>3</td>
-                    <td>member01</td>
-                    <td>member01@gmail.com</td>
-                    <td><span class="badge badge-secondary">Member</span></td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>2026-01-17</td>
-                    <td>
-                      <button class="btn btn-info btn-sm" title="Xem">
-                        <i class="fas fa-eye"></i>
-                      </button>
-                      <button class="btn btn-warning btn-sm" title="Sửa">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button class="btn btn-danger btn-sm" title="Xóa">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>4</td>
-                    <td>trainer01</td>
-                    <td>trainer01@gym.com</td>
-                    <td><span class="badge badge-warning">Trainer</span></td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>2026-01-18</td>
-                    <td>
-                      <button class="btn btn-info btn-sm" title="Xem">
-                        <i class="fas fa-eye"></i>
-                      </button>
-                      <button class="btn btn-warning btn-sm" title="Sửa">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button class="btn btn-danger btn-sm" title="Xóa">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>5</td>
-                    <td>user_inactive</td>
-                    <td>inactive@gmail.com</td>
-                    <td><span class="badge badge-secondary">Member</span></td>
-                    <td><span class="badge badge-danger">Inactive</span></td>
-                    <td>2026-01-10</td>
-                    <td>
-                      <button class="btn btn-info btn-sm" title="Xem">
-                        <i class="fas fa-eye"></i>
-                      </button>
-                      <button class="btn btn-warning btn-sm" title="Sửa">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button class="btn btn-danger btn-sm" title="Xóa">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    </td>
-                  </tr>
-                  </tbody>
-                </table>
-              </div>
-              <!-- /.card-body -->
-            </div>
-            <!-- /.card -->
-          </div>
-          <!-- /.col -->
-        </div>
-        <!-- /.row -->
-      </div>
-      <!-- /.container-fluid -->
-    </section>
-    <!-- /.content -->
-
-    <!-- Add User Modal -->
-    <div class="modal fade" id="addUserModal" tabindex="-1" role="dialog" aria-labelledby="addUserModalLabel" aria-hidden="true">
-      <div class="modal-dialog" role="document">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="addUserModalLabel">Thêm User Mới</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
+  <section class="content">
+    <div class="container-fluid">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Danh sách Users</h3>
+          <div class="card-tools">
+            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addUserModal">
+              <i class="fas fa-plus"></i> Thêm User
             </button>
           </div>
+        </div>
+        <div class="card-body">
+          <table class="table table-bordered table-striped">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Tên đăng nhập</th>
+                <th>Email</th>
+                <th>Vai trò</th>
+                <th>Trạng thái</th>
+                <th>Ngày tạo</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach($users as $u): ?>
+              <tr>
+                <td><?= $u['id'] ?></td>
+                <td><?= $u['username'] ?></td>
+                <td><?= $u['email'] ?></td>
+                <td><span class="badge badge-info"><?= $u['role'] ?></span></td>
+                <td>
+                  <?php if($u['status']=='active'): ?>
+                    <span class="badge badge-success">Active</span>
+                  <?php else: ?>
+                    <span class="badge badge-danger">Inactive</span>
+                  <?php endif; ?>
+                </td>
+                <td><?= $u['created_at'] ?></td>
+                <td>
+                  <!-- Nút sửa mở modal -->
+                  <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal<?= $u['id'] ?>">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <!-- Nút xoá -->
+                  <a href="process/user_management.php?action=delete&id=<?= $u['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Xóa user này?');">
+                    <i class="fas fa-trash"></i>
+                  </a>
+                </td>
+              </tr>
+
+              <!-- Modal sửa user -->
+              <div class="modal fade" id="editUserModal<?= $u['id'] ?>" tabindex="-1">
+                <div class="modal-dialog">
+                  <form action="process/user_management.php" method="POST">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Sửa User</h5>
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                      </div>
+                      <div class="modal-body">
+                        <input type="hidden" name="action" value="edit">
+                        <input type="hidden" name="id" value="<?= $u['id'] ?>">
+
+                        <div class="form-group">
+                          <label>Tên đăng nhập</label>
+                          <input type="text" class="form-control" name="username" value="<?= $u['username'] ?>" required>
+                        </div>
+                        <div class="form-group">
+                          <label>Email</label>
+                          <input type="email" class="form-control" name="email" value="<?= $u['email'] ?>" required>
+                        </div>
+                        <div class="form-group">
+                          <label>Mật khẩu (để trống nếu không đổi)</label>
+                          <input type="password" class="form-control" name="password">
+                        </div>
+                        <div class="form-group">
+                          <label>Vai trò</label>
+                          <select class="form-control" name="role_id" required>
+                            <?php foreach($roles as $r): ?>
+                              <option value="<?= $r['id'] ?>" <?= $u['role_id']==$r['id']?'selected':'' ?>>
+                                <?= $r['name'] ?>
+                              </option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label>Trạng thái</label>
+                          <select class="form-control" name="status" required>
+                            <option value="active" <?= $u['status']=='active'?'selected':'' ?>>Active</option>
+                            <option value="inactive" <?= $u['status']=='inactive'?'selected':'' ?>>Inactive</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-primary">Cập nhật</button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal thêm user -->
+  <div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+      <form action="process/user_management.php" method="POST">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Thêm User Mới</h5>
+            <button type="button" class="close" data-dismiss="modal">&times;</button>
+          </div>
           <div class="modal-body">
-            <form id="addUserForm">
-              <div class="form-group">
-                <label for="username">Tên đăng nhập</label>
-                <input type="text" class="form-control" id="username" name="username" required>
-              </div>
-              <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" class="form-control" id="email" name="email" required>
-              </div>
-              <div class="form-group">
-                <label for="password">Mật khẩu</label>
-                <input type="password" class="form-control" id="password" name="password" required>
-              </div>
-              <div class="form-group">
-                <label for="role">Vai trò</label>
-                <select class="form-control" id="role" name="role" required>
-                  <option value="">Chọn vai trò</option>
-                  <option value="admin">Admin</option>
-                  <option value="staff">Staff</option>
-                  <option value="trainer">Trainer</option>
-                  <option value="member">Member</option>
-                </select>
-              </div>
-            </form>
+            <input type="hidden" name="action" value="add">
+            <div class="form-group">
+              <label>Tên đăng nhập</label>
+              <input type="text" class="form-control" name="username" required>
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" class="form-control" name="email" required>
+            </div>
+            <div class="form-group">
+              <label>Mật khẩu</label>
+              <input type="password" class="form-control" name="password" required>
+            </div>
+            <div class="form-group">
+              <label>Vai trò</label>
+              <select class="form-control" name="role_id" required>
+                <?php foreach($roles as $r): ?>
+                  <option value="<?= $r['id'] ?>"><?= $r['name'] ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Trạng thái</label>
+              <select class="form-control" name="status" required>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-            <button type="button" class="btn btn-primary">Lưu</button>
+            <button type="submit" class="btn btn-primary">Lưu</button>
           </div>
         </div>
-      </div>
+      </form>
     </div>
-    <!-- /.modal -->
+  </div>
+</div>
 
 <?php include 'layout/footer.php'; ?>

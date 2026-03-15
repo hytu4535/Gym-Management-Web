@@ -1,26 +1,19 @@
 <?php
-/**
- * Database Connection for Admin Module
- * Compatible with legacy code structure
- */
+// Cấu hình kết nối MySQL
+$servername = "localhost";
+$username   = "root";
+$password   = "14092005"; // XAMPP mặc định: root không có mật khẩu
+$dbname     = "gym-management-web"; // thay bằng tên database bạn đã tạo
 
-// Include main config
-require_once __DIR__ . '/../includes/config.php';
-
-// Create database connection
-$servername = DB_HOST;
-$username = DB_USER;
-$password = DB_PASS;
-$dbname = DB_NAME;
-
-// Create connection using mysqli
+// Tạo kết nối
 $conn = new mysqli($servername, $username, $password, $dbname);
 
-// Check connection
+// Kiểm tra kết nối
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Set charset to UTF-8
-$conn->set_charset(DB_CHARSET);
+// Bật hiển thị lỗi để dễ debug trong quá trình phát triển
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 ?>

@@ -1,6 +1,17 @@
-<?php 
+<?php
+session_start(); // luôn khởi tạo session
+
 $page_title = "Lịch Sử Đo BMI";
-require_once '../includes/database.php';
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_MEMBERS
+checkPermission('MANAGE_MEMBERS');
 
 // Xử lý các hành động
 $db = getDB();

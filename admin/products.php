@@ -1,7 +1,22 @@
-<?php 
+<?php
+session_start(); // luôn khởi tạo session
+
 $page_title = "Quản lý Sản Phẩm";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
+checkPermission('MANAGE_SALES');
+
+// layout chung
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
+
 require_once '../config/db.php';
 
 $sql = "SELECT p.id, p.name, p.img, p.unit, p.stock_quantity, p.selling_price, p.status, c.name AS category_name 

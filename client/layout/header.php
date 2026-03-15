@@ -128,6 +128,7 @@ if (isset($_SESSION['user_id'])) {
                                 </ul>
                             </li>
                             <li class="<?php echo ($current_page == 'contact.php') ? 'active' : ''; ?>"><a href="contact.php">Liên hệ</a></li>
+                            <li class="<?php echo ($current_page == 'subscription.php') ? 'active' : ''; ?>"><a href="subscription.php">Gói</a></li>
                         </ul>
                     </nav>
                 </div>

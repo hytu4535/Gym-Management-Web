@@ -3,22 +3,46 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['user_id'])) {
-  $userId = intval($_POST['user_id']);
-  $title = sanitize($_POST['title']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recipient_group'])) {
+  $group   = $_POST['recipient_group'];
+  $title   = sanitize($_POST['title']);
   $content = sanitize($_POST['content']);
 
-  $userCheckStmt = $db->prepare("SELECT COUNT(*) FROM users WHERE id = ?");
-  $userCheckStmt->execute([$userId]);
-  if ((int) $userCheckStmt->fetchColumn() === 0) {
-    echo "<script>alert('Người nhận không tồn tại!');window.location='notifications.php';</script>";
+  // Build query based on group
+  $allowedGroups = ['all', 'admin', 'staff', 'member'];
+  if (!in_array($group, $allowedGroups)) {
+    echo "<script>alert('Nhóm nhận không hợp lệ!');window.location='notifications.php';</script>";
+    exit;
+  }
+
+  if ($group === 'all') {
+    $targetStmt = $db->query("SELECT id FROM users WHERE status = 'active'");
+  } else {
+    $targetStmt = $db->prepare("
+      SELECT u.id FROM users u
+      JOIN roles r ON r.id = u.role_id
+      WHERE u.status = 'active' AND r.name = ?
+    ");
+    $targetStmt->execute([$group]);
+  }
+  $targets = $targetStmt->fetchAll(PDO::FETCH_COLUMN);
+
+  if (empty($targets)) {
+    echo "<script>alert('Không có người dùng nào trong nhóm này!');window.location='notifications.php';</script>";
     exit;
   }
 
   $insertStmt = $db->prepare("INSERT INTO notifications (user_id, title, content, is_read) VALUES (?, ?, ?, 0)");
-  if ($insertStmt->execute([$userId, $title, $content])) {
-    echo "<script>alert('Tạo thông báo thành công!');window.location='notifications.php';</script>";
-  } else {
+  $db->beginTransaction();
+  try {
+    foreach ($targets as $uid) {
+      $insertStmt->execute([$uid, $title, $content]);
+    }
+    $db->commit();
+    $count = count($targets);
+    echo "<script>alert('Đã gửi thông báo cho $count người!');window.location='notifications.php';</script>";
+  } catch (Exception $e) {
+    $db->rollBack();
     echo "<script>alert('Lỗi khi tạo thông báo!');window.location='notifications.php';</script>";
   }
   exit;
@@ -47,9 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_notification_i
   }
   exit;
 }
-
-$usersStmt = $db->query("SELECT id, username, email FROM users WHERE status = 'active' ORDER BY username ASC");
-$users = $usersStmt->fetchAll();
 
 $notificationsStmt = $db->query("SELECT n.id, n.title, n.content, n.created_at, n.is_read, u.username, u.email FROM notifications n INNER JOIN users u ON n.user_id = u.id ORDER BY n.id DESC");
 $notifications = $notificationsStmt->fetchAll();
@@ -156,17 +177,13 @@ include 'layout/sidebar.php';
           </button>
         </div>
         <div class="modal-body">
-          <?php if (empty($users)): ?>
-            <div class="alert alert-warning mb-3">Chưa có người dùng active để gửi thông báo.</div>
-          <?php endif; ?>
-
           <div class="form-group">
-            <label for="user_id">Người nhận</label>
-            <select class="form-control" id="user_id" name="user_id" required <?= empty($users) ? 'disabled' : '' ?>>
-              <option value="">-- Chọn người nhận --</option>
-              <?php foreach ($users as $user): ?>
-                <option value="<?= $user['id'] ?>"><?= htmlspecialchars($user['username']) ?> (<?= htmlspecialchars($user['email']) ?>)</option>
-              <?php endforeach; ?>
+            <label for="recipient_group">Gửi tới</label>
+            <select class="form-control" id="recipient_group" name="recipient_group" required>
+              <option value="all">Tất cả mọi người</option>
+              <option value="admin">Admin</option>
+              <option value="staff">Nhân viên (Staff)</option>
+              <option value="member">Thành viên (Member)</option>
             </select>
           </div>
 
@@ -182,7 +199,7 @@ include 'layout/sidebar.php';
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-          <button type="submit" class="btn btn-primary" <?= empty($users) ? 'disabled' : '' ?>>Gửi thông báo</button>
+          <button type="submit" class="btn btn-primary">Gửi thông báo</button>
         </div>
       </form>
     </div>

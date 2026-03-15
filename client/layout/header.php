@@ -134,8 +134,8 @@ if (isset($_SESSION['user_id'])) {
                 </div>
                 <div class="col-lg-3">
                     <div class="top-option">
-                        <div class="to-search search-switch">
-                            <a href="search.php" title="Tìm kiếm"><i class="fa fa-search"></i></a>
+                        <div class="to-search">
+                            <a href="#" id="global-search-toggle" title="Tìm kiếm toàn bộ" onclick="return false;"><i class="fa fa-search"></i></a>
                         </div>
                         <div class="to-social">
                             <a href="cart.php" title="Giỏ hàng" style="position: relative;">

@@ -860,7 +860,6 @@ CREATE TABLE `permission` (
 
 LOCK TABLES `permission` WRITE;
 /*!40000 ALTER TABLE `permission` DISABLE KEYS */;
-INSERT INTO `permission` VALUES (2,'HANDLE_CUSTOMERS'),(1,'MANAGE_ALL'),(3,'USE_SERVICES');
 /*!40000 ALTER TABLE `permission` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1232,6 +1231,9 @@ UPDATE roles SET description = 'Hội viên sử dụng dịch vụ', status = '
 
 /*permission*/
 INSERT INTO permission (id, code) VALUES
+(1,'MANAGE_ALL'),
+(2,'HANDLE_CUSTOMERS'),
+(3,'USE_SERVICES'),
 (4, 'MANAGE_PACKAGES'),
 (5, 'MANAGE_TRAINERS'),
 (6, 'MANAGE_SERVICES_NUTRITION'),
@@ -1259,4 +1261,39 @@ ON DUPLICATE KEY UPDATE permission_id = VALUES(permission_id);
 -- Member có quyền sử dụng dịch vụ
 INSERT INTO role_permissions (role_id, permission_id) VALUES
 (6, 3) -- USE_SERVICES
+ON DUPLICATE KEY UPDATE permission_id = VALUES(permission_id);
+
+-- Xoa cai HANDLE_CUSTOMERS ( nho chay lai dong duoi nay trong SQL neu dung DB co san )
+-- Mot anh muon DB dep lai thi sua sau con gio thi cu chay lai dong code o duoi la ngon lun
+
+-- Xóa dữ liệu liên quan trong role_permissions
+DELETE FROM role_permissions;
+
+--  Xóa toàn bộ dữ liệu trong permission
+DELETE FROM permission;
+
+-- Thêm lại dữ liệu mới 
+INSERT INTO permission (id, code) VALUES
+(1, 'MANAGE_ALL'),
+(2, 'MANAGE_STAFF'),
+(3, 'MANAGE_MEMBERS'),
+(4, 'MANAGE_PACKAGES'),
+(5, 'MANAGE_TRAINERS'),
+(6, 'MANAGE_SERVICES_NUTRITION'),
+(7, 'MANAGE_SALES'),
+(8, 'MANAGE_INVENTORY'),
+(9, 'MANAGE_EQUIPMENT'),
+(10, 'MANAGE_FEEDBACK'),
+(11, 'MANAGE_PROMOTIONS'),
+(12, 'VIEW_REPORTS');
+
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(4, 1),
+(5, 2),
+(5, 4),
+(5, 7),
+(5, 10),
+(6, 6),
+(6, 7),
+(6, 10),
 ON DUPLICATE KEY UPDATE permission_id = VALUES(permission_id);

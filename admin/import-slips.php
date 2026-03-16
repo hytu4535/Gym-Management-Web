@@ -1,4 +1,23 @@
 <?php
+session_start(); // luôn khởi tạo session
+
+$page_title = "Quản lý Phiếu Nhập Kho";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
+checkPermission('MANAGE_SALES');
+
+// layout chung
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
+
+require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $db = getDB();
@@ -88,9 +107,6 @@ $staffs = $staffStmt->fetchAll();
 $importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.status, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
 $importSlips = $importSlipsStmt->fetchAll();
 
-$page_title = "Quản lý Phiếu Nhập Kho";
-include 'layout/header.php';
-include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->

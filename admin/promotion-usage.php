@@ -1,4 +1,23 @@
 <?php
+session_start(); // luôn khởi tạo session
+
+$page_title = "Lịch Sử Sử Dụng Khuyến Mãi";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
+checkPermission('MANAGE_SALES');
+
+// layout chung
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
+
+require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $db = getDB();
@@ -6,9 +25,6 @@ $db = getDB();
 $usageStmt = $db->query("SELECT pu.id, pu.member_id, pu.promotion_id, pu.order_id, pu.applied_amount, pu.applied_at, m.full_name AS member_name, mt.name AS tier_name, tp.name AS promotion_name FROM promotion_usage pu INNER JOIN members m ON m.id = pu.member_id LEFT JOIN member_tiers mt ON mt.id = m.tier_id INNER JOIN tier_promotions tp ON tp.id = pu.promotion_id ORDER BY pu.applied_at DESC, pu.id DESC");
 $promotionUsages = $usageStmt->fetchAll();
 
-$page_title = "Lịch Sử Sử Dụng Khuyến Mãi";
-include 'layout/header.php';
-include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->

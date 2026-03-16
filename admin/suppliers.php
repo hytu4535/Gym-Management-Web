@@ -1,8 +1,24 @@
 <?php 
-session_start();
-$page_title = "Qu\u1ea3n l\u00fd Nh\u00e0 Cung C\u1ea5p";
-include '../includes/config.php';
+session_start(); // luôn khởi tạo session
+
+$page_title = "Quản lý Nhà Cung Cấp";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
 include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
+checkPermission('MANAGE_SALES');
+
+// layout chung
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
+
+require_once '../config/db.php';
+
 include '../includes/functions.php';
 
 // Handle AJAX actions
@@ -103,9 +119,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Get all suppliers for initial display
 $suppliers = getAllSuppliers();
-
-include 'layout/header.php'; 
-include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->

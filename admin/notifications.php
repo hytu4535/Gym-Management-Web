@@ -1,4 +1,23 @@
 <?php
+session_start(); // luôn khởi tạo session
+
+$page_title = "Quản lý Notifications";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
+checkPermission('MANAGE_FEEDBACK');
+
+// layout chung
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
+
+require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $db = getDB();
@@ -54,9 +73,6 @@ $users = $usersStmt->fetchAll();
 $notificationsStmt = $db->query("SELECT n.id, n.title, n.content, n.created_at, n.is_read, u.username, u.email FROM notifications n INNER JOIN users u ON n.user_id = u.id ORDER BY n.id DESC");
 $notifications = $notificationsStmt->fetchAll();
 
-$page_title = "Quản lý Notifications";
-include 'layout/header.php';
-include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->

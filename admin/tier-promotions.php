@@ -1,4 +1,23 @@
 <?php
+session_start(); // luôn khởi tạo session
+
+$page_title = "Quản lý Khuyến Mãi Theo Hạng";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
+checkPermission('MANAGE_SALES');
+
+// layout chung
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
+
+require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $db = getDB();
@@ -134,9 +153,6 @@ function resolveTierDisplayName($tierId, $tierName) {
   return $name;
 }
 
-$page_title = "Quản lý Khuyến Mãi Theo Hạng";
-include 'layout/header.php';
-include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->

@@ -1,7 +1,22 @@
-<?php 
+<?php
+session_start(); // luôn khởi tạo session
+
 $page_title = "Quản lý giỏ hàng";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
+checkPermission('MANAGE_SALES');
+
+
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
+
 require_once '../config/db.php';
 
 $sql = "SELECT c.id, c.created_at, c.status, m.full_name, 

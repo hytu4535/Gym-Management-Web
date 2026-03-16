@@ -14,7 +14,9 @@
           <i class="fas fa-user-circle fa-2x text-white"></i>
         </div>
         <div class="info">
-          <a href="#" class="d-block">Trung Kiên</a>
+          <a href="#" class="d-block">
+            <?= htmlspecialchars($_SESSION['admin_username'] ?? 'Khách') ?>
+          </a>
         </div>
       </div>
 
@@ -60,10 +62,18 @@
               </li>
             </ul>
           </li>
+          
+          <!-- Quản lí nhân viên-->
+          <li class="nav-item">
+            <a href="staff.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'staff.php') ? 'active' : ''; ?>">
+              <i class="nav-icon fas fa-user"></i>
+              <p>Quản lý nhân viên</p>
+            </a>
+          </li>
 
           <!-- Quản lý hội viên -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'staff.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php'])) ? 'active' : ''; ?>">
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-user-friends"></i>
               <p>
                 Quản lý hội viên
@@ -109,12 +119,6 @@
               </li>
             </ul>
           </li>
-          <li class="nav-item">
-                <a href="staff.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'staff.php') ? 'active' : ''; ?>">
-                  <i class="nav-icon fas fa-user-friends"></i>
-                  <p>Quản lý nhân viên</p>
-                </a>
-              </li>
           <!-- Quản lý gói tập -->
           <li class="nav-item">
             <a href="packages.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'packages.php') ? 'active' : ''; ?>">
@@ -152,8 +156,8 @@
             <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition_plans.php', 'member_services.php', 'member_nutrition_plans.php','nutrition_items.php','nutrition_plan_items.php'])) ? 'menu-open' : ''; ?>">
             <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['services.php', 'nutrition_plans.php', 'member_services.php', 'member_nutrition_plans.php','nutrition_items.php','nutrition_plan_items.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-utensils"></i>
-              <p>
-                Quản lý dịch vụ và dinh dưỡng
+              <p >
+                QL dịch vụ & dinh dưỡng
                 <i class="fas fa-angle-left right"></i>
               </p>
             </a>
@@ -197,7 +201,7 @@
             </ul>
           </li>
           <!-- Quản lý bán hàng -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['categories.php', 'orders.php', 'order-items.php', 'payments.php', 'carts.php'])) ? 'menu-open' : ''; ?>">
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['products.php', 'categories.php', 'orders.php', 'order-items.php', 'payments.php', 'carts.php'])) ? 'menu-open' : ''; ?>">
             <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['categories.php', 'orders.php', 'order-items.php', 'payments.php', 'carts.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-shopping-cart"></i>
               <p>

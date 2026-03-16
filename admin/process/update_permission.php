@@ -5,17 +5,25 @@ include '../../includes/database.php';
 $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Lấy danh sách roles từ DB
+    $roles = $db->query("SELECT * FROM roles")->fetchAll();
+
+    // Dữ liệu từ form
     $permissionsData = $_POST['permissions'] ?? [];
 
-    foreach ($permissionsData as $role_id => $perm_ids) {
-        // Xóa quyền cũ
+    foreach ($roles as $r) {
+        $role_id = $r['id'];
+
+        // Xóa hết quyền cũ
         $stmt = $db->prepare("DELETE FROM role_permissions WHERE role_id = ?");
         $stmt->execute([$role_id]);
 
-        // Thêm quyền mới
-        $stmt = $db->prepare("INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)");
-        foreach ($perm_ids as $pid) {
-            $stmt->execute([$role_id, $pid]);
+        // Nếu có quyền mới được tick thì thêm lại
+        if (!empty($permissionsData[$role_id])) {
+            $stmt = $db->prepare("INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)");
+            foreach ($permissionsData[$role_id] as $pid) {
+                $stmt->execute([$role_id, $pid]);
+            }
         }
 
         // Nếu user hiện tại thuộc role này thì reload lại session quyền

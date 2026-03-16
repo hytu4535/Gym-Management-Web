@@ -1,4 +1,23 @@
 <?php
+session_start(); // luôn khởi tạo session
+
+$page_title = "Bảo trì thiết bị";
+
+// kiểm tra đăng nhập
+include '../includes/auth.php';
+
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
+checkPermission('MANAGE_SALES');
+
+// layout chung
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
+
+require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $db = getDB();
@@ -72,9 +91,6 @@ $equipments = $equipmentStmt->fetchAll();
 $maintenanceStmt = $db->query("SELECT em.id, em.equipment_id, e.name AS equipment_name, em.maintenance_date, em.description FROM equipment_maintenance em INNER JOIN equipment e ON e.id = em.equipment_id ORDER BY em.maintenance_date DESC, em.id DESC");
 $maintenances = $maintenanceStmt->fetchAll();
 
-$page_title = "Bảo trì thiết bị";
-include 'layout/header.php';
-include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->

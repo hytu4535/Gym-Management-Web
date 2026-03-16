@@ -1,13 +1,24 @@
 <?php 
-session_start();
+session_start(); // luôn khởi tạo session
+
 $page_title = "Quản lý Phản hồi";
 
-include '../includes/config.php';
-include '../includes/database.php';
-include '../includes/auth_permission.php'; 
-include '../includes/functions.php';
+// kiểm tra đăng nhập
+include '../includes/auth.php';
 
+// kết nối DB và kiểm tra quyền
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+
+// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
 checkPermission('MANAGE_FEEDBACK');
+
+// layout chung
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
+
+require_once '../config/db.php';
+require_once '../includes/functions.php';
 
 // Handle AJAX actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {

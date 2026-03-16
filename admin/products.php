@@ -86,7 +86,9 @@ $result = $conn->query($sql);
                                 $statusBadge = '<span class="badge badge-secondary">Inactive</span>';
                             }                     
                             $formattedPrice = number_format($row['selling_price'], 0, ',', '.');   
-                            $imgPath = $row['img'] ? "../assets/uploads/products/{$row['img']}" : "../assets/uploads/products/default-product.jpg";
+                            $imgPath = !empty($row['img'])
+                                ? "../assets/uploads/products/{$row['img']}"
+                                : "../assets/uploads/products/default-product.jpg";
                             echo "<tr>";
                             echo "  <td>{$row['id']}</td>";
                             echo "  <td><img src='{$imgPath}' alt='{$row['name']}' style='width: 60px; height: 60px; object-fit: cover; border-radius: 5px;'></td>";

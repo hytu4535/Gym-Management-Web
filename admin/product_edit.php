@@ -43,7 +43,9 @@ $product = $conn->query($sql)->fetch_assoc();
                                 <div class="form-group">
                                     <label>Hình Ảnh Hiện Tại</label>
                                     <?php 
-                                    $imgPath = $product['img'] ? "../assets/uploads/products/{$product['img']}" : "../assets/uploads/products/default-product.jpg";
+                                    $imgPath = !empty($product['img'])
+                                        ? "../assets/uploads/products/{$product['img']}"
+                                        : "../assets/uploads/products/default-product.jpg";
                                     ?>
                                     <div class="text-center mb-3">
                                         <img id="currentImage" src="<?php echo $imgPath; ?>" alt="<?php echo $product['name']; ?>" style="max-width: 200px; max-height: 200px; border: 2px solid #ddd; padding: 5px; border-radius: 5px;">

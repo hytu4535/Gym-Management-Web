@@ -161,6 +161,36 @@
     </div>
 </div>
 
+<!-- FAQ Chatbot Widget -->
+<div class="faq-bot" id="faqBot">
+    <button class="faq-bot-toggle" id="faqBotToggle" type="button" aria-label="Mở chatbot FAQ">
+        <i class="fa fa-comments" aria-hidden="true"></i>
+    </button>
+
+    <div class="faq-bot-panel" id="faqBotPanel" aria-hidden="true">
+        <div class="faq-bot-header">
+            <div class="faq-bot-header-title">
+                <strong>FAQ Assistant</strong>
+                <span>Hỗ trợ nhanh 24/7</span>
+            </div>
+            <button class="faq-bot-close" id="faqBotClose" type="button" aria-label="Đóng chatbot">
+                <i class="fa fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <div class="faq-bot-messages" id="faqBotMessages"></div>
+
+        <div class="faq-bot-quick" id="faqBotQuick"></div>
+
+        <form class="faq-bot-form" id="faqBotForm">
+            <input id="faqBotInput" type="text" placeholder="Nhập câu hỏi..." autocomplete="off" />
+            <button type="submit" aria-label="Gửi câu hỏi">
+                <i class="fa fa-paper-plane" aria-hidden="true"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
 <script>
 (function(){
     var toggle  = document.getElementById('global-search-toggle');
@@ -274,6 +304,8 @@
     function escAttr(s){ return s.replace(/"/g,'&quot;'); }
 })();
 </script>
+
+<script src="assets/js/chatbot-faq.js"></script>
 
 </body>
 

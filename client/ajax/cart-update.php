@@ -14,12 +14,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
     
+    $item_type = isset($_POST['item_type']) ? trim($_POST['item_type']) : 'product';
     $product_id = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
+    $package_id = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
+    $service_id = isset($_POST['service_id']) ? (int)$_POST['service_id'] : 0;
+    $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : $product_id);
     $action = isset($_POST['action']) ? $_POST['action'] : 'set'; 
     $quantity = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
     $user_id = $_SESSION['user_id'];
     
-    if ($product_id <= 0) {
+    if (!in_array($item_type, ['product', 'package', 'service'], true) || $item_id <= 0) {
         echo json_encode([
             'success' => false,
             'message' => 'Dữ liệu không hợp lệ!'
@@ -45,14 +49,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$cart) throw new Exception("Không tìm thấy giỏ hàng của bạn!");
         $cart_id = $cart['id'];
 
-        $item_type = 'product';
-        $stmt_info = $conn->prepare("
-            SELECT ci.quantity as cart_qty, p.stock_quantity, p.selling_price 
-            FROM cart_items ci 
-            JOIN products p ON ci.item_id = p.id 
-            WHERE ci.cart_id = ? AND ci.item_type = ? AND ci.item_id = ?
-        ");
-        $stmt_info->bind_param("isi", $cart_id, $item_type, $product_id);
+        if ($item_type === 'product') {
+            $stmt_info = $conn->prepare("
+                SELECT ci.quantity as cart_qty, p.stock_quantity, p.selling_price 
+                FROM cart_items ci 
+                JOIN products p ON ci.item_id = p.id 
+                WHERE ci.cart_id = ? AND ci.item_type = ? AND ci.item_id = ?
+            ");
+        } elseif ($item_type === 'package') {
+            $stmt_info = $conn->prepare("
+                SELECT ci.quantity as cart_qty, NULL as stock_quantity, mp.price as selling_price
+                FROM cart_items ci
+                JOIN membership_packages mp ON ci.item_id = mp.id
+                WHERE ci.cart_id = ? AND ci.item_type = ? AND ci.item_id = ?
+            ");
+        } else {
+            $stmt_info = $conn->prepare("
+                SELECT ci.quantity as cart_qty, NULL as stock_quantity, s.price as selling_price
+                FROM cart_items ci
+                JOIN services s ON ci.item_id = s.id
+                WHERE ci.cart_id = ? AND ci.item_type = ? AND ci.item_id = ?
+            ");
+        }
+        $stmt_info->bind_param("isi", $cart_id, $item_type, $item_id);
         $stmt_info->execute();
         $res_info = $stmt_info->get_result();
         
@@ -65,6 +84,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stock_quantity = $info['stock_quantity'];
         $selling_price = $info['selling_price'];
         $stmt_info->close();
+
+        if ($item_type === 'package') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Gói tập chỉ được mua một lần trong mỗi đơn. Bạn chỉ có thể xóa khỏi giỏ nếu không muốn mua.'
+            ]);
+            exit();
+        }
+
+        if ($item_type === 'service') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Dịch vụ chỉ được mua một lần trong mỗi đơn. Bạn chỉ có thể xóa khỏi giỏ nếu không muốn mua.'
+            ]);
+            exit();
+        }
     
         $new_quantity = $cart_qty;
         if ($action === 'increase') {
@@ -79,16 +114,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($new_quantity <= 0) {
             $stmt_del = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ? AND item_type = ? AND item_id = ?");
-            $stmt_del->bind_param("isi", $cart_id, $item_type, $product_id);
+            $stmt_del->bind_param("isi", $cart_id, $item_type, $item_id);
             $stmt_del->execute();
             $stmt_del->close();
         } else {
-            if ($new_quantity > $stock_quantity) {
+            if ($item_type === 'product' && $new_quantity > $stock_quantity) {
                 throw new Exception("Vượt quá hàng tồn kho (Chỉ còn " . $stock_quantity . " sản phẩm)!");
             }
 
             $stmt_update = $conn->prepare("UPDATE cart_items SET quantity = ? WHERE cart_id = ? AND item_type = ? AND item_id = ?");
-            $stmt_update->bind_param("iisi", $new_quantity, $cart_id, $item_type, $product_id);
+            $stmt_update->bind_param("iisi", $new_quantity, $cart_id, $item_type, $item_id);
             $stmt_update->execute();
             $stmt_update->close();
             
@@ -96,12 +131,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $stmt_total = $conn->prepare("
-            SELECT SUM(ci.quantity * p.selling_price) as total 
-            FROM cart_items ci 
-            JOIN products p ON ci.item_id = p.id 
-            WHERE ci.cart_id = ? AND ci.item_type = ?
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN ci.item_type = 'product' THEN ci.quantity * p.selling_price
+                    WHEN ci.item_type = 'package' THEN ci.quantity * mp.price
+                    WHEN ci.item_type = 'service' THEN ci.quantity * s.price
+                    ELSE 0
+                END
+            ), 0) as total
+            FROM cart_items ci
+            LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
+            LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
+            LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+            WHERE ci.cart_id = ?
         ");
-        $stmt_total->bind_param("is", $cart_id, $item_type);
+        $stmt_total->bind_param("i", $cart_id);
         $stmt_total->execute();
         $res_total = $stmt_total->get_result();
         $row_total = $res_total->fetch_assoc();

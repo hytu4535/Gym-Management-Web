@@ -14,10 +14,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
     
+    $item_type = isset($_POST['item_type']) ? trim($_POST['item_type']) : 'product';
     $product_id = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
+    $package_id = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
+    $service_id = isset($_POST['service_id']) ? (int)$_POST['service_id'] : 0;
+    $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : $product_id);
     $user_id = $_SESSION['user_id'];
     
-    if ($product_id <= 0) {
+    if (!in_array($item_type, ['product', 'package', 'service'], true) || $item_id <= 0) {
         echo json_encode([
             'success' => false,
             'message' => 'Dữ liệu không hợp lệ!'
@@ -49,17 +53,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($cart) {
             $cart_id = $cart['id'];
             
-            $item_type = 'product';
             $stmt_delete = $conn->prepare("DELETE FROM cart_items WHERE cart_id = ? AND item_type = ? AND item_id = ?");
-            $stmt_delete->bind_param("isi", $cart_id, $item_type, $product_id);
+            $stmt_delete->bind_param("isi", $cart_id, $item_type, $item_id);
             $stmt_delete->execute();
             $stmt_delete->close();
  
             $stmt_total = $conn->prepare("
-                SELECT SUM(ci.quantity) as total_items, SUM(ci.quantity * p.selling_price) as total_price 
+                SELECT COALESCE(SUM(ci.quantity), 0) as total_items,
+                       COALESCE(SUM(
+                           CASE
+                               WHEN ci.item_type = 'product' THEN ci.quantity * p.selling_price
+                               WHEN ci.item_type = 'package' THEN ci.quantity * mp.price
+                               WHEN ci.item_type = 'service' THEN ci.quantity * s.price
+                               ELSE 0
+                           END
+                       ), 0) as total_price
                 FROM cart_items ci 
-                JOIN products p ON ci.item_id = p.id 
-                WHERE ci.cart_id = ? AND ci.item_type = 'product'
+                LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
+                LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
+                LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+                WHERE ci.cart_id = ?
             ");
             $stmt_total->bind_param("i", $cart_id);
             $stmt_total->execute();
@@ -74,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         echo json_encode([
             'success' => true,
-            'message' => 'Đã xóa sản phẩm khỏi giỏ hàng!',
+            'message' => $item_type === 'package' ? 'Đã xóa gói tập khỏi giỏ hàng!' : ($item_type === 'service' ? 'Đã xóa dịch vụ khỏi giỏ hàng!' : 'Đã xóa sản phẩm khỏi giỏ hàng!'),
             'cart_count' => (int)$cart_count,
             'cart_total' => (float)$cart_total
         ]);

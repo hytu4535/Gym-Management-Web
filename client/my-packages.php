@@ -1,21 +1,58 @@
 <?php 
 session_start();
-include 'layout/header.php'; 
 
-// Kiểm tra đăng nhập
 if(!isset($_SESSION['user_id'])) {
     header('Location: login.php?redirect=my-packages.php');
     exit();
 }
 
-// TODO: Lấy danh sách gói tập đã đăng ký từ database
-/*
-$sql = "SELECT mp.*, p.package_name, p.price, p.duration, p.description
-        FROM member_packages mp
-        JOIN packages p ON mp.package_id = p.package_id
-        WHERE mp.member_id = ?
-        ORDER BY mp.created_at DESC";
-*/
+require_once '../config/db.php';
+
+$packageRecords = [];
+
+$memberStmt = $conn->prepare("SELECT id FROM members WHERE users_id = ? LIMIT 1");
+$memberStmt->bind_param("i", $_SESSION['user_id']);
+$memberStmt->execute();
+$member = $memberStmt->get_result()->fetch_assoc();
+$memberStmt->close();
+
+$memberId = (int) ($member['id'] ?? 0);
+
+if ($memberId > 0) {
+    $packageStmt = $conn->prepare(
+        "SELECT mp.id,
+                mp.start_date,
+                mp.end_date,
+                mp.status,
+                p.package_name,
+                p.price,
+                p.duration_months,
+                p.description
+         FROM member_packages mp
+         JOIN membership_packages p ON p.id = mp.package_id
+         WHERE mp.member_id = ?
+         ORDER BY mp.id DESC"
+    );
+    $packageStmt->bind_param("i", $memberId);
+    $packageStmt->execute();
+    $packageResult = $packageStmt->get_result();
+
+    while ($row = $packageResult->fetch_assoc()) {
+        $today = new DateTime('today');
+        $endDate = new DateTime($row['end_date']);
+        $daysRemaining = (int) $today->diff($endDate)->format('%r%a');
+
+        if ($row['status'] === 'active' && $daysRemaining < 0) {
+            $row['status'] = 'expired';
+        }
+
+        $row['days_remaining'] = $daysRemaining;
+        $packageRecords[] = $row;
+    }
+    $packageStmt->close();
+}
+
+include 'layout/header.php';
 ?>
 
 <!-- Breadcrumb Section Begin -->
@@ -91,91 +128,66 @@ $sql = "SELECT mp.*, p.package_name, p.price, p.duration, p.description
                                 <option value="all">Tất cả trạng thái</option>
                                 <option value="active">Đang hoạt động</option>
                                 <option value="expired">Đã hết hạn</option>
-                                <option value="pending">Chờ thanh toán</option>
+                                <option value="cancelled">Đã hủy</option>
                             </select>
                         </div>
                         
                         <div id="packagesContainer">
-                            <!-- TODO: Load từ database, đây là dữ liệu mẫu -->
-                            
-                            <!-- Package Item 1 - Active -->
-                            <div class="package-item active">
-                                <div class="row">
-                                    <div class="col-md-8">
-                                        <h5>Gói 3 Tháng</h5>
-                                        <p class="text-muted mb-2">
-                                            <i class="fa fa-calendar"></i> 
-                                            Ngày bắt đầu: <strong>01/02/2026</strong>
-                                        </p>
-                                        <p class="text-muted mb-2">
-                                            <i class="fa fa-calendar-check-o"></i> 
-                                            Ngày hết hạn: <strong>01/05/2026</strong>
-                                        </p>
-                                        <p class="mb-2">
-                                            <span class="badge badge-success">Đang hoạt động</span>
-                                            <span class="text-success ml-2">Còn 70 ngày</span>
-                                        </p>
-                                        <p class="mb-0">
-                                            <i class="fa fa-credit-card"></i> 
-                                            Thanh toán: <strong>Tiền mặt</strong> | 
-                                            <i class="fa fa-money"></i> 
-                                            Giá: <strong class="text-danger">1.350.000đ</strong>
-                                        </p>
+                            <?php if (!empty($packageRecords)): ?>
+                                <?php foreach ($packageRecords as $package): ?>
+                                    <?php
+                                    $statusClass = $package['status'];
+                                    $statusText = $package['status'] === 'active' ? 'Đang hoạt động' : ($package['status'] === 'expired' ? 'Đã hết hạn' : 'Đã hủy');
+                                    $badgeClass = $package['status'] === 'active' ? 'success' : ($package['status'] === 'expired' ? 'secondary' : 'danger');
+                                    ?>
+                                    <div class="package-item <?php echo $statusClass; ?>">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <h5><?php echo htmlspecialchars($package['package_name']); ?></h5>
+                                                <p class="text-muted mb-2">
+                                                    <i class="fa fa-calendar"></i>
+                                                    Ngày bắt đầu: <strong><?php echo date('d/m/Y', strtotime($package['start_date'])); ?></strong>
+                                                </p>
+                                                <p class="text-muted mb-2">
+                                                    <i class="fa fa-calendar-check-o"></i>
+                                                    Ngày hết hạn: <strong><?php echo date('d/m/Y', strtotime($package['end_date'])); ?></strong>
+                                                </p>
+                                                <p class="mb-2">
+                                                    <span class="badge badge-<?php echo $badgeClass; ?>"><?php echo $statusText; ?></span>
+                                                    <?php if ($package['status'] === 'active'): ?>
+                                                        <span class="text-success ml-2">Còn <?php echo max(0, (int) $package['days_remaining']); ?> ngày</span>
+                                                    <?php endif; ?>
+                                                </p>
+                                                <p class="mb-2">
+                                                    <i class="fa fa-clock-o"></i>
+                                                    Thời hạn: <strong><?php echo (int) $package['duration_months']; ?> tháng</strong>
+                                                </p>
+                                                <p class="mb-0">
+                                                    <i class="fa fa-money"></i>
+                                                    Giá: <strong class="text-danger"><?php echo number_format((float) $package['price'], 0, ',', '.'); ?>đ</strong>
+                                                </p>
+                                                <?php if (!empty($package['description'])): ?>
+                                                    <p class="mt-2 mb-0 text-muted"><?php echo htmlspecialchars($package['description']); ?></p>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="col-md-4 text-right">
+                                                <a href="packages.php" class="btn btn-success btn-sm">
+                                                    <i class="fa fa-refresh"></i> <?php echo $package['status'] === 'active' ? 'Mua thêm gói' : 'Đăng ký lại'; ?>
+                                                </a>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="col-md-4 text-right">
-                                        <button class="btn btn-info btn-sm" onclick="viewPackageDetail(1)">
-                                            <i class="fa fa-eye"></i> Chi tiết
-                                        </button>
-                                        <button class="btn btn-success btn-sm" onclick="renewPackage(1)">
-                                            <i class="fa fa-refresh"></i> Gia hạn
-                                        </button>
-                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div id="emptyState" class="text-center py-5">
+                                    <i class="fa fa-ticket fa-5x text-muted mb-3"></i>
+                                    <h5>Chưa có gói tập nào</h5>
+                                    <p class="text-muted">Bạn chưa đăng ký gói tập nào. Hãy chọn gói phù hợp với bạn!</p>
+                                    <a href="packages.php" class="btn btn-primary">
+                                        <i class="fa fa-plus"></i> Đăng ký ngay
+                                    </a>
                                 </div>
-                            </div>
-                            
-                            <!-- Package Item 2 - Expired -->
-                            <div class="package-item expired">
-                                <div class="row">
-                                    <div class="col-md-8">
-                                        <h5>Gói 1 Tháng</h5>
-                                        <p class="text-muted mb-2">
-                                            <i class="fa fa-calendar"></i> 
-                                            Ngày bắt đầu: <strong>01/01/2026</strong>
-                                        </p>
-                                        <p class="text-muted mb-2">
-                                            <i class="fa fa-calendar-check-o"></i> 
-                                            Ngày hết hạn: <strong>01/02/2026</strong>
-                                        </p>
-                                        <p class="mb-2">
-                                            <span class="badge badge-secondary">Đã hết hạn</span>
-                                        </p>
-                                        <p class="mb-0">
-                                            <i class="fa fa-credit-card"></i> 
-                                            Thanh toán: <strong>Chuyển khoản</strong> | 
-                                            <i class="fa fa-money"></i> 
-                                            Giá: <strong class="text-danger">500.000đ</strong>
-                                        </p>
-                                    </div>
-                                    <div class="col-md-4 text-right">
-                                        <button class="btn btn-info btn-sm" onclick="viewPackageDetail(2)">
-                                            <i class="fa fa-eye"></i> Chi tiết
-                                        </button>
-                                        <button class="btn btn-success btn-sm" onclick="renewPackage(2)">
-                                            <i class="fa fa-refresh"></i> Đăng ký lại
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Empty State -->
-                            <div id="emptyState" style="display: none;" class="text-center py-5">
-                                <i class="fa fa-ticket fa-5x text-muted mb-3"></i>
-                                <h5>Chưa có gói tập nào</h5>
-                                <p class="text-muted">Bạn chưa đăng ký gói tập nào. Hãy chọn gói phù hợp với bạn!</p>
-                                <a href="packages.php" class="btn btn-primary">
-                                    <i class="fa fa-plus"></i> Đăng ký ngay
-                                </a>
-                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -201,6 +213,10 @@ $sql = "SELECT mp.*, p.package_name, p.price, p.duration, p.description
 }
 .package-item.expired {
     border-left: 4px solid #6c757d;
+    opacity: 0.7;
+}
+.package-item.cancelled {
+    border-left: 4px solid #dc3545;
     opacity: 0.7;
 }
 .profile-sidebar {
@@ -241,28 +257,13 @@ document.getElementById('statusFilter').addEventListener('change', function() {
             }
         }
     });
-});
 
-function viewPackageDetail(id) {
-    // TODO: Hiển thị modal chi tiết hoặc redirect
-    alert('Xem chi tiết gói tập #' + id);
-}
-
-function renewPackage(id) {
-    // TODO: Chuyển đến trang gia hạn/đăng ký lại
-    if(confirm('Bạn muốn gia hạn/đăng ký lại gói tập này?')) {
-        window.location.href = 'package-register.php?id=' + id;
+    const visibleItems = Array.from(items).some(item => item.style.display !== 'none');
+    const emptyState = document.getElementById('emptyState');
+    if (emptyState) {
+        emptyState.style.display = visibleItems ? 'none' : 'block';
     }
-}
-
-// TODO: Load packages from database via AJAX
-function loadMyPackages() {
-    // fetch('ajax/get-my-packages.php')
-    //     .then(response => response.json())
-    //     .then(data => {
-    //         // Render packages
-    //     });
-}
+});
 </script>
 
 <?php include 'layout/footer.php'; ?>

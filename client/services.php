@@ -1,4 +1,56 @@
-<?php include 'layout/header.php'; ?>
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once '../config/db.php';
+
+$services = [];
+$activeMemberServiceIds = [];
+$cartServiceIds = [];
+$userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
+
+$serviceQuery = $conn->query("SELECT id, name, img, type, price, description FROM services WHERE status = 'hoạt động' ORDER BY id ASC");
+if ($serviceQuery) {
+    while ($row = $serviceQuery->fetch_assoc()) {
+        $services[] = $row;
+    }
+}
+
+if ($userId > 0) {
+    $memberStmt = $conn->prepare("SELECT id FROM members WHERE users_id = ? LIMIT 1");
+    $memberStmt->bind_param("i", $userId);
+    $memberStmt->execute();
+    $member = $memberStmt->get_result()->fetch_assoc();
+    $memberStmt->close();
+
+    $memberId = (int) ($member['id'] ?? 0);
+
+    if ($memberId > 0) {
+        $activeServiceStmt = $conn->prepare("SELECT service_id FROM member_services WHERE member_id = ? AND status = 'còn hiệu lực'");
+        $activeServiceStmt->bind_param("i", $memberId);
+        $activeServiceStmt->execute();
+        $activeServiceResult = $activeServiceStmt->get_result();
+
+        while ($row = $activeServiceResult->fetch_assoc()) {
+            $activeMemberServiceIds[] = (int) $row['service_id'];
+        }
+        $activeServiceStmt->close();
+
+        $cartStmt = $conn->prepare("SELECT ci.item_id FROM carts c JOIN cart_items ci ON ci.cart_id = c.id AND ci.item_type = 'service' WHERE c.member_id = ? AND c.status = 'active'");
+        $cartStmt->bind_param("i", $memberId);
+        $cartStmt->execute();
+        $cartResult = $cartStmt->get_result();
+
+        while ($row = $cartResult->fetch_assoc()) {
+            $cartServiceIds[] = (int) $row['item_id'];
+        }
+        $cartStmt->close();
+    }
+}
+
+include 'layout/header.php';
+?>
 
 <!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
@@ -25,67 +77,53 @@
             <div class="col-lg-12">
                 <div class="section-title">
                     <span>Dịch vụ của chúng tôi</span>
-                    <h2>CHÚNG TÔI CUNG CẤP</h2>
+                    <h2>CHỌN DỊCH VỤ PHÙ HỢP</h2>
                 </div>
             </div>
         </div>
         <div class="row">
-            <div class="col-lg-3 col-sm-6">
-                <div class="services-item">
-                    <img src="assets/img/services/services-1.jpg" alt="">
-                    <h4>Chương trình Cá nhân hóa</h4>
-                    <p>Lộ trình tập luyện được thiết kế riêng cho bạn dựa trên mục tiêu và thể trạng.</p>
+            <?php if (!empty($services)): ?>
+                <?php foreach ($services as $service): ?>
+                    <?php
+                    $serviceId = (int) $service['id'];
+                    $isActive = in_array($serviceId, $activeMemberServiceIds, true);
+                    $isInCart = in_array($serviceId, $cartServiceIds, true);
+                    $buttonLabel = 'Thêm vào giỏ hàng';
+                    $buttonDisabled = '';
+
+                    if ($isActive) {
+                        $buttonLabel = 'Đang sử dụng';
+                        $buttonDisabled = 'disabled';
+                    } elseif ($isInCart) {
+                        $buttonLabel = 'Đã có trong giỏ';
+                        $buttonDisabled = 'disabled';
+                    }
+
+                    $imagePath = !empty($service['img']) ? '../' . ltrim($service['img'], '/') : 'assets/img/services/services-1.jpg';
+                    ?>
+                    <div class="col-lg-4 col-sm-6 mb-4">
+                        <div class="services-item" style="padding-bottom: 20px;">
+                            <img src="<?php echo htmlspecialchars($imagePath); ?>" alt="<?php echo htmlspecialchars($service['name']); ?>" style="height: 220px; width: 100%; object-fit: cover;">
+                            <h4><?php echo htmlspecialchars($service['name']); ?></h4>
+                            <p style="min-height: 72px;"><?php echo htmlspecialchars($service['description'] ?? 'Dịch vụ chăm sóc và hỗ trợ hội viên.'); ?></p>
+                            <div style="font-weight: 700; color: #f36100; margin-bottom: 12px;">
+                                <?php echo number_format((float) $service['price'], 0, ',', '.'); ?>đ
+                                <span style="font-size: 12px; color: #999; font-weight: 600;">/ <?php echo htmlspecialchars($service['type']); ?></span>
+                            </div>
+                            <button type="button"
+                                    class="primary-btn"
+                                    onclick="addServiceToCart(<?php echo $serviceId; ?>)"
+                                    <?php echo $buttonDisabled; ?>>
+                                <?php echo $buttonLabel; ?>
+                            </button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="col-lg-12">
+                    <div class="alert alert-warning text-center">Hiện chưa có dịch vụ nào đang mở bán.</div>
                 </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="services-item">
-                    <img src="assets/img/services/services-2.jpg" alt="">
-                    <h4>Lớp học Nhóm</h4>
-                    <p>Các lớp học nhóm đa dạng: Yoga, Zumba, Boxing, Spinning và nhiều hơn nữa.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="services-item">
-                    <img src="assets/img/services/services-3.jpg" alt="">
-                    <h4>Tư vấn Dinh dưỡng</h4>
-                    <p>Chế độ ăn uống khoa học, phù hợp với mục tiêu tập luyện của bạn.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="services-item">
-                    <img src="assets/img/services/services-4.jpg" alt="">
-                    <h4>Huấn luyện Cá nhân</h4>
-                    <p>Huấn luyện viên cá nhân 1-1 giúp bạn đạt mục tiêu nhanh chóng.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="services-item">
-                    <img src="assets/img/services/services-5.jpg" alt="">
-                    <h4>Phòng tập Cardio</h4>
-                    <p>Khu vực cardio hiện đại với máy chạy bộ, xe đạp và thiết bị cardio khác.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="services-item">
-                    <img src="assets/img/services/services-6.jpg" alt="">
-                    <h4>Khu tạ Tự do</h4>
-                    <p>Không gian rộng rãi với đầy đủ tạ đơn, tạ đôi và thiết bị tập luyện tự do.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="services-item">
-                    <img src="assets/img/services/services-1.jpg" alt="">
-                    <h4>Đo lường BMI</h4>
-                    <p>Đo chỉ số BMI và phân tích thành phần cơ thể miễn phí.</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-sm-6">
-                <div class="services-item">
-                    <img src="assets/img/services/services-2.jpg" alt="">
-                    <h4>Phòng tắm & Tủ đồ</h4>
-                    <p>Phòng tắm sạch sẽ, hiện đại với tủ đồ cá nhân an toàn.</p>
-                </div>
-            </div>
+            <?php endif; ?>
         </div>
     </div>
 </section>
@@ -108,3 +146,42 @@
 <!-- Banner Section End -->
 
 <?php include 'layout/footer.php'; ?>
+
+<script>
+function addServiceToCart(serviceId) {
+    var formData = new FormData();
+    formData.append('item_type', 'service');
+    formData.append('service_id', serviceId);
+    formData.append('quantity', 1);
+
+    fetch('ajax/cart-add.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success === true) {
+            var cartCountElements = document.querySelectorAll('.cart-count, #cart-count, .cart-badge');
+            cartCountElements.forEach(function(el) {
+                el.innerText = data.cart_count;
+                el.style.display = 'flex';
+            });
+
+            if (confirm(data.message + "\nBạn có muốn chuyển đến Giỏ hàng để thanh toán không?")) {
+                window.location.href = 'cart.php';
+            } else {
+                window.location.reload();
+            }
+        } else {
+            alert('Thông báo: ' + data.message);
+            if (data.redirect) {
+                window.location.href = data.redirect;
+            }
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        alert('Có lỗi xảy ra kết nối với máy chủ!');
+    });
+}
+</script>

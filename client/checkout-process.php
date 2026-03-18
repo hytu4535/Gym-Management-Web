@@ -30,36 +30,24 @@ try {
     $member_id = $res_member->fetch_assoc()['id'];
     $stmt_member->close();
 
-    $address_id = 0;
-    if ($use_new_address === 1) {
-        $full_address = trim($_POST['new_address'] ?? '');
-        $district = trim($_POST['district'] ?? '');
-        $city = trim($_POST['city'] ?? '');
-        
-        if (empty($full_address) || empty($district) || empty($city)) {
-            throw new Exception("Vui lòng nhập đầy đủ địa chỉ giao hàng mới.");
-        }
-
-        $stmt_insert_addr = $conn->prepare("INSERT INTO addresses (member_id, full_address, city, district, is_default) VALUES (?, ?, ?, ?, 0)");
-        if ($stmt_insert_addr) {
-             $stmt_insert_addr->bind_param("isss", $member_id, $full_address, $city, $district);
-             $stmt_insert_addr->execute();
-             $address_id = $conn->insert_id;
-             $stmt_insert_addr->close();
-        }
-    } else {
-        $posted_address = $_POST['address_id'] ?? '';
-        if ($posted_address === 'default' || empty($posted_address)) {
-            $address_id = 0; 
-        } else {
-            $address_id = (int)$posted_address;
-        }
-    }
     $stmt_cart = $conn->prepare("
-        SELECT ci.item_id as product_id, ci.quantity, p.selling_price, p.stock_quantity, p.name, c.id as cart_id
+        SELECT ci.item_type,
+               ci.item_id,
+               ci.quantity,
+               p.selling_price,
+               p.stock_quantity,
+               p.name,
+               mp.package_name,
+               mp.price AS package_price,
+               mp.duration_months,
+               s.name AS service_name,
+               s.price AS service_price,
+               c.id as cart_id
         FROM carts c 
-        JOIN cart_items ci ON c.id = ci.cart_id AND ci.item_type = 'product'
-        JOIN products p ON ci.item_id = p.id 
+        JOIN cart_items ci ON c.id = ci.cart_id
+        LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id 
+        LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
+        LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
         WHERE c.member_id = ? AND c.status = 'active' FOR UPDATE
     ");
     $stmt_cart->bind_param("i", $member_id); 
@@ -73,20 +61,61 @@ try {
     $subtotal = 0;
     $cart_items = [];
     $cart_id = 0;
+    $hasPhysicalProducts = false;
     
     while ($row = $cart_res->fetch_assoc()) {
-        if ($row['quantity'] > $row['stock_quantity']) {
-            throw new Exception("Sản phẩm '{$row['name']}' chỉ còn {$row['stock_quantity']} cái. Vui lòng giảm số lượng.");
+        if ($row['item_type'] === 'product') {
+            $hasPhysicalProducts = true;
+
+            if ($row['quantity'] > $row['stock_quantity']) {
+                throw new Exception("Sản phẩm '{$row['name']}' chỉ còn {$row['stock_quantity']} cái. Vui lòng giảm số lượng.");
+            }
+
+            $price_info = calculateDiscountedPrice($row['selling_price'], $user_id, $conn);
+            $row['final_price'] = $price_info['final_price'];
+            $row['item_name'] = $row['name'];
+        } elseif ($row['item_type'] === 'package') {
+            $row['quantity'] = 1;
+            $row['final_price'] = (float) $row['package_price'];
+            $row['item_name'] = $row['package_name'];
+        } else {
+            $row['quantity'] = 1;
+            $row['final_price'] = (float) $row['service_price'];
+            $row['item_name'] = $row['service_name'];
         }
-        
-        // Tính giá sau giảm theo tier (chỉ base_discount)
-        $price_info = calculateDiscountedPrice($row['selling_price'], $user_id, $conn);
-        $row['final_price'] = $price_info['final_price']; // Giá sau base_discount
         
         $cart_items[] = $row;
         $cart_id = $row['cart_id']; 
     }
     $stmt_cart->close();
+
+    $address_id = 0;
+    if ($hasPhysicalProducts) {
+        if ($use_new_address === 1) {
+            $full_address = trim($_POST['new_address'] ?? '');
+            $district = trim($_POST['district'] ?? '');
+            $city = trim($_POST['city'] ?? '');
+            
+            if (empty($full_address) || empty($district) || empty($city)) {
+                throw new Exception("Vui lòng nhập đầy đủ địa chỉ giao hàng mới.");
+            }
+
+            $stmt_insert_addr = $conn->prepare("INSERT INTO addresses (member_id, full_address, city, district, is_default) VALUES (?, ?, ?, ?, 0)");
+            if ($stmt_insert_addr) {
+                 $stmt_insert_addr->bind_param("isss", $member_id, $full_address, $city, $district);
+                 $stmt_insert_addr->execute();
+                 $address_id = $conn->insert_id;
+                 $stmt_insert_addr->close();
+            }
+        } else {
+            $posted_address = $_POST['address_id'] ?? '';
+            if ($posted_address === 'default' || empty($posted_address)) {
+                $address_id = 0;
+            } else {
+                $address_id = (int)$posted_address;
+            }
+        }
+    }
     
     // Tính tổng có áp dụng promotion (nếu có)
     $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
@@ -94,7 +123,7 @@ try {
     
     $subtotal = $cart_total['final_subtotal']; // Tổng sau base + promotion
 
-    $shipping_fee = 30000;
+    $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
     $total_amount = $subtotal + $shipping_fee;
     $status = 'pending';
     $stmt_order = $conn->prepare("
@@ -106,7 +135,6 @@ try {
     $order_id = $conn->insert_id;
     $stmt_order->close();
 
-    $item_type = 'product';
     $stmt_item = $conn->prepare("
         INSERT INTO order_items (order_id, item_type, item_id, item_name, price, quantity) 
         VALUES (?, ?, ?, ?, ?, ?)
@@ -115,13 +143,41 @@ try {
     $stmt_update_stock = $conn->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
     
     foreach ($cart_items as $item) {
-        // Sử dụng giá sau giảm (final_price) thay vì selling_price
         $price_to_save = $item['final_price'];
-        $stmt_item->bind_param("isisdi", $order_id, $item_type, $item['product_id'], $item['name'], $price_to_save, $item['quantity']);
+        $item_type = $item['item_type'];
+        $item_id = (int) $item['item_id'];
+        $item_name = $item['item_name'];
+        $item_quantity = (int) $item['quantity'];
+
+        $stmt_item->bind_param("isisdi", $order_id, $item_type, $item_id, $item_name, $price_to_save, $item_quantity);
         $stmt_item->execute();
-        
-        $stmt_update_stock->bind_param("ii", $item['quantity'], $item['product_id']);
-        $stmt_update_stock->execute();
+
+        if ($item_type === 'product') {
+            $stmt_update_stock->bind_param("ii", $item_quantity, $item_id);
+            $stmt_update_stock->execute();
+            continue;
+        }
+
+        if ($item_type === 'package') {
+            $startDate = new DateTime('today');
+            $endDate = (clone $startDate)->modify('+' . (int) $item['duration_months'] . ' month');
+
+            $stmt_package = $conn->prepare("INSERT INTO member_packages (member_id, package_id, start_date, end_date, status) VALUES (?, ?, ?, ?, 'active')");
+            $startDateString = $startDate->format('Y-m-d');
+            $endDateString = $endDate->format('Y-m-d');
+            $stmt_package->bind_param("iiss", $member_id, $item_id, $startDateString, $endDateString);
+            $stmt_package->execute();
+            $stmt_package->close();
+            continue;
+        }
+
+        if ($item_type === 'service') {
+            $startDate = (new DateTime('today'))->format('Y-m-d');
+            $stmt_service = $conn->prepare("INSERT INTO member_services (member_id, service_id, start_date, end_date, status) VALUES (?, ?, ?, NULL, 'còn hiệu lực')");
+            $stmt_service->bind_param("iis", $member_id, $item_id, $startDate);
+            $stmt_service->execute();
+            $stmt_service->close();
+        }
     }
     $stmt_item->close();
     $stmt_update_stock->close();

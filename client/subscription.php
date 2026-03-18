@@ -142,7 +142,7 @@ include 'layout/header.php';
                 </div>
                 <div class="col-lg-4">
                     <div class="input-group portal-search">
-                        <input type="text" id="globalSearch" class="form-control" placeholder="Tìm gói tập, dịch vụ, ưu đãi...">
+                        <input type="text" id="globalSearch" class="form-control" placeholder="Tìm dinh dưỡng, ưu đãi...">
                         <div class="input-group-append">
                             <button class="btn btn-warning" id="searchBtn" type="button"><i class="fa fa-search"></i></button>
                         </div>
@@ -158,67 +158,14 @@ include 'layout/header.php';
             </div>
 
             <ul class="nav nav-tabs portal-tabs mt-4" id="memberTabs" role="tablist">
-                <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-packages" role="tab">Gói tập</a></li>
-                <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-services" role="tab">Dịch vụ</a></li>
-                <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-nutrition" role="tab">Dinh dưỡng</a></li>
+                <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-nutrition" role="tab">Dinh dưỡng</a></li>
                 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-promotions" role="tab">Ưu đãi</a></li>
                 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-feedback" role="tab">Feedback</a></li>
                 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-notifications" role="tab">Thông báo</a></li>
             </ul>
 
             <div class="tab-content">
-                <div class="tab-pane fade show active" id="tab-packages" role="tabpanel">
-                    <h5 class="text-white mb-3">Danh sách gói tập</h5>
-                    <div class="table-responsive mb-4">
-                        <table class="table portal-table table-bordered table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Tên gói</th>
-                                    <th>Thời hạn</th>
-                                    <th>Giá</th>
-                                    <th>Mô tả</th>
-                                    <th>Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody id="packageTableBody"></tbody>
-                        </table>
-                    </div>
-
-                    <h6 class="text-white mb-3">Gói đã đăng ký</h6>
-                    <div class="table-responsive">
-                        <table class="table portal-table table-bordered table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Gói</th>
-                                    <th>Bắt đầu</th>
-                                    <th>Kết thúc</th>
-                                    <th>Trạng thái</th>
-                                    <th>Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody id="registeredPackageTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="tab-pane fade" id="tab-services" role="tabpanel">
-                    <h5 class="text-white mb-3">Danh sách dịch vụ</h5>
-                    <div class="table-responsive">
-                        <table class="table portal-table table-bordered table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Tên dịch vụ</th>
-                                    <th>Loại</th>
-                                    <th>Giá</th>
-                                    <th>Mô tả</th>
-                                </tr>
-                            </thead>
-                            <tbody id="serviceTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="tab-pane fade" id="tab-nutrition" role="tabpanel">
+                <div class="tab-pane fade show active" id="tab-nutrition" role="tabpanel">
                     <h5 class="text-white mb-3">Kế hoạch dinh dưỡng</h5>
                     <div class="table-responsive">
                         <table class="table portal-table table-bordered table-sm">
@@ -382,40 +329,12 @@ function promoValueText(item) {
 }
 
 function renderDashboard(data) {
-    const hasAnyData = ['packages', 'member_packages', 'services', 'nutrition_plans', 'promotions', 'feedbacks', 'notifications']
+    const hasAnyData = ['nutrition_plans', 'promotions', 'feedbacks', 'notifications']
         .some(key => Array.isArray(data[key]) && data[key].length > 0);
 
     if (!hasAnyData) {
-        showAlert('info', 'Hiện chưa có dữ liệu cho hội viên này. Vui lòng thêm gói tập, dịch vụ, kế hoạch dinh dưỡng hoặc thông báo trong hệ thống để hiển thị tại đây.');
+        showAlert('info', 'Hiện chưa có dữ liệu cho hội viên này. Vui lòng thêm dịch vụ, kế hoạch dinh dưỡng hoặc thông báo trong hệ thống để hiển thị tại đây.');
     }
-
-    const packageRows = (data.packages || []).map(item => {
-        const disabled = item.already_registered ? 'disabled' : '';
-        const btnText = item.already_registered ? 'Đã đăng ký' : 'Đăng ký';
-        const badge = item.already_registered ? '<span class="badge badge-success ml-1">Đã đăng ký</span>' : '';
-        return `<tr>
-            <td>${escapeHtml(item.package_name)} ${badge}</td>
-            <td>${escapeHtml(item.duration_months)} tháng</td>
-            <td>${money(item.price)}</td>
-            <td>${escapeHtml(item.description || '')}</td>
-            <td><button class="btn btn-warning btn-sm register-package-btn" data-id="${item.id}" ${disabled}><i class="fa fa-plus"></i> ${btnText}</button></td>
-        </tr>`;
-    }).join('');
-    $('#packageTableBody').html(packageRows || emptyRow(5, 'Chưa có gói tập đang mở bán'));
-
-    const regRows = (data.member_packages || []).map(item => `<tr>
-        <td>${escapeHtml(item.package_name)}</td>
-        <td>${formatDate(item.start_date)}</td>
-        <td>${formatDate(item.end_date)}</td>
-        <td><span class="badge badge-${item.status === 'active' ? 'success' : 'secondary'}">${escapeHtml(item.status)}</span></td>
-        <td>${item.status === 'active' ? `<button class="btn btn-danger btn-sm cancel-package-btn" data-member-package-id="${item.member_package_id || ''}" data-package-id="${item.package_id || ''}"><i class="fa fa-times"></i> Huỷ</button>` : ''}</td>
-    </tr>`).join('');
-    $('#registeredPackageTableBody').html(regRows || emptyRow(5, 'Bạn chưa đăng ký gói tập nào', 'Chọn một gói trong danh sách phía trên để đăng ký.'));
-
-    const serviceRows = (data.services || []).map(item => `<tr>
-        <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.type)}</td><td>${money(item.price)}</td><td>${escapeHtml(item.description || '')}</td>
-    </tr>`).join('');
-    $('#serviceTableBody').html(serviceRows || emptyRow(4, 'Chưa có dịch vụ khả dụng'));
 
     const nutritionRows = (data.nutrition_plans || []).map(item => `<tr>
         <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.calories || '-')}</td><td>${escapeHtml(item.bmi_range || '-')}</td><td>${escapeHtml(item.description || '')}</td>
@@ -473,8 +392,6 @@ function performSearch() {
         const data = response.data || {};
         let html = '';
         const blocks = [
-            { key: 'packages', label: 'Gói tập' },
-            { key: 'services', label: 'Dịch vụ' },
             { key: 'nutrition_plans', label: 'Dinh dưỡng' },
             { key: 'promotions', label: 'Ưu đãi cá nhân' }
         ];
@@ -497,49 +414,6 @@ function performSearch() {
         showAlert('danger', 'Lỗi kết nối khi search.');
     });
 }
-
-$(document).on('click', '.register-package-btn', function() {
-    const packageId = $(this).data('id');
-    if (!packageId) {
-        showAlert('warning', 'Không xác định được gói tập để đăng ký.');
-        return;
-    }
-    $.post('api.php', { action: 'register_package', member_id: currentMemberId, package_id: packageId }, function(response) {
-        if (response.success) {
-            showAlert('success', response.message || 'Đăng ký gói tập thành công');
-            loadDashboard();
-        } else {
-            showAlert('warning', response.message || 'Không thể đăng ký gói tập');
-        }
-    }, 'json').fail(function() {
-        showAlert('danger', 'Lỗi kết nối khi đăng ký gói tập');
-    });
-});
-
-$(document).on('click', '.cancel-package-btn', function() {
-    const memberPackageId = $(this).data('member-package-id');
-    const packageId = $(this).data('package-id');
-
-    if (!confirm('Bạn có chắc muốn huỷ đăng ký gói tập này?')) {
-        return;
-    }
-
-    $.post('api.php', {
-        action: 'cancel_package',
-        member_id: currentMemberId,
-        member_package_id: memberPackageId,
-        package_id: packageId
-    }, function(response) {
-        if (response.success) {
-            showAlert('success', response.message || 'Huỷ đăng ký gói tập thành công');
-            loadDashboard();
-        } else {
-            showAlert('warning', response.message || 'Không thể huỷ đăng ký gói tập');
-        }
-    }, 'json').fail(function() {
-        showAlert('danger', 'Lỗi kết nối khi huỷ đăng ký gói tập');
-    });
-});
 
 $(document).on('click', '.mark-read-btn', function() {
     const notificationId = $(this).data('id');

@@ -1,4 +1,56 @@
-<?php include 'layout/header.php'; ?>
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once '../config/db.php';
+
+$packages = [];
+$registeredPackageIds = [];
+$cartPackageIds = [];
+$userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
+
+$packageQuery = $conn->query("SELECT id, package_name, duration_months, price, description FROM membership_packages WHERE status = 'active' ORDER BY duration_months ASC, id ASC");
+if ($packageQuery) {
+    while ($row = $packageQuery->fetch_assoc()) {
+        $packages[] = $row;
+    }
+}
+
+if ($userId > 0) {
+    $memberStmt = $conn->prepare("SELECT id FROM members WHERE users_id = ? LIMIT 1");
+    $memberStmt->bind_param("i", $userId);
+    $memberStmt->execute();
+    $member = $memberStmt->get_result()->fetch_assoc();
+    $memberStmt->close();
+
+    $memberId = (int) ($member['id'] ?? 0);
+
+    if ($memberId > 0) {
+        $registeredStmt = $conn->prepare("SELECT package_id FROM member_packages WHERE member_id = ? AND status = 'active'");
+        $registeredStmt->bind_param("i", $memberId);
+        $registeredStmt->execute();
+        $registeredResult = $registeredStmt->get_result();
+
+        while ($row = $registeredResult->fetch_assoc()) {
+            $registeredPackageIds[] = (int) $row['package_id'];
+        }
+        $registeredStmt->close();
+
+        $cartStmt = $conn->prepare("SELECT ci.item_id FROM carts c JOIN cart_items ci ON ci.cart_id = c.id AND ci.item_type = 'package' WHERE c.member_id = ? AND c.status = 'active'");
+        $cartStmt->bind_param("i", $memberId);
+        $cartStmt->execute();
+        $cartResult = $cartStmt->get_result();
+
+        while ($row = $cartResult->fetch_assoc()) {
+            $cartPackageIds[] = (int) $row['item_id'];
+        }
+        $cartStmt->close();
+    }
+}
+
+include 'layout/header.php';
+?>
 
 <!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
@@ -30,102 +82,64 @@
             </div>
         </div>
         <div class="row justify-content-center">
-            <div class="col-lg-4 col-md-8">
-                <div class="ps-item">
-                    <h3>Gói Cơ Bản</h3>
-                    <div class="pi-price">
-                        <h2>500.000đ</h2>
-                        <span>1 THÁNG</span>
+            <?php if (!empty($packages)): ?>
+                <?php foreach ($packages as $package): ?>
+                    <?php
+                    $packageId = (int) $package['id'];
+                    $isRegistered = in_array($packageId, $registeredPackageIds, true);
+                    $isInCart = in_array($packageId, $cartPackageIds, true);
+                    $buttonLabel = 'Thêm vào giỏ hàng';
+                    $buttonClass = 'primary-btn pricing-btn';
+                    $buttonDisabled = '';
+
+                    if ($isRegistered) {
+                        $buttonLabel = 'Đang sử dụng';
+                        $buttonClass .= ' disabled';
+                        $buttonDisabled = 'disabled';
+                    } elseif ($isInCart) {
+                        $buttonLabel = 'Đã có trong giỏ';
+                        $buttonClass .= ' disabled';
+                        $buttonDisabled = 'disabled';
+                    }
+
+                    $benefits = preg_split('/\r\n|\r|\n/', trim((string) $package['description']));
+                    if (count(array_filter($benefits)) <= 1) {
+                        $benefits = [
+                            'Sử dụng phòng tập trong toàn bộ thời hạn gói',
+                            'Thiết bị tập luyện đầy đủ và không giới hạn giờ mở cửa',
+                            'Hỗ trợ tư vấn tập luyện từ đội ngũ phòng gym',
+                        ];
+                    }
+                    ?>
+                    <div class="col-lg-4 col-md-8 mb-4" id="package-<?php echo $packageId; ?>">
+                        <div class="ps-item h-100">
+                            <h3><?php echo htmlspecialchars($package['package_name']); ?></h3>
+                            <div class="pi-price">
+                                <h2><?php echo number_format((float) $package['price'], 0, ',', '.'); ?>đ</h2>
+                                <span><?php echo (int) $package['duration_months']; ?> THÁNG</span>
+                            </div>
+                            <ul>
+                                <?php foreach ($benefits as $benefit): ?>
+                                    <?php if (trim($benefit) !== ''): ?>
+                                        <li><?php echo htmlspecialchars(trim($benefit)); ?></li>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </ul>
+                            <button type="button"
+                                    class="<?php echo $buttonClass; ?>"
+                                    onclick="addPackageToCart(<?php echo $packageId; ?>)"
+                                    <?php echo $buttonDisabled; ?>>
+                                <?php echo $buttonLabel; ?>
+                            </button>
+                            <a href="my-packages.php" class="thumb-icon" title="Xem gói tập của tôi"><i class="fa fa-ticket"></i></a>
+                        </div>
                     </div>
-                    <ul>
-                        <li>Tập luyện tự do</li>
-                        <li>Sử dụng thiết bị không giới hạn</li>
-                        <li>Phòng tắm & tủ đồ</li>
-                        <li>Không giới hạn thời gian</li>
-                    </ul>
-                    <a href="package-register.php?id=1" class="primary-btn pricing-btn">Đăng ký ngay</a>
-                    <a href="#" class="thumb-icon"><i class="fa fa-picture-o"></i></a>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="col-lg-8">
+                    <div class="alert alert-warning text-center">Hiện chưa có gói tập nào đang mở bán.</div>
                 </div>
-            </div>
-            <div class="col-lg-4 col-md-8">
-                <div class="ps-item">
-                    <h3>Gói 3 Tháng</h3>
-                    <div class="pi-price">
-                        <h2>1.350.000đ</h2>
-                        <span>3 THÁNG</span>
-                    </div>
-                    <ul>
-                        <li>Tập luyện tự do</li>
-                        <li>Sử dụng thiết bị không giới hạn</li>
-                        <li>Lớp học nhóm miễn phí</li>
-                        <li>Phòng tắm & tủ đồ</li>
-                        <li>Không giới hạn thời gian</li>
-                    </ul>
-                    <a href="package-register.php?id=2" class="primary-btn pricing-btn">Đăng ký ngay</a>
-                    <a href="#" class="thumb-icon"><i class="fa fa-picture-o"></i></a>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-8">
-                <div class="ps-item">
-                    <h3>Gói 6 Tháng</h3>
-                    <div class="pi-price">
-                        <h2>2.700.000đ</h2>
-                        <span>6 THÁNG</span>
-                    </div>
-                    <ul>
-                        <li>Tập luyện tự do</li>
-                        <li>Sử dụng thiết bị không giới hạn</li>
-                        <li>Huấn luyện viên cá nhân (3 buổi)</li>
-                        <li>Lớp học nhóm miễn phí</li>
-                        <li>Phòng tắm & tủ đồ</li>
-                        <li>Không giới hạn thời gian</li>
-                    </ul>
-                    <a href="package-register.php?id=3" class="primary-btn pricing-btn">Đăng ký ngay</a>
-                    <a href="#" class="thumb-icon"><i class="fa fa-picture-o"></i></a>
-                </div>
-            </div>
-        </div>
-        <div class="row justify-content-center" style="margin-top: 30px;">
-            <div class="col-lg-4 col-md-8">
-                <div class="ps-item">
-                    <h3>Gói 12 Tháng</h3>
-                    <div class="pi-price">
-                        <h2>5.000.000đ</h2>
-                        <span>12 THÁNG</span>
-                    </div>
-                    <ul>
-                        <li>Tập luyện tự do</li>
-                        <li>Sử dụng thiết bị không giới hạn</li>
-                        <li>Huấn luyện viên cá nhân (10 buổi)</li>
-                        <li>Lớp học nhóm miễn phí</li>
-                        <li>Tư vấn dinh dưỡng miễn phí</li>
-                        <li>Phòng tắm & tủ đồ</li>
-                        <li>Không giới hạn thời gian</li>
-                    </ul>
-                    <a href="package-register.php?id=4" class="primary-btn pricing-btn">Đăng ký ngay</a>
-                    <a href="#" class="thumb-icon"><i class="fa fa-picture-o"></i></a>
-                </div>
-            </div>
-            <div class="col-lg-4 col-md-8">
-                <div class="ps-item">
-                    <h3>Gói VIP</h3>
-                    <div class="pi-price">
-                        <h2>10.000.000đ</h2>
-                        <span>12 THÁNG</span>
-                    </div>
-                    <ul>
-                        <li>Tất cả quyền lợi gói 12 tháng</li>
-                        <li>Huấn luyện viên cá nhân không giới hạn</li>
-                        <li>Tư vấn dinh dưỡng chuyên sâu</li>
-                        <li>Khu vực tập riêng VIP</li>
-                        <li>Ưu tiên sử dụng thiết bị</li>
-                        <li>Massage thư giãn miễn phí</li>
-                        <li>Đồ uống protein miễn phí</li>
-                    </ul>
-                    <a href="package-register.php?id=5" class="primary-btn pricing-btn">Đăng ký ngay</a>
-                    <a href="#" class="thumb-icon"><i class="fa fa-picture-o"></i></a>
-                </div>
-            </div>
+            <?php endif; ?>
         </div>
     </div>
 </section>
@@ -146,5 +160,44 @@
     </div>
 </section>
 <!-- Banner Section End -->
+
+<script>
+function addPackageToCart(packageId) {
+    var formData = new FormData();
+    formData.append('item_type', 'package');
+    formData.append('package_id', packageId);
+    formData.append('quantity', 1);
+
+    fetch('ajax/cart-add.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success === true) {
+            var cartCountElements = document.querySelectorAll('.cart-count, #cart-count, .cart-badge');
+            cartCountElements.forEach(function(el) {
+                el.innerText = data.cart_count;
+                el.style.display = 'flex';
+            });
+
+            if (confirm(data.message + "\nBạn có muốn chuyển đến Giỏ hàng để thanh toán không?")) {
+                window.location.href = 'cart.php';
+            } else {
+                window.location.reload();
+            }
+        } else {
+            alert('Thông báo: ' + data.message);
+            if (data.redirect) {
+                window.location.href = data.redirect;
+            }
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        alert('Có lỗi xảy ra kết nối với máy chủ!');
+    });
+}
+</script>
 
 <?php include 'layout/footer.php'; ?>

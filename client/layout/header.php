@@ -51,6 +51,7 @@ if (isset($_SESSION['user_id'])) {
     <link rel="stylesheet" href="assets/css/slicknav.min.css" type="text/css">
     <link rel="stylesheet" href="assets/css/style.css?v=2.0" type="text/css">
     <link rel="stylesheet" href="assets/css/custom-shop.css" type="text/css">
+    <link rel="stylesheet" href="assets/css/chatbot-faq.css" type="text/css">
 </head>
 
 <body>
@@ -120,6 +121,8 @@ if (isset($_SESSION['user_id'])) {
                             <li class="<?php echo ($current_page == 'pt-booking.php') ? 'active' : ''; ?>"><a href="pt-booking.php">Lịch tập với PT</a></li>
                             <li class="<?php echo ($current_page == 'packages.php') ? 'active' : ''; ?>"><a href="packages.php">Gói tập</a></li>
                             <li class="<?php echo ($current_page == 'products.php' || $current_page == 'product-detail.php') ? 'active' : ''; ?>"><a href="products.php">Sản phẩm</a></li>
+                            <li class="<?php echo ($current_page == 'contact.php') ? 'active' : ''; ?>"><a href="contact.php">Liên hệ</a></li>
+                            <li class="<?php echo ($current_page == 'subscription.php') ? 'active' : ''; ?>"><a href="subscription.php">Đánh giá & thông báo</a></li>
                             <li><a href="#">Khác</a>
                                 <ul class="dropdown">
                                     <li><a href="bmi-calculator.php">Tính BMI</a></li>
@@ -127,8 +130,6 @@ if (isset($_SESSION['user_id'])) {
                                     <li><a href="blog.php">Tin tức</a></li>
                                 </ul>
                             </li>
-                            <li class="<?php echo ($current_page == 'contact.php') ? 'active' : ''; ?>"><a href="contact.php">Liên hệ</a></li>
-                            <li class="<?php echo ($current_page == 'subscription.php') ? 'active' : ''; ?>"><a href="subscription.php">Gói</a></li>
                         </ul>
                     </nav>
                 </div>

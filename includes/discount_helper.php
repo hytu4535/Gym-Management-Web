@@ -178,21 +178,19 @@ function formatPriceDisplay($price_info) {
     return $html;
 }
 
-/**
- * Tính tổng giá trị giỏ hàng sau giảm giá
- * @param int $user_id - ID của user
- * @param object $conn - Database connection
- * @param int $promotion_id - ID promotion (optional, 0 = không dùng)
- * @return array - Thông tin tổng giỏ hàng
- */
 function calculateCartTotal($user_id, $conn, $promotion_id = 0) {
-    // Lấy các sản phẩm trong giỏ
+    // Lấy các mục trong giỏ
     $cart_sql = "
-        SELECT ci.quantity, p.selling_price
+        SELECT ci.item_type, ci.quantity,
+               p.selling_price,
+               mp.price AS package_price,
+               s.price AS service_price
         FROM members m
         JOIN carts c ON m.id = c.member_id AND c.status = 'active'
-        JOIN cart_items ci ON c.id = ci.cart_id AND ci.item_type = 'product'
-        JOIN products p ON ci.item_id = p.id
+        JOIN cart_items ci ON c.id = ci.cart_id
+        LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
+        LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
+        LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
         WHERE m.users_id = ?
     ";
     
@@ -205,12 +203,25 @@ function calculateCartTotal($user_id, $conn, $promotion_id = 0) {
     $subtotal_after_base = 0; // Sau khi giảm base_discount
     
     while ($item = $result->fetch_assoc()) {
-        $item_total = $item['selling_price'] * $item['quantity'];
+        if ($item['item_type'] === 'product') {
+            $original_price = (float) $item['selling_price'];
+            $item_total = $original_price * $item['quantity'];
+            $subtotal_original += $item_total;
+
+            // Tính giá sau base_discount
+            $price_info = calculateDiscountedPrice($original_price, $user_id, $conn);
+            $subtotal_after_base += ($price_info['final_price'] * $item['quantity']);
+            continue;
+        }
+
+        if ($item['item_type'] === 'service') {
+            $original_price = (float) $item['service_price'];
+        } else {
+            $original_price = (float) $item['package_price'];
+        }
+        $item_total = $original_price * $item['quantity'];
         $subtotal_original += $item_total;
-        
-        // Tính giá sau base_discount
-        $price_info = calculateDiscountedPrice($item['selling_price'], $user_id, $conn);
-        $subtotal_after_base += ($price_info['final_price'] * $item['quantity']);
+        $subtotal_after_base += $item_total;
     }
     
     $base_discount_amount = $subtotal_original - $subtotal_after_base;

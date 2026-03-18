@@ -12,12 +12,29 @@ if (!isset($_SESSION['user_id'])) {
 }
 $user_id = $_SESSION['user_id'];
 
+$hasPhysicalProducts = false;
+$hasPackageItems = false;
+
 $cart_sql = "
-    SELECT ci.quantity, p.id, p.name, p.selling_price 
+    SELECT ci.item_type,
+           ci.quantity,
+           p.id,
+           p.name,
+           p.selling_price,
+           mp.id AS package_id,
+           mp.package_name,
+           mp.price AS package_price,
+           mp.duration_months,
+           s.id AS service_id,
+           s.name AS service_name,
+           s.price AS service_price,
+           s.type AS service_type
     FROM members m
     JOIN carts c ON m.id = c.member_id AND c.status = 'active'
-    JOIN cart_items ci ON c.id = ci.cart_id AND ci.item_type = 'product'
-    JOIN products p ON ci.item_id = p.id 
+    JOIN cart_items ci ON c.id = ci.cart_id
+    LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
+    LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
+    LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
     WHERE m.users_id = ?
 ";
 $stmt_cart = $conn->prepare($cart_sql);
@@ -36,18 +53,35 @@ $subtotal_original = 0;
 $total_discount = 0;
 
 while ($row = $cart_result->fetch_assoc()) {
-    // Tính giá sau giảm theo tier (chỉ base_discount)
-    $price_info = calculateDiscountedPrice($row['selling_price'], $user_id, $conn);
-    
-    $row['final_price'] = $price_info['final_price'];
-    $row['original_price'] = $price_info['original_price'];
-    $row['discount_percent'] = $price_info['discount_percent'];
-    $row['has_discount'] = $price_info['has_discount'];
+    if ($row['item_type'] === 'product') {
+        $hasPhysicalProducts = true;
+
+        $price_info = calculateDiscountedPrice($row['selling_price'], $user_id, $conn);
+        $row['display_name'] = $row['name'];
+        $row['final_price'] = $price_info['final_price'];
+        $row['original_price'] = $price_info['original_price'];
+        $row['discount_percent'] = $price_info['discount_percent'];
+        $row['has_discount'] = $price_info['has_discount'];
+    } elseif ($row['item_type'] === 'package') {
+        $hasPackageItems = true;
+
+        $row['display_name'] = $row['package_name'];
+        $row['final_price'] = (float) $row['package_price'];
+        $row['original_price'] = (float) $row['package_price'];
+        $row['discount_percent'] = 0;
+        $row['has_discount'] = false;
+    } else {
+        $row['display_name'] = $row['service_name'];
+        $row['final_price'] = (float) $row['service_price'];
+        $row['original_price'] = (float) $row['service_price'];
+        $row['discount_percent'] = 0;
+        $row['has_discount'] = false;
+    }
     
     $cart_items[] = $row;
     
-    $subtotal += ($price_info['final_price'] * $row['quantity']);
-    $subtotal_original += ($price_info['original_price'] * $row['quantity']);
+    $subtotal += ($row['final_price'] * $row['quantity']);
+    $subtotal_original += ($row['original_price'] * $row['quantity']);
 }
 $stmt_cart->close();
 
@@ -58,7 +92,7 @@ $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION
 $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
 
 $subtotal = $cart_total['final_subtotal']; // Tổng sau base + promotion
-$shipping_fee = 30000; 
+$shipping_fee = $hasPhysicalProducts ? 30000 : 0;
 $total = $subtotal + $shipping_fee;
 
 
@@ -105,6 +139,7 @@ include 'layout/header.php';
                     </div>
 
                     <div class="checkout-form">
+                        <?php if ($hasPhysicalProducts): ?>
                         <h5>Địa chỉ giao hàng</h5>
                         <div class="form-group">
                             <label>Chọn địa chỉ có sẵn</label>
@@ -146,6 +181,11 @@ include 'layout/header.php';
                                 </div>
                             </div>
                         </div>
+                        <?php else: ?>
+                        <div class="alert alert-info mb-4">
+                            Đơn hàng này chỉ gồm gói tập/dịch vụ, nên không cần địa chỉ giao hàng.
+                        </div>
+                        <?php endif; ?>
 
                         <div class="form-group mt-4">
                             <label>Ghi chú đơn hàng (tùy chọn)</label>
@@ -174,10 +214,14 @@ include 'layout/header.php';
                             <?php foreach ($cart_items as $item): ?>
                                 <li style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 14px;">
                                     <span style="color: #444; width: 70%;">
-                                        <?php echo htmlspecialchars($item['name']); ?> 
+                                        <?php echo htmlspecialchars($item['display_name']); ?> 
                                         <strong style="color: #e7ab3c;">x <?php echo $item['quantity']; ?></strong>
                                         <?php if ($item['has_discount']): ?>
                                             <br><small style="color: #28a745; font-weight: bold;">-<?php echo number_format($item['discount_percent'], 0); ?>%</small>
+                                        <?php elseif ($item['item_type'] === 'package'): ?>
+                                            <br><small style="color: #777; font-weight: bold;">Gói <?php echo (int) $item['duration_months']; ?> tháng</small>
+                                        <?php elseif ($item['item_type'] === 'service'): ?>
+                                            <br><small style="color: #777; font-weight: bold;">Dịch vụ <?php echo htmlspecialchars((string) $item['service_type']); ?></small>
                                         <?php endif; ?>
                                     </span>
                                     <span style="font-weight: bold;"><?php echo number_format($item['final_price'] * $item['quantity'], 0, ',', '.'); ?>đ</span>
@@ -206,7 +250,7 @@ include 'layout/header.php';
                                 Tạm tính 
                                 <span><?php echo number_format($subtotal, 0, ',', '.'); ?>đ</span>
                             </li>
-                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px;">Phí vận chuyển <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px;"><?php echo $hasPhysicalProducts ? 'Phí vận chuyển' : 'Phí giao hàng'; ?> <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
                             <li style="display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; color: #e7ab3c; border-top: 1px solid #e1e1e1; padding-top: 15px;">Tổng cộng <span><?php echo number_format($total, 0, ',', '.'); ?>đ</span></li>
                         </ul>
 
@@ -246,18 +290,21 @@ include 'layout/header.php';
 </style>
 
 <script>
-document.getElementById('use-new-address').addEventListener('change', function() {
-    var newAddressForm = document.getElementById('new-address-form');
-    var addressSelect = document.getElementById('address-select');
-    
-    if (this.checked) {
-        newAddressForm.style.display = 'block';
-        addressSelect.disabled = true;
-    } else {
-        newAddressForm.style.display = 'none';
-        addressSelect.disabled = false;
-    }
-});
+var useNewAddress = document.getElementById('use-new-address');
+if (useNewAddress) {
+    useNewAddress.addEventListener('change', function() {
+        var newAddressForm = document.getElementById('new-address-form');
+        var addressSelect = document.getElementById('address-select');
+        
+        if (this.checked) {
+            newAddressForm.style.display = 'block';
+            addressSelect.disabled = true;
+        } else {
+            newAddressForm.style.display = 'none';
+            addressSelect.disabled = false;
+        }
+    });
+}
 
 document.querySelectorAll('input[name="payment_method"]').forEach(function(radio) {
     radio.addEventListener('change', function() {

@@ -30,18 +30,18 @@
                 <div class="contact-widget">
                     <div class="cw-text">
                         <i class="fa fa-map-marker"></i>
-                        <p>123 Đường ABC, Quận 1,<br/> TP. Hồ Chí Minh</p>
+                        <p>18/16 Phan Văn Trị, P.Chợ Quán, Q.5,<br/> TP. Hồ Chí Minh</p>
                     </div>
                     <div class="cw-text">
                         <i class="fa fa-mobile"></i>
                         <ul>
-                            <li>(028) 1234-5678</li>
+                            <li>(078) 6026-878</li>
                             <li>(028) 8765-4321</li>
                         </ul>
                     </div>
                     <div class="cw-text email">
                         <i class="fa fa-envelope"></i>
-                        <p>support@gymcenter.vn</p>
+                        <p>supporttrungkien@gymcenter.vn</p>
                     </div>
                 </div>
             </div>
@@ -71,14 +71,14 @@
             <div class="col-md-4">
                 <div class="gt-text">
                     <i class="fa fa-map-marker"></i>
-                    <p>123 Đường ABC, Quận 1,<br/> TP. Hồ Chí Minh</p>
+                    <p>18/16 Phan Văn Trị, P.Chợ Quán, Q.5,<br/> TP. Hồ Chí Minh</p>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="gt-text">
                     <i class="fa fa-mobile"></i>
                     <ul>
-                        <li>(028) 1234-5678</li>
+                        <li>(078) 6026-878</li>
                         <li>(028) 8765-4321</li>
                     </ul>
                 </div>
@@ -86,7 +86,7 @@
             <div class="col-md-4">
                 <div class="gt-text email">
                     <i class="fa fa-envelope"></i>
-                    <p>support@gymcenter.vn</p>
+                    <p>supporttrungkien@gymcenter.vn</p>
                 </div>
             </div>
         </div>

@@ -2079,6 +2079,31 @@ ol {
 	background: #f36100;
 }
 
+.chart-calculate-form #bmiResult .alert {
+	background: #ffffff;
+	border: 1px solid #e6e6e6;
+	border-radius: 8px;
+	padding: 20px 22px;
+	box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+	margin-bottom: 0;
+}
+
+.chart-calculate-form #bmiResult .alert h4,
+.chart-calculate-form #bmiResult .alert p,
+.chart-calculate-form #bmiResult .alert strong,
+.chart-calculate-form #bmiResult .alert span {
+	color: #111111;
+}
+
+.chart-calculate-form #bmiResult .alert h4 {
+	font-weight: 600;
+	margin-bottom: 12px;
+}
+
+.chart-calculate-form #bmiResult .alert p:last-child {
+	margin-bottom: 0;
+}
+
 /*---------------------
   Blog Section
 -----------------------*/

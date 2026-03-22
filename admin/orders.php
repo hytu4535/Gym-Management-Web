@@ -27,7 +27,7 @@ $filter_city = isset($_GET['city']) ? $_GET['city'] : '';
 $filter_district = isset($_GET['district']) ? $_GET['district'] : '';
 
 // Xây dựng câu query với filter
-$sql = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, m.full_name, 
+$sql = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, o.transfer_code, o.proof_img, m.full_name, 
         a.city, a.district 
         FROM orders o 
         LEFT JOIN members m ON o.member_id = m.id 
@@ -214,6 +214,8 @@ $districts_result = $conn->query($districts_sql);
                     <th>Địa điểm giao</th>
                     <th>Tổng tiền</th>
                     <th>Phương thức</th>
+                    <th>Nội dung CK</th>
+                    <th>Bằng chứng</th>
                     <th>Trạng thái</th>
                     <th>Hành động</th>
                   </tr>
@@ -241,7 +243,18 @@ $districts_result = $conn->query($districts_sql);
                             
                             $paymentMethod = ($row['payment_method'] == 'online') 
                                 ? '<span class="text-primary"><i class="fas fa-credit-card"></i> Online</span>' 
-                                : '<span class="text-success"><i class="fas fa-money-bill-wave"></i> Tiền mặt</span>';
+                                : (($row['payment_method'] == 'bank_transfer') 
+                                ? '<span class="text-info"><i class="fas fa-university"></i> Chuyển khoản</span>' 
+                                : '<span class="text-success"><i class="fas fa-money-bill-wave"></i> Tiền mặt</span>');
+
+                            $transferCode = $row['transfer_code'] ?? '<span class="text-muted">-</span>';
+                            $proofImg = '';
+                            if (!empty($row['proof_img'])) {
+                                $img_path = '../client/assets/uploads/' . $row['proof_img'];
+                                $proofImg = '<a href="' . $img_path . '" target="_blank"><img src="' . $img_path . '" alt="Biên lai" style="width: 50px; height: auto;"></a>';
+                            } else {
+                                $proofImg = '<span class="text-muted">-</span>';
+                            }
 
                             if ($row['status'] == 'delivered') {
                                 $statusBadge = '<span class="badge badge-success">Đã giao</span>';
@@ -260,6 +273,8 @@ $districts_result = $conn->query($districts_sql);
                             echo "  <td>{$location}</td>";
                             echo "  <td class='text-danger font-weight-bold'>{$formattedPrice}</td>";
                             echo "  <td>{$paymentMethod}</td>";
+                            echo "  <td>{$transferCode}</td>";
+                            echo "  <td>{$proofImg}</td>";
                             echo "  <td>{$statusBadge}</td>";
                             echo "  <td>
                                         <a href='order-items.php?id={$row['id']}' class='btn btn-info btn-sm' title='Xem chi tiết'>
@@ -272,7 +287,7 @@ $districts_result = $conn->query($districts_sql);
                             echo "</tr>";
                         }
                     } else {
-                        echo "<tr><td colspan='8' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
+                        echo "<tr><td colspan='10' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
                     }
                   ?>
                   </tbody>

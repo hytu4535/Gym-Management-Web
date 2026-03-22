@@ -15,6 +15,26 @@ $user_id = $_SESSION['user_id'];
 $hasPhysicalProducts = false;
 $hasPackageItems = false;
 
+function generateTransferCode($orderId) {
+    $lastThree = str_pad($orderId % 1000, 3, '0', STR_PAD_LEFT);
+    $random = chr(rand(65, 90)) . chr(rand(65, 90));
+    return 'TT' . $lastThree . $random;
+}
+
+$nextOrderId = 1;
+$nextSql = "SELECT AUTO_INCREMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders'";
+$nextResult = $conn->query($nextSql);
+if ($nextResult && $nextRow = $nextResult->fetch_assoc()) {
+    $nextOrderId = (int) $nextRow['AUTO_INCREMENT'];
+} else {
+    $maxOrderSql = "SELECT MAX(id) AS max_id FROM orders";
+    $maxOrderRes = $conn->query($maxOrderSql);
+    $maxOrderId = ($maxOrderRes && $row = $maxOrderRes->fetch_assoc()) ? (int)$row['max_id'] : 0;
+    $nextOrderId = $maxOrderId + 1;
+}
+$plannedTransferCode = generateTransferCode($nextOrderId);
+
+
 $cart_sql = "
     SELECT ci.item_type,
            ci.quantity,
@@ -150,7 +170,7 @@ include 'layout/header.php';
     }
     </style>
     <div class="container">
-        <form id="checkout-form" action="checkout-process.php" method="POST">
+        <form id="checkout-form" action="checkout-process.php" method="POST" enctype="multipart/form-data">
             <div class="row checkout-card">
                 <div class="col-lg-8">
                     <h4 style="color:#111827; font-weight: 700; margin-bottom: 16px;">Thông tin đặt hàng</h4>
@@ -287,14 +307,26 @@ include 'layout/header.php';
                                 </label>
                             </div>
                             <div class="form-check">
-                                <input class="form-check-input" type="radio" name="payment_method" id="payment-online" value="online">
-                                <label class="form-check-label" for="payment-online" style="cursor: pointer;">
-                                    Thanh toán trực tuyến (VNPAY/MOMO)
+                                <input class="form-check-input" type="radio" name="payment_method" id="payment-bank" value="bank_transfer">
+                                <label class="form-check-label" for="payment-bank" style="cursor: pointer;">
+                                    Chuyển khoản ngân hàng
                                 </label>
                             </div>
-                            <div id="online-payment-info" style="display: none;" class="mt-3">
+                            <div id="bank-transfer-info" style="display: none; margin: 0 auto; max-width: 450px;" class="mt-3">
                                 <div class="alert alert-info" style="font-size: 13px; padding: 10px;">
-                                    Bạn sẽ được chuyển đến cổng thanh toán bảo mật sau khi bấm Đặt hàng.
+                                    <strong>Thông tin chuyển khoản:</strong><br>
+                                    Ngân hàng: Vietcombank<br>
+                                    Số tài khoản: 123456789<br>
+                                    Chủ tài khoản: GYM CENTER<br>
+                                    Số tiền: <span id="transfer-amount"><?php echo number_format($total, 0, ',', '.'); ?>đ</span><br>
+                                    Nội dung chuyển khoản: <strong id="transfer-code-display"><?php echo htmlspecialchars($plannedTransferCode); ?></strong><br>
+                                    <span class="text-danger">Vui lòng nhập đúng 100% nội dung chuyển khoản để hệ thống đối soát.</span>
+                                </div>
+                                <input type="hidden" name="transfer_code" value="<?php echo htmlspecialchars($plannedTransferCode); ?>">
+                                <div class="form-group">
+                                    <label for="proof-image">Ảnh biên lai (bằng chứng thanh toán) <span class="text-danger">*</span></label>
+                                    <input type="file" name="proof_image" id="proof-image" class="form-control" accept=".jpg,.jpeg,.png,.webp" required>
+                                    <small class="form-text text-muted">Chỉ chấp nhận file JPG, JPEG, PNG, WEBP.</small>
                                 </div>
                             </div>
                         </div>
@@ -326,11 +358,11 @@ if (useNewAddress) {
 
 document.querySelectorAll('input[name="payment_method"]').forEach(function(radio) {
     radio.addEventListener('change', function() {
-        var onlineInfo = document.getElementById('online-payment-info');
-        if (this.value === 'online') {
-            onlineInfo.style.display = 'block';
+        var bankInfo = document.getElementById('bank-transfer-info');
+        if (this.value === 'bank_transfer') {
+            bankInfo.style.display = 'block';
         } else {
-            onlineInfo.style.display = 'none';
+            bankInfo.style.display = 'none';
         }
     });
 });
@@ -346,6 +378,24 @@ document.getElementById('checkout-form').addEventListener('submit', function(e) 
         if (!newAddress || !city || !district) {
             e.preventDefault(); 
             alert('Vui lòng nhập đầy đủ: Địa chỉ, Thành phố và Quận/Huyện!');
+        }
+    }
+
+    var paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+    if (paymentMethod === 'bank_transfer') {
+        var proofImage = document.getElementById('proof-image').files[0];
+
+        if (!proofImage) {
+            e.preventDefault();
+            alert('Vui lòng upload ảnh biên lai thanh toán!');
+            return;
+        }
+
+        var allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(proofImage.type)) {
+            e.preventDefault();
+            alert('Chỉ chấp nhận file ảnh JPG, JPEG, PNG, WEBP!');
+            return;
         }
     }
 });

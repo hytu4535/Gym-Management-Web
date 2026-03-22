@@ -1,0 +1,231 @@
+.faq-bot {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 9050;
+}
+
+.faq-bot-toggle {
+    width: 58px;
+    height: 58px;
+    border: none;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f36100, #ff8a00);
+    color: #ffffff;
+    font-size: 22px;
+    box-shadow: 0 12px 28px rgba(243, 97, 0, 0.45);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.faq-bot-toggle:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 16px 32px rgba(243, 97, 0, 0.55);
+}
+
+.faq-bot-toggle:focus {
+    outline: none;
+}
+
+.faq-bot-toggle::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border: 2px solid rgba(243, 97, 0, 0.35);
+    border-radius: 50%;
+    animation: faqBotPulse 2s infinite;
+}
+
+@keyframes faqBotPulse {
+    0% {
+        transform: scale(0.95);
+        opacity: 1;
+    }
+    70% {
+        transform: scale(1.15);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1.15);
+        opacity: 0;
+    }
+}
+
+.faq-bot-panel {
+    position: absolute;
+    right: 0;
+    bottom: 72px;
+    width: 340px;
+    max-width: calc(100vw - 24px);
+    background: #141414;
+    border: 1px solid #2d2d2d;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.faq-bot.is-open .faq-bot-panel {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.faq-bot-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid #2d2d2d;
+    background: linear-gradient(135deg, rgba(243, 97, 0, 0.22), rgba(243, 97, 0, 0.06));
+}
+
+.faq-bot-header-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.faq-bot-header-title strong {
+    color: #ffffff;
+    font-size: 14px;
+    line-height: 1.2;
+}
+
+.faq-bot-header-title span {
+    color: #c7c7c7;
+    font-size: 11px;
+}
+
+.faq-bot-close {
+    background: transparent;
+    color: #bdbdbd;
+    border: none;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+}
+
+.faq-bot-close:hover {
+    background: #2a2a2a;
+    color: #ffffff;
+}
+
+.faq-bot-messages {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 12px;
+    background: #101010;
+}
+
+.faq-bot-msg {
+    margin-bottom: 9px;
+    display: flex;
+}
+
+.faq-bot-msg.bot {
+    justify-content: flex-start;
+}
+
+.faq-bot-msg.user {
+    justify-content: flex-end;
+}
+
+.faq-bot-bubble {
+    max-width: 82%;
+    border-radius: 12px;
+    padding: 9px 11px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.faq-bot-msg.bot .faq-bot-bubble {
+    background: #1e1e1e;
+    color: #dedede;
+    border: 1px solid #2b2b2b;
+}
+
+.faq-bot-msg.user .faq-bot-bubble {
+    background: #f36100;
+    color: #ffffff;
+}
+
+.faq-bot-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 0 12px 12px;
+    background: #101010;
+    border-top: 1px solid #262626;
+}
+
+.faq-bot-chip {
+    border: 1px solid #3b3b3b;
+    background: #191919;
+    color: #d0d0d0;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.faq-bot-chip:hover {
+    border-color: #f36100;
+    color: #ffffff;
+}
+
+.faq-bot-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border-top: 1px solid #2d2d2d;
+    background: #141414;
+}
+
+.faq-bot-form input {
+    flex: 1;
+    height: 38px;
+    border: 1px solid #343434;
+    background: #0f0f0f;
+    color: #f1f1f1;
+    border-radius: 8px;
+    padding: 0 10px;
+    font-size: 13px;
+}
+
+.faq-bot-form input::placeholder {
+    color: #777777;
+}
+
+.faq-bot-form button {
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 8px;
+    background: #f36100;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.faq-bot-form button:hover {
+    background: #ff7b22;
+}
+
+@media (max-width: 575px) {
+    .faq-bot {
+        right: 12px;
+        bottom: 12px;
+    }
+
+    .faq-bot-panel {
+        right: 0;
+        width: min(340px, calc(100vw - 24px));
+        bottom: 70px;
+    }
+}

@@ -133,7 +133,7 @@
             <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'training-schedules.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-chalkboard-teacher"></i>
               <p>
-                Quản lý huấn luyện viên
+                Quản lý luyện tập
                 <i class="fas fa-angle-left right"></i>
               </p>
             </a>
@@ -142,6 +142,12 @@
                 <a href="trainers.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'trainers.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Huấn luyện viên</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="classes.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'classes.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Lớp tập</p>
                 </a>
               </li>
               <li class="nav-item">
@@ -244,8 +250,8 @@
           </li>
 
           <!-- Quản lý kho -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['import-slips.php', 'suppliers.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['import-slips.php', 'suppliers.php'])) ? 'active' : ''; ?>">
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['import-slips.php', 'export-slips.php', 'suppliers.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['import-slips.php', 'export-slips.php', 'suppliers.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-warehouse"></i>
               <p>
                 Quản lý kho
@@ -257,6 +263,12 @@
                 <a href="import-slips.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'import-slips.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Phiếu nhập</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="export-slips.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'export-slips.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Phiếu xuất</p>
                 </a>
               </li>
               <li class="nav-item">

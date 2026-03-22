@@ -13,10 +13,6 @@ include '../includes/auth_permission.php';
 // chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
 checkPermission('MANAGE_FEEDBACK');
 
-// layout chung
-include 'layout/header.php'; 
-include 'layout/sidebar.php';
-
 require_once '../config/db.php';
 require_once '../includes/functions.php';
 
@@ -122,7 +118,7 @@ include 'layout/sidebar.php';
               </div>
               <div class="card-body">
                                 <div class="table-responsive">
-                                <table class="table table-bordered table-striped data-table" id="feedbackTable">
+                                <table class="table table-bordered table-striped" id="feedbackTable">
                                     <thead>
                   <tr>
                     <th style="width: 50px;">ID</th>
@@ -177,7 +173,9 @@ $(document).ready(function() {
 
 function resetFeedbackTable() {
     if ($.fn.DataTable.isDataTable('#feedbackTable')) {
-        $('#feedbackTable').DataTable().destroy();
+        const table = $('#feedbackTable').DataTable();
+        table.clear();
+        table.destroy();
     }
 }
 

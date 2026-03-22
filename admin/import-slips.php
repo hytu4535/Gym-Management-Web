@@ -1,23 +1,4 @@
 <?php
-session_start(); // luôn khởi tạo session
-
-$page_title = "Quản lý Phiếu Nhập Kho";
-
-// kiểm tra đăng nhập
-include '../includes/auth.php';
-
-// kết nối DB và kiểm tra quyền
-include '../includes/database.php';
-include '../includes/auth_permission.php';
-
-// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
-checkPermission('MANAGE_SALES');
-
-// layout chung
-include 'layout/header.php'; 
-include 'layout/sidebar.php';
-
-require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $db = getDB();
@@ -58,10 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
   $supplierId = intval($_POST['supplier_id']);
   $staffId = intval($_POST['staff_id']);
-  $totalAmount = floatval($_POST['total_amount']);
   $importDateInput = sanitize($_POST['import_date']);
   $note = sanitize($_POST['note']);
   $status = sanitize($_POST['status']);
+  $detailTypes = $_POST['detail_type'] ?? [];
+  $detailItemIds = $_POST['detail_item_id'] ?? [];
+  $detailQuantities = $_POST['detail_quantity'] ?? [];
+  $detailImportPrices = $_POST['detail_import_price'] ?? [];
 
   $allowedStatus = ['Đã nhập', 'Đang chờ duyệt', 'Đã hủy'];
   if (!in_array($status, $allowedStatus, true)) {
@@ -84,15 +68,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
     exit;
   }
 
+  $details = [];
+  $totalAmount = 0;
+
+  foreach ($detailTypes as $idx => $type) {
+    $itemType = sanitize($type);
+    $itemId = intval($detailItemIds[$idx] ?? 0);
+    $quantity = intval($detailQuantities[$idx] ?? 0);
+    $importPrice = floatval($detailImportPrices[$idx] ?? 0);
+
+    if (!in_array($itemType, ['product', 'equipment'], true)) {
+      continue;
+    }
+
+    if ($itemId <= 0 || $quantity <= 0 || $importPrice <= 0) {
+      continue;
+    }
+
+    $details[] = [
+      'type' => $itemType,
+      'item_id' => $itemId,
+      'quantity' => $quantity,
+      'import_price' => $importPrice,
+    ];
+
+    $totalAmount += ($quantity * $importPrice);
+  }
+
+  if (empty($details)) {
+    echo "<script>alert('Vui lòng thêm ít nhất 1 dòng chi tiết hợp lệ cho phiếu nhập!');window.location='import-slips.php';</script>";
+    exit;
+  }
+
+  foreach ($details as $detail) {
+    if ($detail['type'] === 'product') {
+      $checkItemStmt = $db->prepare("SELECT COUNT(*) FROM products WHERE id = ?");
+    } else {
+      $checkItemStmt = $db->prepare("SELECT COUNT(*) FROM equipment WHERE id = ?");
+    }
+
+    $checkItemStmt->execute([$detail['item_id']]);
+    if ((int) $checkItemStmt->fetchColumn() === 0) {
+      echo "<script>alert('Có mục chi tiết không tồn tại. Vui lòng kiểm tra lại!');window.location='import-slips.php';</script>";
+      exit;
+    }
+  }
+
   $importDate = date('Y-m-d H:i:s', strtotime($importDateInput));
   if ($importDate === '1970-01-01 00:00:00') {
     $importDate = date('Y-m-d H:i:s');
   }
 
-  $insertStmt = $db->prepare("INSERT INTO import_slips (staff_id, supplier_id, total_amount, import_date, note, status) VALUES (?, ?, ?, ?, ?, ?)");
-  if ($insertStmt->execute([$staffId, $supplierId, $totalAmount, $importDate, $note, $status])) {
+  try {
+    $db->beginTransaction();
+
+    $insertStmt = $db->prepare("INSERT INTO import_slips (staff_id, supplier_id, total_amount, import_date, note, status) VALUES (?, ?, ?, ?, ?, ?)");
+    $result = $insertStmt->execute([$staffId, $supplierId, $totalAmount, $importDate, $note, $status]);
+
+    if (!$result) {
+      throw new Exception('Không thể tạo phiếu nhập.');
+    }
+
+    $importId = (int) $db->lastInsertId();
+    $insertDetailStmt = $db->prepare("INSERT INTO import_details (import_id, equipment_id, product_id, quantity, import_price) VALUES (?, ?, ?, ?, ?)");
+
+    foreach ($details as $detail) {
+      $equipmentId = $detail['type'] === 'equipment' ? $detail['item_id'] : null;
+      $productId = $detail['type'] === 'product' ? $detail['item_id'] : null;
+
+      $insertDetailStmt->execute([
+        $importId,
+        $equipmentId,
+        $productId,
+        $detail['quantity'],
+        $detail['import_price'],
+      ]);
+    }
+
+    $db->commit();
     echo "<script>alert('Tạo phiếu nhập thành công!');window.location='import-slips.php';</script>";
-  } else {
+  } catch (Exception $e) {
+    if ($db->inTransaction()) {
+      $db->rollBack();
+    }
+
     echo "<script>alert('Lỗi khi tạo phiếu nhập!');window.location='import-slips.php';</script>";
   }
   exit;
@@ -104,9 +163,75 @@ $suppliers = $suppliersStmt->fetchAll();
 $staffStmt = $db->query("SELECT id, full_name FROM staff ORDER BY full_name ASC");
 $staffs = $staffStmt->fetchAll();
 
-$importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.status, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
+$productsStmt = $db->query("SELECT id, name FROM products ORDER BY name ASC");
+$products = $productsStmt->fetchAll();
+
+$equipmentStmt = $db->query("SELECT id, name FROM equipment ORDER BY name ASC");
+$equipmentList = $equipmentStmt->fetchAll();
+
+$importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.note, i.status, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
 $importSlips = $importSlipsStmt->fetchAll();
 
+$importSlipDetailsMap = [];
+if (!empty($importSlips)) {
+  $importIds = array_map(static function ($row) {
+    return (int) $row['id'];
+  }, $importSlips);
+
+  $placeholders = implode(',', array_fill(0, count($importIds), '?'));
+  $detailsSql = "SELECT d.import_id,
+                        d.quantity,
+                        d.import_price,
+                        e.name AS equipment_name,
+                        p.name AS product_name
+                 FROM import_details d
+                 LEFT JOIN equipment e ON e.id = d.equipment_id
+                 LEFT JOIN products p ON p.id = d.product_id
+                 WHERE d.import_id IN ($placeholders)
+                 ORDER BY d.id ASC";
+  $detailsStmt = $db->prepare($detailsSql);
+  $detailsStmt->execute($importIds);
+  $detailRows = $detailsStmt->fetchAll();
+
+  foreach ($detailRows as $detail) {
+    $importId = (int) $detail['import_id'];
+    if (!isset($importSlipDetailsMap[$importId])) {
+      $importSlipDetailsMap[$importId] = [];
+    }
+
+    $itemName = $detail['product_name'] ?: $detail['equipment_name'];
+    $itemType = $detail['product_name'] ? 'Sản phẩm' : 'Thiết bị';
+
+    $importSlipDetailsMap[$importId][] = [
+      'item_name' => $itemName ?: 'N/A',
+      'item_type' => $itemType,
+      'quantity' => (int) $detail['quantity'],
+      'import_price' => (float) $detail['import_price'],
+    ];
+  }
+}
+
+$importSlipsForJs = [];
+foreach ($importSlips as $importSlip) {
+  $importId = (int) $importSlip['id'];
+  $details = $importSlipDetailsMap[$importId] ?? [];
+
+  $importSlipsForJs[$importId] = [
+    'id' => $importId,
+    'code' => '#PN' . str_pad((string) $importId, 3, '0', STR_PAD_LEFT),
+    'supplier_name' => $importSlip['supplier_name'],
+    'staff_name' => $importSlip['staff_name'],
+    'total_amount' => (float) $importSlip['total_amount'],
+    'import_date_display' => date('d/m/Y H:i', strtotime($importSlip['import_date'])),
+    'status' => $importSlip['status'],
+    'note' => $importSlip['note'] ?? '',
+    'details' => $details,
+  ];
+}
+
+$page_title = "Quản lý Phiếu Nhập Kho";
+include 'layout/header.php';
+include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -173,8 +298,12 @@ $importSlips = $importSlipsStmt->fetchAll();
                       <?php endif; ?>
                     </td>
                     <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-primary btn-sm"><i class="fas fa-print"></i></button>
+                      <button type="button" class="btn btn-info btn-sm view-import-btn" data-id="<?= (int) $importSlip['id'] ?>" title="Xem phiếu nhập">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                      <button type="button" class="btn btn-primary btn-sm print-import-btn" data-id="<?= (int) $importSlip['id'] ?>" title="In phiếu nhập">
+                        <i class="fas fa-print"></i>
+                      </button>
                       <?php if ($importSlip['status'] === 'Đang chờ duyệt'): ?>
                         <form method="POST" action="import-slips.php" style="display:inline-block;">
                           <input type="hidden" name="update_import_status_id" value="<?= $importSlip['id'] ?>">
@@ -221,6 +350,10 @@ $importSlips = $importSlipsStmt->fetchAll();
             <div class="alert alert-warning mb-3">Chưa có nhân viên. Vui lòng thêm nhân viên trước khi tạo phiếu nhập.</div>
           <?php endif; ?>
 
+          <?php if (empty($products) && empty($equipmentList)): ?>
+            <div class="alert alert-warning mb-3">Chưa có sản phẩm hoặc thiết bị để nhập kho. Vui lòng tạo dữ liệu trước khi lập phiếu.</div>
+          <?php endif; ?>
+
           <div class="form-group">
             <label for="supplier_id">Nhà Cung Cấp</label>
             <select class="form-control" id="supplier_id" name="supplier_id" required <?= empty($suppliers) ? 'disabled' : '' ?>>
@@ -242,8 +375,30 @@ $importSlips = $importSlipsStmt->fetchAll();
           </div>
 
           <div class="form-group">
+            <label>Chi tiết nhập kho</label>
+            <div class="table-responsive mb-2">
+              <table class="table table-bordered table-sm mb-0" id="import_detail_table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Loại</th>
+                    <th style="width: 30%;">Tên mục</th>
+                    <th style="width: 15%;">SL</th>
+                    <th style="width: 20%;">Đơn giá nhập</th>
+                    <th style="width: 15%;">Thành tiền</th>
+                    <th style="width: 50px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="import_detail_body"></tbody>
+              </table>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="add_import_detail_row">
+              <i class="fas fa-plus"></i> Thêm dòng
+            </button>
+          </div>
+
+          <div class="form-group">
             <label for="total_amount">Tổng Tiền (VNĐ)</label>
-            <input type="number" class="form-control" id="total_amount" name="total_amount" min="0" step="1000" required>
+            <input type="number" class="form-control" id="total_amount" min="0" step="1000" readonly>
           </div>
 
           <div class="form-group">
@@ -267,9 +422,313 @@ $importSlips = $importSlipsStmt->fetchAll();
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || empty($staffs)) ? 'disabled' : '' ?>>Tạo phiếu</button>
+          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || empty($staffs) || (empty($products) && empty($equipmentList))) ? 'disabled' : '' ?>>Tạo phiếu</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+
+<!-- Modal Xem Phiếu Nhập -->
+<div class="modal fade" id="viewImportModal" tabindex="-1" role="dialog" aria-labelledby="viewImportModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewImportModalLabel">Chi tiết phiếu nhập</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="row mb-2">
+          <div class="col-md-6"><strong>Mã phiếu:</strong> <span id="view_import_code">-</span></div>
+          <div class="col-md-6"><strong>Ngày nhập:</strong> <span id="view_import_date">-</span></div>
+        </div>
+        <div class="row mb-2">
+          <div class="col-md-6"><strong>Nhà cung cấp:</strong> <span id="view_supplier">-</span></div>
+          <div class="col-md-6"><strong>Nhân viên:</strong> <span id="view_staff">-</span></div>
+        </div>
+        <div class="row mb-2">
+          <div class="col-md-6"><strong>Trạng thái:</strong> <span id="view_status">-</span></div>
+          <div class="col-md-6"><strong>Tổng tiền:</strong> <span id="view_total">-</span></div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-12"><strong>Ghi chú:</strong> <span id="view_note">-</span></div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Loại</th>
+                <th>Tên mục</th>
+                <th class="text-right">SL</th>
+                <th class="text-right">Đơn giá nhập</th>
+                <th class="text-right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody id="view_import_details_body">
+              <tr>
+                <td colspan="5" class="text-center text-muted">Không có dữ liệu chi tiết.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const importSlipMap = <?= json_encode($importSlipsForJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const productOptions = <?= json_encode(array_map(static function ($item) {
+      return ['id' => (int) $item['id'], 'name' => $item['name']];
+    }, $products), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const equipmentOptions = <?= json_encode(array_map(static function ($item) {
+      return ['id' => (int) $item['id'], 'name' => $item['name']];
+    }, $equipmentList), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+    function formatCurrency(value) {
+      const amount = Number(value) || 0;
+      return amount.toLocaleString('vi-VN') + ' VNĐ';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getStatusBadge(status) {
+      if (status === 'Đã nhập') {
+        return '<span class="badge badge-success">Đã nhập</span>';
+      }
+      if (status === 'Đang chờ duyệt') {
+        return '<span class="badge badge-warning">Đang chờ duyệt</span>';
+      }
+      return '<span class="badge badge-danger">Đã hủy</span>';
+    }
+
+    function getItemOptionsByType(type) {
+      return type === 'equipment' ? equipmentOptions : productOptions;
+    }
+
+    function buildItemOptionsHtml(type, selectedId) {
+      const options = getItemOptionsByType(type);
+      let html = '<option value="">-- Chọn mục --</option>';
+
+      options.forEach(function (option) {
+        const isSelected = Number(selectedId) === Number(option.id) ? ' selected' : '';
+        html += '<option value="' + option.id + '"' + isSelected + '>' + escapeHtml(option.name) + '</option>';
+      });
+
+      return html;
+    }
+
+    function updateDetailRowTotal($row) {
+      const quantity = Number($row.find('.detail-quantity').val()) || 0;
+      const importPrice = Number($row.find('.detail-price').val()) || 0;
+      const lineTotal = quantity * importPrice;
+      $row.find('.detail-line-total').text(formatCurrency(lineTotal));
+      return lineTotal;
+    }
+
+    function updateImportTotal() {
+      let total = 0;
+      $('#import_detail_body tr').each(function () {
+        total += updateDetailRowTotal($(this));
+      });
+
+      $('#total_amount').val(total);
+    }
+
+    function createDetailRow(initialType) {
+      const type = initialType === 'equipment' ? 'equipment' : 'product';
+      const $row = $('<tr>\
+        <td>\
+          <select class="form-control form-control-sm detail-type" name="detail_type[]" required>\
+            <option value="product">Sản phẩm</option>\
+            <option value="equipment">Thiết bị</option>\
+          </select>\
+        </td>\
+        <td>\
+          <select class="form-control form-control-sm detail-item" name="detail_item_id[]" required></select>\
+        </td>\
+        <td>\
+          <input type="number" class="form-control form-control-sm detail-quantity" name="detail_quantity[]" min="1" step="1" required>\
+        </td>\
+        <td>\
+          <input type="number" class="form-control form-control-sm detail-price" name="detail_import_price[]" min="1" step="1000" required>\
+        </td>\
+        <td class="text-right align-middle detail-line-total">0 VNĐ</td>\
+        <td class="text-center">\
+          <button type="button" class="btn btn-sm btn-outline-danger remove-detail-row"><i class="fas fa-times"></i></button>\
+        </td>\
+      </tr>');
+
+      $row.find('.detail-type').val(type);
+      $row.find('.detail-item').html(buildItemOptionsHtml(type));
+      return $row;
+    }
+
+    function buildDetailsRows(details) {
+      if (!Array.isArray(details) || details.length === 0) {
+        return '<tr><td colspan="5" class="text-center text-muted">Không có dữ liệu chi tiết.</td></tr>';
+      }
+
+      return details.map(function (detail) {
+        const quantity = Number(detail.quantity) || 0;
+        const importPrice = Number(detail.import_price) || 0;
+        const lineTotal = quantity * importPrice;
+
+        return '<tr>'
+          + '<td>' + escapeHtml(detail.item_type) + '</td>'
+          + '<td>' + escapeHtml(detail.item_name) + '</td>'
+          + '<td class="text-right">' + quantity.toLocaleString('vi-VN') + '</td>'
+          + '<td class="text-right">' + formatCurrency(importPrice) + '</td>'
+          + '<td class="text-right">' + formatCurrency(lineTotal) + '</td>'
+          + '</tr>';
+      }).join('');
+    }
+
+    function renderImportDetails(importData) {
+      $('#view_import_code').text(importData.code);
+      $('#view_import_date').text(importData.import_date_display);
+      $('#view_supplier').text(importData.supplier_name || '-');
+      $('#view_staff').text(importData.staff_name || '-');
+      $('#view_status').html(getStatusBadge(importData.status));
+      $('#view_total').text(formatCurrency(importData.total_amount));
+      $('#view_note').text(importData.note || 'Không có ghi chú');
+      $('#view_import_details_body').html(buildDetailsRows(importData.details));
+    }
+
+    function openPrintWindow(importData) {
+      const detailsRows = buildDetailsRows(importData.details);
+      const printHtml = '<!DOCTYPE html>'
+        + '<html lang="vi"><head><meta charset="UTF-8"><title>Phiếu nhập ' + escapeHtml(importData.code) + '</title>'
+        + '<style>'
+        + 'body{font-family:Arial,sans-serif;padding:20px;color:#222;}'
+        + 'h2{margin:0 0 10px;} .meta{margin-bottom:16px;line-height:1.7;}'
+        + 'table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;}'
+        + 'th{background:#f5f5f5;text-align:left;} .text-right{text-align:right;} .total{margin-top:12px;font-weight:700;text-align:right;}'
+        + '</style></head><body>'
+        + '<h2>PHIẾU NHẬP KHO ' + escapeHtml(importData.code) + '</h2>'
+        + '<div class="meta">'
+        + '<div><strong>Ngày nhập:</strong> ' + escapeHtml(importData.import_date_display) + '</div>'
+        + '<div><strong>Nhà cung cấp:</strong> ' + escapeHtml(importData.supplier_name || '-') + '</div>'
+        + '<div><strong>Nhân viên:</strong> ' + escapeHtml(importData.staff_name || '-') + '</div>'
+        + '<div><strong>Trạng thái:</strong> ' + escapeHtml(importData.status || '-') + '</div>'
+        + '<div><strong>Ghi chú:</strong> ' + escapeHtml(importData.note || 'Không có ghi chú') + '</div>'
+        + '</div>'
+        + '<table><thead><tr><th>Loại</th><th>Tên mục</th><th class="text-right">SL</th><th class="text-right">Đơn giá nhập</th><th class="text-right">Thành tiền</th></tr></thead>'
+        + '<tbody>' + detailsRows + '</tbody></table>'
+        + '<div class="total">Tổng tiền: ' + formatCurrency(importData.total_amount) + '</div>'
+        + '</body></html>';
+
+      const printWindow = window.open('', '_blank', 'width=900,height=700');
+      if (!printWindow) {
+        alert('Trình duyệt đã chặn popup in. Vui lòng cho phép popup và thử lại.');
+        return;
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(printHtml);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    }
+
+    $(document).on('click', '.view-import-btn', function () {
+      const importId = String($(this).data('id'));
+      const importData = importSlipMap[importId];
+      if (!importData) {
+        alert('Không tìm thấy dữ liệu phiếu nhập.');
+        return;
+      }
+
+      renderImportDetails(importData);
+      $('#viewImportModal').modal('show');
+    });
+
+    $(document).on('click', '.print-import-btn', function () {
+      const importId = String($(this).data('id'));
+      const importData = importSlipMap[importId];
+      if (!importData) {
+        alert('Không tìm thấy dữ liệu phiếu nhập để in.');
+        return;
+      }
+
+      openPrintWindow(importData);
+    });
+
+    $('#add_import_detail_row').on('click', function () {
+      const hasProduct = productOptions.length > 0;
+      const hasEquipment = equipmentOptions.length > 0;
+
+      if (!hasProduct && !hasEquipment) {
+        alert('Không có dữ liệu sản phẩm hoặc thiết bị để thêm chi tiết.');
+        return;
+      }
+
+      const defaultType = hasProduct ? 'product' : 'equipment';
+      const $row = createDetailRow(defaultType);
+      $('#import_detail_body').append($row);
+      updateImportTotal();
+    });
+
+    $(document).on('change', '.detail-type', function () {
+      const $row = $(this).closest('tr');
+      const type = $(this).val();
+      $row.find('.detail-item').html(buildItemOptionsHtml(type));
+    });
+
+    $(document).on('input change', '.detail-quantity, .detail-price', function () {
+      updateImportTotal();
+    });
+
+    $(document).on('click', '.remove-detail-row', function () {
+      $(this).closest('tr').remove();
+      updateImportTotal();
+    });
+
+    $('#addImportModal form').on('submit', function (event) {
+      if ($('#import_detail_body tr').length === 0) {
+        event.preventDefault();
+        alert('Vui lòng thêm ít nhất 1 dòng chi tiết trước khi tạo phiếu nhập.');
+        return;
+      }
+
+      let invalid = false;
+      $('#import_detail_body tr').each(function () {
+        const type = $(this).find('.detail-type').val();
+        const item = $(this).find('.detail-item').val();
+        const quantity = Number($(this).find('.detail-quantity').val()) || 0;
+        const price = Number($(this).find('.detail-price').val()) || 0;
+        const options = getItemOptionsByType(type);
+
+        if (!item || quantity <= 0 || price <= 0 || options.length === 0) {
+          invalid = true;
+        }
+      });
+
+      if (invalid) {
+        event.preventDefault();
+        alert('Vui lòng kiểm tra lại dữ liệu chi tiết (loại, mục, số lượng, đơn giá).');
+        return;
+      }
+
+      updateImportTotal();
+    });
+
+    if ((productOptions.length + equipmentOptions.length) > 0) {
+      $('#add_import_detail_row').trigger('click');
+    }
+  })();
+</script>

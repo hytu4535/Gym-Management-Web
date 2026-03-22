@@ -30,7 +30,7 @@ if (isset($_GET['id'])) {
         
         if ($conn->query($sql) === TRUE) {
             echo "<script>
-                    alert('⚠️ SẢN PHẨM ĐÃ ĐƯỢC BÁN RA!\\n\\n📦 Sản phẩm: {$product_name}\\n✅ Đã ẨN khỏi trang web (Website)\\n✅ Khách hàng không thể xem được nữa\\n\\n💡 Sản phẩm vẫn lưu trong hệ thống để tra cứu lịch sử đơn hàng.');
+                    alert(' SẢN PHẨM ĐÃ ĐƯỢC BÁN RA!\\n\\n Sản phẩm: {$product_name}\\n Đã ẨN khỏi trang web\\n Khách hàng không thể xem được nữa\\n\\n Sản phẩm vẫn lưu trong hệ thống để tra cứu lịch sử đơn hàng.');
                     window.location.href='../products.php';
                   </script>";
         } else {
@@ -59,7 +59,7 @@ if (isset($_GET['id'])) {
             }
             
             echo "<script>
-                    alert('✅ XÓA THÀNH CÔNG!\\n\\n📦 Sản phẩm: {$product_name}\\n🗑️ Đã xóa HOÀN TOÀN khỏi hệ thống\\n🖼️ Hình ảnh cũng đã được xóa');
+                    alert(' XÓA THÀNH CÔNG!\\n\\n Sản phẩm: {$product_name}\\n Đã xóa HOÀN TOÀN khỏi hệ thống\\n Hình ảnh cũng đã được xóa');
                     window.location.href='../products.php';
                   </script>";
         } else {

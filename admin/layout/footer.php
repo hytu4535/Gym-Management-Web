@@ -42,7 +42,17 @@
       "autoWidth": false,
       "pageLength": 10,
       "language": {
-        "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Vietnamese.json"
+        "search": "Tìm kiếm:",
+        "lengthMenu": "Hiển thị _MENU_ dòng",
+        "info": "Hiển thị _START_ đến _END_ của _TOTAL_ dòng",
+        "infoEmpty": "Không có dữ liệu",
+        "zeroRecords": "Không tìm thấy dữ liệu phù hợp",
+        "paginate": {
+          "first": "Đầu",
+          "last": "Cuối",
+          "next": "Tiếp",
+          "previous": "Trước"
+        }
       }
     });
   });

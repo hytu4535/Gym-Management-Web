@@ -80,7 +80,7 @@ $result_items = $conn->query($sql_items);
                     <th>Loại</th>
                     <th>Tên sản phẩm</th>
                     <th>Số lượng</th>
-                    <th>Giá</th>
+                    <th>Đơn giá</th>
                     <th>Giảm giá</th>
                     <th>Thành tiền</th>
                   </tr>

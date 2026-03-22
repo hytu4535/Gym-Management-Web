@@ -105,7 +105,7 @@ $result = $conn->query($sql);
                                       </a>
                                       <a href='./process/product_delete.php?id={$row['id']}'    
                                         class='btn btn-danger btn-sm'    
-                                        onclick=\"return confirm('⚠️ XÁC NHẬN XÓA SẢN PHẨM\\n\\n📌 Lưu ý:\\n- Nếu đã bán: Sẽ ẨN khỏi website (khách không xem được)\\n- Nếu chưa bán: Sẽ XÓA HOÀN TOÀN khỏi hệ thống\\n\\n❓ Bạn có chắc chắn muốn tiếp tục?');\">   
+                                        onclick=\"return confirm(' XÁC NHẬN XÓA SẢN PHẨM\\n\\n Lưu ý:\\n- Nếu đã bán: Sẽ ẨN khỏi website (khách không xem được)\\n- Nếu chưa bán: Sẽ XÓA HOÀN TOÀN khỏi hệ thống\\n\\n Bạn có chắc chắn muốn tiếp tục?');\">   
                                         <i class='fas fa-trash'></i>
                                       </a>
                                     </td>";

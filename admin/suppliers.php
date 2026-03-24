@@ -13,16 +13,15 @@ include '../includes/auth_permission.php';
 // chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
 checkPermission('MANAGE_SALES');
 
-// layout chung
-include 'layout/header.php'; 
-include 'layout/sidebar.php';
-
 require_once '../config/db.php';
 
 include '../includes/functions.php';
 
 // Handle AJAX actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+  if (function_exists('ob_get_length') && ob_get_length()) {
+    ob_clean();
+  }
     header('Content-Type: application/json');
     
     $action = $_POST['action'];
@@ -55,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 exit;
             }
             
-            $id = $_POST['id'] ?? 0;
+            $id = (int) ($_POST['id'] ?? 0);
             if (!$id) {
                 echo json_encode(['success' => false, 'message' => 'ID không hợp lệ']);
                 exit;
@@ -77,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             break;
             
         case 'delete':
-            $id = $_POST['id'] ?? 0;
+          $id = (int) ($_POST['id'] ?? 0);
             if (!$id) {
                 echo json_encode(['success' => false, 'message' => 'ID không hợp lệ']);
                 exit;
@@ -88,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             break;
             
         case 'view':
-            $id = $_POST['id'] ?? 0;
+          $id = (int) ($_POST['id'] ?? 0);
             $supplier = getSupplierById($id);
             
             if (!$supplier) {
@@ -113,12 +112,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             
             echo json_encode(['success' => true, 'data' => $suppliers]);
             break;
+
+          default:
+            echo json_encode(['success' => false, 'message' => 'Action không hợp lệ']);
+            break;
     }
     exit;
 }
 
 // Get all suppliers for initial display
 $suppliers = getAllSuppliers();
+
+      // layout chung
+      include 'layout/header.php';
+      include 'layout/sidebar.php';
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -157,7 +164,7 @@ $suppliers = getAllSuppliers();
                       </button>
                     </div>
                   </div>
-                  <button type="button" class="btn btn-primary btn-sm ml-2" data-toggle="modal" data-target="#addSupplierModal">
+                  <button type="button" class="btn btn-primary btn-sm ml-2" id="addSupplierBtn" data-toggle="modal" data-target="#addSupplierModal">
                     <i class="fas fa-plus"></i> Thêm NCC
                   </button>
                 </div>
@@ -208,7 +215,8 @@ $suppliers = getAllSuppliers();
           
           <div class="form-group">
             <label for="supplierPhone">Số Điện Thoại</label>
-            <input type="tel" class="form-control" id="supplierPhone" name="phone" placeholder="0901234567">
+            <input type="tel" class="form-control" id="supplierPhone" name="phone" placeholder="0901234567 hoặc +84901234567">
+            <small class="form-text text-muted">Nếu nhập, số điện thoại phải bắt đầu bằng 0 và đủ 10 số.</small>
           </div>
           
           <div class="form-group">
@@ -250,9 +258,9 @@ $suppliers = getAllSuppliers();
 $(document).ready(function() {
     // Load suppliers table
     loadSuppliers();
-    
-    // Handle add supplier button
-    $('#addSupplierModal').on('show.bs.modal', function() {
+
+  // Handle add supplier button
+  $('#addSupplierBtn').on('click', function() {
         $('#addSupplierForm')[0].reset();
         $('#supplierId').val('');
         $('#addSupplierModalLabel').text('Thêm Nhà Cung Cấp');
@@ -266,6 +274,20 @@ $(document).ready(function() {
         const supplierId = $('#supplierId').val();
         const action = supplierId ? 'update' : 'add';
         
+        const rawPhone = $('#supplierPhone').val().trim();
+        const normalizedPhone = normalizeSupplierPhoneInput(rawPhone);
+
+        if (normalizedPhone !== '' && !/^0\d{9}$/.test(normalizedPhone)) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Lỗi',
+            text: 'Số điện thoại không hợp lệ (phải bắt đầu bằng 0 và đủ 10 số)'
+          });
+          return;
+        }
+
+        $('#supplierPhone').val(normalizedPhone);
+
         const formData = new FormData(this);
         formData.append('action', action);
         if (supplierId) {
@@ -278,6 +300,7 @@ $(document).ready(function() {
             data: formData,
             processData: false,
             contentType: false,
+          dataType: 'json',
             success: function(response) {
                 if (response.success) {
                     Swal.fire({
@@ -288,7 +311,7 @@ $(document).ready(function() {
                     });
                     
                     $('#addSupplierModal').modal('hide');
-                    loadSuppliers();
+                    loadSuppliers($('#searchInput').val().trim());
                 } else {
                     Swal.fire({
                         icon: 'error',
@@ -311,29 +334,39 @@ $(document).ready(function() {
     $('#searchBtn, #searchInput').on('click keypress', function(e) {
         if (e.type === 'keypress' && e.which !== 13) return;
         
-        const keyword = $('#searchInput').val();
-        const formData = new FormData();
-        formData.append('action', 'search');
-        formData.append('keyword', keyword);
-        
-        $.ajax({
-            type: 'POST',
-            url: 'suppliers.php',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) {
-                if (response.success) {
-                    renderTable(response.data);
-                }
-            }
-        });
+        const keyword = $('#searchInput').val().trim();
+        loadSuppliers(keyword);
     });
 });
 
-function loadSuppliers() {
-    const suppliersData = <?php echo json_encode($suppliers); ?>;
-    renderTable(suppliersData);
+    function loadSuppliers(keyword = '') {
+      const formData = new FormData();
+      formData.append('action', 'search');
+      formData.append('keyword', keyword);
+
+      $.ajax({
+        type: 'POST',
+        url: 'suppliers.php',
+        data: formData,
+        processData: false,
+        contentType: false,
+        dataType: 'json',
+        success: function(response) {
+          if (response.success) {
+            renderTable(response.data || []);
+          } else {
+            renderTable([]);
+          }
+        },
+        error: function() {
+          renderTable([]);
+          Swal.fire({
+            icon: 'error',
+            title: 'Lỗi',
+            text: 'Không tải được danh sách nhà cung cấp'
+          });
+        }
+      });
 }
 
 function renderTable(suppliers) {
@@ -441,20 +474,45 @@ function viewSupplier(id) {
 }
 
 function editSupplier(id) {
-    const suppliersData = <?php echo json_encode($suppliers); ?>;
-    const supplier = suppliersData.find(s => s.id == id);
-    
-    if (supplier) {
-        $('#supplierId').val(supplier.id);
-        $('#supplierName').val(supplier.name);
-        $('#supplierPhone').val(supplier.phone || '');
-        $('#supplierAddress').val(supplier.address || '');
-        
-        $('#addSupplierModalLabel').text('Chỉnh sửa Nhà Cung Cấp');
-        $('#submitBtn').text('Cập nhật NCC');
-        
-        $('#addSupplierModal').modal('show');
+  const formData = new FormData();
+  formData.append('action', 'view');
+  formData.append('id', id);
+
+  $.ajax({
+    type: 'POST',
+    url: 'suppliers.php',
+    data: formData,
+    processData: false,
+    contentType: false,
+    dataType: 'json',
+    success: function(response) {
+      if (!response.success || !response.data) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Lỗi',
+          text: response.message || 'Không lấy được thông tin nhà cung cấp'
+        });
+        return;
+      }
+
+      const supplier = response.data;
+      $('#supplierId').val(supplier.id);
+      $('#supplierName').val(supplier.name || '');
+      $('#supplierPhone').val(supplier.phone || '');
+      $('#supplierAddress').val(supplier.address || '');
+
+      $('#addSupplierModalLabel').text('Chỉnh sửa Nhà Cung Cấp');
+      $('#submitBtn').text('Cập nhật NCC');
+      $('#addSupplierModal').modal('show');
+    },
+    error: function() {
+      Swal.fire({
+        icon: 'error',
+        title: 'Lỗi',
+        text: 'Lỗi kết nối server'
+      });
     }
+  });
 }
 
 function deleteSupplier(id) {
@@ -479,6 +537,7 @@ function deleteSupplier(id) {
                 data: formData,
                 processData: false,
                 contentType: false,
+              dataType: 'json',
                 success: function(response) {
                     if (response.success) {
                         Swal.fire({
@@ -487,7 +546,7 @@ function deleteSupplier(id) {
                             text: 'Xóa nhà cung cấp thành công',
                             timer: 1500
                         });
-                        loadSuppliers();
+                        loadSuppliers($('#searchInput').val().trim());
                     } else {
                         Swal.fire({
                             icon: 'error',
@@ -495,6 +554,13 @@ function deleteSupplier(id) {
                             text: response.message || 'Có lỗi xảy ra'
                         });
                     }
+                    },
+                    error: function(xhr) {
+                      Swal.fire({
+                        icon: 'error',
+                        title: 'Lỗi',
+                        text: xhr.responseText || 'Lỗi kết nối server'
+                      });
                 }
             });
         }
@@ -506,5 +572,18 @@ function formatCurrency(amount) {
         style: 'currency',
         currency: 'VND'
     }).format(amount || 0);
+}
+
+function normalizeSupplierPhoneInput(phone) {
+  if (!phone) {
+    return '';
+  }
+
+  let normalized = String(phone).replace(/\D+/g, '');
+  if (normalized.startsWith('84')) {
+    normalized = '0' + normalized.slice(2);
+  }
+
+  return normalized;
 }
 </script>

@@ -129,8 +129,8 @@
             </a>
           </li>
           <!-- Quản lý huấn luyện viên -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'training-schedules.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'training-schedules.php'])) ? 'active' : ''; ?>">
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'classes.php', 'training-schedules.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['trainers.php', 'classes.php', 'training-schedules.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-chalkboard-teacher"></i>
               <p>
                 Quản lý luyện tập

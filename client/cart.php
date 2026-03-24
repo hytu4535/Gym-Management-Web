@@ -177,12 +177,12 @@ include 'layout/header.php';
                                 <?php 
                                         }
                                     } else {
-                                        echo '<tr><td colspan="6" class="text-center" style="padding: 50px;">Giỏ hàng của bạn đang trống! <br><br> <a href="products.php" class="site-btn mr-2">Mua sản phẩm</a> <a href="packages.php" class="site-btn mr-2">Chọn gói tập</a> <a href="services.php" class="site-btn">Chọn dịch vụ</a></td></tr>';
+                                        echo '<tr><td colspan="6" class="text-center" style="padding: 50px; color: #ffffff;">Giỏ hàng của bạn đang trống! <br><br> <a href="products.php" class="site-btn mr-2">Mua sản phẩm</a> <a href="packages.php" class="site-btn mr-2">Chọn gói tập</a> <a href="services.php" class="site-btn">Chọn dịch vụ</a></td></tr>';
                                     }
                                     $stmt->close();
                                 }
                             } else {
-                                echo '<tr><td colspan="6" class="text-center" style="padding: 50px;">Vui lòng <a href="login.php" style="color: #e7ab3c; font-weight: bold; text-decoration: underline;">Đăng nhập</a> để xem giỏ hàng của bạn.</td></tr>';
+                                echo '<tr><td colspan="6" class="text-center" style="padding: 50px; color: #ffffff;">Vui lòng <a href="login.php" style="color: #e7ab3c; font-weight: bold; text-decoration: underline;">Đăng nhập</a> để xem giỏ hàng của bạn.</td></tr>';
                             }
                             ?>
                         </tbody>
@@ -190,12 +190,6 @@ include 'layout/header.php';
                 </div>
                 <div class="row">
                     <div class="col-lg-4">
-                        <div class="cart-buttons">
-                            <a href="products.php" class="site-btn mr-2" style="background: #333; color: white;">Mua sản phẩm</a>
-                            <a href="packages.php" class="site-btn mr-2" style="background: #555; color: white;">Chọn gói tập</a>
-                            <a href="services.php" class="site-btn" style="background: #777; color: white;">Chọn dịch vụ</a>
-                        </div>
-                        
                         <?php if ($is_logged_in && $totalAmount > 0): ?>
                             <?php
                             $tier_info = getMemberTierDiscount($user_id, $conn);
@@ -262,9 +256,9 @@ include 'layout/header.php';
                                     $tier_info = getMemberTierDiscount($user_id, $conn);
                                 ?>
                                 <?php if ($cart_total['base_discount_amount'] > 0 || $cart_total['has_promotion']): ?>
-                                    <li class="subtotal">Giá gốc <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span></li>
+                                    <li class="subtotal" style="color: #ffffff;">Giá gốc: <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span></li>
                                     <?php if ($cart_total['base_discount_amount'] > 0): ?>
-                                    <li class="subtotal">Giảm giá hạng (<?php echo $tier_info['tier_name']; ?> <?php echo number_format($tier_info['base_discount'], 0); ?>%)
+                                    <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (<?php echo $tier_info['tier_name']; ?> <?php echo number_format($tier_info['base_discount'], 0); ?>%)
                                         <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($cart_total['base_discount_amount'], 0, ',', '.'); ?>đ</span>
                                     </li>
                                     <?php endif; ?>
@@ -274,7 +268,7 @@ include 'layout/header.php';
                                         <span style="color: #ff4444; font-weight: bold;">-<?php echo number_format($cart_total['promotion_discount'], 0, ',', '.'); ?>đ</span>
                                     </li>
                                     <?php endif; ?>
-                                    <li class="cart-total">Tổng cộng <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($cart_total['final_subtotal'], 0, ',', '.'); ?>đ</span></li>
+                                    <li class="cart-total" style="color: #ffffff;">Tổng cộng:   <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($cart_total['final_subtotal'], 0, ',', '.'); ?>đ</span></li>
                                 <?php else: ?>
                                     <li class="subtotal" style="color: #ffffff;">Tạm tính <span style="color: #ffffff;"><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
                                     <li class="cart-total" style="color: #ffffff;">Tổng cộng <span style="color: #ffffff;"><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>

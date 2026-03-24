@@ -171,10 +171,13 @@ if (empty($errors)) {
                     </div>
                   </div>
                   <div class="col-md-3 d-flex align-items-end">
-                    <div class="form-group w-100">
-                      <button type="submit" class="btn btn-primary btn-block">
+                    <div class="form-group w-100 d-flex gap-2">
+                      <button type="submit" class="btn btn-primary flex-grow-1">
                         <i class="fas fa-chart-bar"></i> Xem thống kê
                       </button>
+                      <a href="reports.php?from_date=1900-01-01&to_date=2099-12-31" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i> Xóa bộ lọc
+                      </a>
                     </div>
                   </div>
                 </div>

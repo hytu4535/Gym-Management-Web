@@ -99,7 +99,7 @@ include 'layout/sidebar.php';
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
-              <li class="breadcrumb-item"><a href="index.php">Home</a></li>
+<li class="breadcrumb-item"><a href="index.php">Home</a></li>
               <li class="breadcrumb-item active">Phản Hồi</li>
             </ol>
           </div>
@@ -190,7 +190,7 @@ function initFeedbackTable() {
             lengthMenu: 'Hiển thị _MENU_ dòng',
             info: 'Hiển thị _START_ đến _END_ của _TOTAL_ dòng',
             infoEmpty: 'Không có dữ liệu',
-            zeroRecords: 'Không tìm thấy dữ liệu phù hợp',
+zeroRecords: 'Không tìm thấy dữ liệu phù hợp',
             paginate: {
                 first: 'Đầu',
                 last: 'Cuối',
@@ -276,7 +276,7 @@ function viewFeedback(id) {
         success: function(response) {
             if (response.success) {
                 const fb = response.data;
-                const createdAt = new Date(fb.created_at).toLocaleDateString('vi-VN', {
+const createdAt = new Date(fb.created_at).toLocaleDateString('vi-VN', {
                     year: 'numeric',
                     month: '2-digit',
                     day: '2-digit',
@@ -343,7 +343,7 @@ function updateFeedbackStatus(id) {
         processData: false,
         contentType: false,
         success: function(response) {
-            if (response.success) {
+if (response.success) {
                 Swal.fire({
                     icon: 'success',
                     title: 'Thành công',

@@ -17,19 +17,103 @@ include '../includes/functions.php';
 
 $db = getDB();
 
+function hasColumn($db, $table, $column) {
+  try {
+    $sql = "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?";
+    $stmt = $db->prepare($sql);
+    $stmt->execute([$table, $column]);
+    return intval($stmt->fetchColumn()) > 0;
+  } catch (Exception $e) {
+    return false;
+  }
+}
+
+$has_portion_unit = hasColumn($db, 'nutrition_plan_items', 'portion_unit');
+
+function getItemQty($itemId, $default = 1.0) {
+  if (!isset($_POST['item_qty']) || !is_array($_POST['item_qty'])) {
+    return max(1, intval($default));
+  }
+  $key = (string)$itemId;
+  if (!isset($_POST['item_qty'][$key])) {
+    return max(1, intval($default));
+  }
+  $qty = intval($_POST['item_qty'][$key]);
+  return $qty > 0 ? $qty : max(1, intval($default));
+}
+
+function limitTextLength($value, $maxLen) {
+  $value = (string)$value;
+  if (function_exists('mb_substr')) {
+    return mb_substr($value, 0, $maxLen, 'UTF-8');
+  }
+  return substr($value, 0, $maxLen);
+}
+
 // CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
         $plan_id = intval($_POST['nutrition_plan_id']);
-        $item_id = intval($_POST['item_id']);
-        $servings = !empty($_POST['servings_per_day']) ? floatval($_POST['servings_per_day']) : 1;
-        $meal_time = sanitize($_POST['meal_time']);
-        $note = sanitize($_POST['note']);
+    $item_ids = [];
+    if (isset($_POST['item_ids']) && is_array($_POST['item_ids'])) {
+      $item_ids = array_map('intval', $_POST['item_ids']);
+    } elseif (isset($_POST['item_id'])) {
+      // Backward compatibility for old single-select payload.
+      $item_ids = [intval($_POST['item_id'])];
+    }
+    $item_ids = array_values(array_filter(array_unique($item_ids), function ($id) {
+      return $id > 0;
+    }));
+        $meal_time = limitTextLength(sanitize($_POST['meal_time'] ?? ''), 50);
+        $note = limitTextLength(sanitize($_POST['note'] ?? ''), 255);
         try {
-            $stmt = $db->prepare("INSERT INTO nutrition_plan_items (nutrition_plan_id, item_id, servings_per_day, meal_time, note) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$plan_id, $item_id, $servings, $meal_time, $note]);
-            setFlashMessage('success', 'Thêm thành công!');
+      if (empty($item_ids)) {
+        setFlashMessage('danger', 'Vui lòng chọn ít nhất 1 món.');
+        redirect('nutrition_plan_items.php');
+        exit;
+      }
+
+      $db->beginTransaction();
+
+      $checkStmt = $db->prepare("SELECT id FROM nutrition_plan_items WHERE nutrition_plan_id = ? AND item_id = ? LIMIT 1");
+      if ($has_portion_unit) {
+        $insertStmt = $db->prepare("INSERT INTO nutrition_plan_items (nutrition_plan_id, item_id, servings_per_day, portion_unit, meal_time, note) VALUES (?, ?, ?, ?, ?, ?)");
+      } else {
+        $insertStmt = $db->prepare("INSERT INTO nutrition_plan_items (nutrition_plan_id, item_id, servings_per_day, meal_time, note) VALUES (?, ?, ?, ?, ?)");
+      }
+
+      $inserted = 0;
+      $skipped = 0;
+      foreach ($item_ids as $item_id) {
+        $checkStmt->execute([$plan_id, $item_id]);
+        if ($checkStmt->fetch()) {
+          $skipped++;
+          continue;
+        }
+
+        $servings = getItemQty($item_id, 1);
+
+        if ($has_portion_unit) {
+          $insertStmt->execute([$plan_id, $item_id, $servings, 'khẩu phần', $meal_time, $note]);
+        } else {
+          $insertStmt->execute([$plan_id, $item_id, $servings, $meal_time, $note]);
+        }
+        $inserted++;
+      }
+
+      $db->commit();
+
+      if ($inserted > 0 && $skipped > 0) {
+        setFlashMessage('success', "Đã thêm $inserted món, bỏ qua $skipped món đã tồn tại trong plan.");
+      } elseif ($inserted > 0) {
+        setFlashMessage('success', "Đã thêm $inserted món thành công!");
+      } else {
+        setFlashMessage('warning', 'Không có món mới được thêm (các món đã tồn tại trong plan).');
+      }
         } catch (PDOException $e) {
+      if ($db->inTransaction()) {
+        $db->rollBack();
+      }
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
         }
         redirect('nutrition_plan_items.php');
@@ -37,17 +121,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'edit') {
-        $id = intval($_POST['id']);
+      $id = intval($_POST['id']);
         $plan_id = intval($_POST['nutrition_plan_id']);
-        $item_id = intval($_POST['item_id']);
-        $servings = !empty($_POST['servings_per_day']) ? floatval($_POST['servings_per_day']) : 1;
-        $meal_time = sanitize($_POST['meal_time']);
-        $note = sanitize($_POST['note']);
+      $item_ids = [];
+      if (isset($_POST['item_ids']) && is_array($_POST['item_ids'])) {
+        $item_ids = array_map('intval', $_POST['item_ids']);
+      } elseif (isset($_POST['item_id'])) {
+        // Backward compatibility for old single-select payload.
+        $item_ids = [intval($_POST['item_id'])];
+      }
+      $item_ids = array_values(array_filter(array_unique($item_ids), function ($v) {
+        return $v > 0;
+      }));
+        $meal_time = limitTextLength(sanitize($_POST['meal_time'] ?? ''), 50);
+        $note = limitTextLength(sanitize($_POST['note'] ?? ''), 255);
         try {
-            $stmt = $db->prepare("UPDATE nutrition_plan_items SET nutrition_plan_id = ?, item_id = ?, servings_per_day = ?, meal_time = ?, note = ? WHERE id = ?");
-            $stmt->execute([$plan_id, $item_id, $servings, $meal_time, $note, $id]);
-            setFlashMessage('success', 'Cập nhật thành công!');
+        if (empty($item_ids)) {
+          setFlashMessage('danger', 'Vui lòng chọn ít nhất 1 món.');
+          redirect('nutrition_plan_items.php');
+          exit;
+        }
+
+        $db->beginTransaction();
+
+        // Edit now means replacing the whole menu of selected plan.
+        $deleteByPlanStmt = $db->prepare("DELETE FROM nutrition_plan_items WHERE nutrition_plan_id = ?");
+        if ($has_portion_unit) {
+          $insertStmt = $db->prepare("INSERT INTO nutrition_plan_items (nutrition_plan_id, item_id, servings_per_day, portion_unit, meal_time, note) VALUES (?, ?, ?, ?, ?, ?)");
+        } else {
+          $insertStmt = $db->prepare("INSERT INTO nutrition_plan_items (nutrition_plan_id, item_id, servings_per_day, meal_time, note) VALUES (?, ?, ?, ?, ?)");
+        }
+
+        $deleteByPlanStmt->execute([$plan_id]);
+
+        $inserted = 0;
+        foreach ($item_ids as $item_id) {
+          $servings = getItemQty($item_id, 1);
+          if ($has_portion_unit) {
+            $insertStmt->execute([$plan_id, $item_id, $servings, 'khẩu phần', $meal_time, $note]);
+          } else {
+            $insertStmt->execute([$plan_id, $item_id, $servings, $meal_time, $note]);
+          }
+          $inserted++;
+        }
+
+        $db->commit();
+        setFlashMessage('success', "Đã cập nhật thực đơn plan thành công ($inserted món).");
         } catch (PDOException $e) {
+        if ($db->inTransaction()) {
+          $db->rollBack();
+        }
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
         }
         redirect('nutrition_plan_items.php');
@@ -56,9 +179,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if ($_POST['action'] === 'delete') {
         $id = intval($_POST['id']);
+      $plan_id = isset($_POST['nutrition_plan_id']) ? intval($_POST['nutrition_plan_id']) : 0;
         try {
-            $stmt = $db->prepare("DELETE FROM nutrition_plan_items WHERE id = ?");
-            $stmt->execute([$id]);
+        if ($plan_id > 0) {
+          $stmt = $db->prepare("DELETE FROM nutrition_plan_items WHERE nutrition_plan_id = ?");
+          $stmt->execute([$plan_id]);
+        } else {
+          $stmt = $db->prepare("DELETE FROM nutrition_plan_items WHERE id = ?");
+          $stmt->execute([$id]);
+        }
             setFlashMessage('success', 'Xóa thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
@@ -68,8 +197,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// List mappings with joins
-$stmt = $db->query("SELECT npi.*, np.name AS plan_name, ni.name AS item_name, ni.calories AS item_cal FROM nutrition_plan_items npi JOIN nutrition_plans np ON np.id = npi.nutrition_plan_id JOIN nutrition_items ni ON ni.id = npi.item_id ORDER BY npi.id DESC");
+// List mappings grouped by plan: show all items in one row and total calories recalculated.
+$portionUnitExpr = $has_portion_unit ? "COALESCE(npi.portion_unit, 'khẩu phần')" : "'khẩu phần'";
+
+$stmt = $db->query("SELECT
+  MIN(npi.id) AS id,
+  npi.nutrition_plan_id,
+  np.name AS plan_name,
+  GROUP_CONCAT(DISTINCT ni.id ORDER BY ni.name SEPARATOR ',') AS item_ids,
+  GROUP_CONCAT(CONCAT(ni.id, ':', CAST(ROUND(COALESCE(npi.servings_per_day, 1), 0) AS UNSIGNED)) ORDER BY ni.name SEPARATOR ',') AS item_qty_pairs,
+  GROUP_CONCAT(DISTINCT ni.name ORDER BY ni.name SEPARATOR ', ') AS item_names,
+  SUM(COALESCE(ni.calories, 0) * COALESCE(npi.servings_per_day, 1)) AS total_calories,
+  SUBSTRING_INDEX(GROUP_CONCAT(npi.meal_time ORDER BY npi.id SEPARATOR '||'), '||', 1) AS sample_meal_time,
+  SUBSTRING_INDEX(GROUP_CONCAT(npi.note ORDER BY npi.id SEPARATOR '||'), '||', 1) AS sample_note,
+  GROUP_CONCAT(DISTINCT CONCAT(ni.name, ' x', CAST(ROUND(COALESCE(npi.servings_per_day, 1), 0) AS UNSIGNED)) ORDER BY ni.name SEPARATOR ', ') AS portion_summary,
+  GROUP_CONCAT(DISTINCT npi.meal_time ORDER BY npi.meal_time SEPARATOR ', ') AS meal_times,
+  GROUP_CONCAT(DISTINCT npi.note ORDER BY npi.note SEPARATOR ' | ') AS notes,
+  AVG(COALESCE(npi.servings_per_day, 1)) AS avg_servings
+FROM nutrition_plan_items npi
+JOIN nutrition_plans np ON np.id = npi.nutrition_plan_id
+JOIN nutrition_items ni ON ni.id = npi.item_id
+GROUP BY npi.nutrition_plan_id, np.name
+ORDER BY npi.nutrition_plan_id DESC");
 $rows = $stmt->fetchAll();
 
 // Plans and items for selects
@@ -112,9 +261,9 @@ include 'layout/sidebar.php';
               <tr>
                 <th>ID</th>
                 <th>Plan</th>
-                <th>Item</th>
-                <th>Servings/ngày</th>
-                <th>Calories/item</th>
+                <th>Items</th>
+                <th>Định lượng</th>
+                <th>Tổng Calories/ngày</th>
                 <th>Meal Time</th>
                 <th>Ghi chú</th>
                 <th>Hành động</th>
@@ -125,21 +274,21 @@ include 'layout/sidebar.php';
                 <tr>
                   <td><?= $r['id'] ?></td>
                   <td><?= htmlspecialchars($r['plan_name']) ?></td>
-                  <td><?= htmlspecialchars($r['item_name']) ?></td>
-                  <td><?= $r['servings_per_day'] ?></td>
-                  <td><?= $r['item_cal'] !== null ? number_format($r['item_cal']) : '-' ?></td>
-                  <td><?= htmlspecialchars($r['meal_time'] ?? '-') ?></td>
-                  <td><?= htmlspecialchars($r['note'] ?? '') ?></td>
+                  <td><?= htmlspecialchars($r['item_names'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($r['portion_summary'] ?? '-') ?></td>
+                  <td><?= number_format((float)($r['total_calories'] ?? 0), 0) ?></td>
+                  <td><?= htmlspecialchars($r['meal_times'] ?? '-') ?></td>
+                  <td><?= htmlspecialchars($r['notes'] ?? '') ?></td>
                   <td>
                     <button class="btn btn-warning btn-sm btn-edit"
                       data-id="<?= $r['id'] ?>"
                       data-plan_id="<?= $r['nutrition_plan_id'] ?>"
-                      data-item_id="<?= $r['item_id'] ?>"
-                      data-servings="<?= $r['servings_per_day'] ?>"
-                      data-meal_time="<?= htmlspecialchars($r['meal_time'] ?? '') ?>"
-                      data-note="<?= htmlspecialchars($r['note'] ?? '') ?>"
+                      data-item_ids="<?= htmlspecialchars($r['item_ids'] ?? '') ?>"
+                      data-item_qtys="<?= htmlspecialchars($r['item_qty_pairs'] ?? '') ?>"
+                      data-meal_time="<?= htmlspecialchars($r['sample_meal_time'] ?? '') ?>"
+                      data-note="<?= htmlspecialchars($r['sample_note'] ?? '') ?>"
                       data-toggle="modal" data-target="#editModal"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-danger btn-sm btn-delete" data-id="<?= $r['id'] ?>" data-toggle="modal" data-target="#deleteModal"><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-danger btn-sm btn-delete" data-id="<?= $r['id'] ?>" data-plan_id="<?= $r['nutrition_plan_id'] ?>" data-toggle="modal" data-target="#deleteModal"><i class="fas fa-trash"></i></button>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -160,8 +309,30 @@ include 'layout/sidebar.php';
           <div class="modal-header"><h5 class="modal-title">Thêm liên kết</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
             <div class="form-group"><label>Plan</label><select name="nutrition_plan_id" class="form-control select2" required><option value="">-- Chọn --</option><?php foreach($plans as $p){ echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['name']).'</option>'; } ?></select></div>
-            <div class="form-group"><label>Item</label><select name="item_id" class="form-control select2" required><option value="">-- Chọn --</option><?php foreach($items as $it){ echo '<option value="'.$it['id'].'">'.htmlspecialchars($it['name']).' ('.($it['calories'] !== null ? $it['calories'].' kcal' : '—').')</option>'; } ?></select></div>
-            <div class="form-group"><label>Servings per day</label><input class="form-control" name="servings_per_day" type="number" step="0.01" value="1"></div>
+            <div class="form-group">
+              <label>Items (chọn nhiều món)</label>
+              <div class="dropdown item-picker" id="add-item-picker">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  <span class="picker-label text-muted">Chọn món...</span>
+                </button>
+                <div class="dropdown-menu">
+                  <?php foreach($items as $it):
+                    $itemLabel = htmlspecialchars($it['name']);
+                  ?>
+                    <div class="dropdown-item d-flex justify-content-between align-items-center mb-0">
+                      <label class="mb-0 flex-grow-1">
+                        <input type="checkbox" class="item-check" name="item_ids[]" value="<?= $it['id'] ?>" data-label="<?= $itemLabel ?>">
+                        <?= $itemLabel ?>
+                      </label>
+                      <div class="qty-control ml-2">
+                        <input type="number" class="item-qty-input" name="item_qty[<?= $it['id'] ?>]" value="1" min="1" step="1">
+                      </div>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+              <small class="form-text text-muted">Bấm mũi tên để mở danh sách rồi tick các món muốn chọn.</small>
+            </div>
             <div class="form-group"><label>Meal time</label><input class="form-control" name="meal_time"></div>
             <div class="form-group"><label>Ghi chú</label><input class="form-control" name="note"></div>
           </div>
@@ -181,8 +352,30 @@ include 'layout/sidebar.php';
           <div class="modal-header"><h5 class="modal-title">Sửa liên kết</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
             <div class="form-group"><label>Plan</label><select name="nutrition_plan_id" id="edit-plan" class="form-control select2" required><option value="">-- Chọn --</option><?php foreach($plans as $p){ echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['name']).'</option>'; } ?></select></div>
-            <div class="form-group"><label>Item</label><select name="item_id" id="edit-item" class="form-control select2" required><option value="">-- Chọn --</option><?php foreach($items as $it){ echo '<option value="'.$it['id'].'">'.htmlspecialchars($it['name']).' ('.($it['calories'] !== null ? $it['calories'].' kcal' : '—').')</option>'; } ?></select></div>
-            <div class="form-group"><label>Servings per day</label><input class="form-control" id="edit-servings" name="servings_per_day" type="number" step="0.01"></div>
+            <div class="form-group">
+              <label>Items (có thể chọn nhiều món)</label>
+              <div class="dropdown item-picker" id="edit-item-picker">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  <span class="picker-label text-muted">Chọn món...</span>
+                </button>
+                <div class="dropdown-menu">
+                  <?php foreach($items as $it):
+                    $itemLabel = htmlspecialchars($it['name']);
+                  ?>
+                    <div class="dropdown-item d-flex justify-content-between align-items-center mb-0">
+                      <label class="mb-0 flex-grow-1">
+                        <input type="checkbox" class="item-check" name="item_ids[]" value="<?= $it['id'] ?>" data-label="<?= $itemLabel ?>">
+                        <?= $itemLabel ?>
+                      </label>
+                      <div class="qty-control ml-2">
+                        <input type="number" class="item-qty-input" name="item_qty[<?= $it['id'] ?>]" value="1" min="1" step="1">
+                      </div>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              </div>
+              <small class="form-text text-muted">Khi sửa, hệ thống sẽ cập nhật dòng hiện tại và thêm các món mới bạn chọn (nếu chưa có).</small>
+            </div>
             <div class="form-group"><label>Meal time</label><input class="form-control" id="edit-meal" name="meal_time"></div>
             <div class="form-group"><label>Ghi chú</label><input class="form-control" id="edit-note" name="note"></div>
           </div>
@@ -199,8 +392,9 @@ include 'layout/sidebar.php';
         <form method="POST" action="nutrition_plan_items.php">
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="id" id="delete-id">
+          <input type="hidden" name="nutrition_plan_id" id="delete-plan-id">
           <div class="modal-header bg-danger text-white"><h5 class="modal-title">Xác nhận xóa</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
-          <div class="modal-body"><p>Bạn có chắc muốn xóa mục này?</p></div>
+          <div class="modal-body"><p>Bạn có chắc muốn xóa toàn bộ thực đơn của plan này?</p></div>
           <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button><button class="btn btn-danger">Xóa</button></div>
         </form>
       </div>
@@ -211,17 +405,155 @@ include 'layout/sidebar.php';
 
 <?php include 'layout/footer.php'; ?>
 
+<style>
+  .item-picker .dropdown-toggle {
+    text-align: left;
+  }
+  .item-picker .dropdown-menu {
+    max-height: 240px;
+    overflow-y: auto;
+    width: 100%;
+  }
+  .item-picker .dropdown-item {
+    white-space: normal;
+    cursor: pointer;
+    padding: 0.35rem 0.5rem;
+  }
+  .item-picker .dropdown-item input {
+    margin-right: 8px;
+  }
+  .item-picker .qty-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+  }
+  .item-picker .item-qty-input {
+    width: 64px;
+    height: 28px;
+    text-align: center;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 0 4px;
+    font-size: 13px;
+  }
+</style>
+
 <script>
 $(function(){
   if ($.fn.select2) $('.select2').select2({theme:'bootstrap4', placeholder:'Chọn...', allowClear:true});
+
+  function renderPickerLabel($picker){
+    function fmt(v){
+      var n = parseInt(v || 0, 10);
+      if (!isFinite(n) || n < 1) n = 1;
+      return String(n);
+    }
+
+    var selectedLabels = [];
+    $picker.find('.item-check:checked').each(function(){
+      var qty = $(this).closest('.dropdown-item').find('.item-qty-input').val() || 1;
+      selectedLabels.push($(this).data('label') + ' x' + fmt(qty));
+    });
+
+    var text = 'Chọn món...';
+    var muted = true;
+    if (selectedLabels.length === 1) {
+      text = selectedLabels[0];
+      muted = false;
+    } else if (selectedLabels.length === 2) {
+      text = selectedLabels[0] + ', ' + selectedLabels[1];
+      muted = false;
+    } else if (selectedLabels.length > 2) {
+      text = selectedLabels[0] + ', ' + selectedLabels[1] + ' +' + (selectedLabels.length - 2) + ' món';
+      muted = false;
+    }
+
+    var $label = $picker.find('.picker-label');
+    $label.text(text);
+    $label.toggleClass('text-muted', muted);
+  }
+
+  function initItemPicker(selector){
+    var $picker = $(selector);
+    if (!$picker.length) return;
+
+    renderPickerLabel($picker);
+
+    $picker.on('change', '.item-check', function(){
+      renderPickerLabel($picker);
+    });
+
+    $picker.on('input change', '.item-qty-input', function(){
+      var val = parseInt($(this).val() || 1, 10);
+      if (!isFinite(val) || val < 1) val = 1;
+      $(this).val(val);
+      $(this).closest('.dropdown-item').find('.item-check').prop('checked', true);
+      renderPickerLabel($picker);
+    });
+
+    // Keep dropdown open while ticking multiple items.
+    $picker.find('.dropdown-menu').on('click', function(e){
+      e.stopPropagation();
+    });
+  }
+
+  function setPickerChecked(selector, ids, qtyMap){
+    function fmt(v){
+      var n = parseInt(v || 1, 10);
+      if (!isFinite(n) || n < 1) n = 1;
+      return n;
+    }
+
+    var idSet = {};
+    (ids || []).forEach(function(v){ idSet[String(v)] = true; });
+    qtyMap = qtyMap || {};
+    var $picker = $(selector);
+    $picker.find('.item-check').each(function(){
+      var id = String($(this).val());
+      var checked = !!idSet[id];
+      $(this).prop('checked', checked);
+      var $row = $(this).closest('.dropdown-item');
+      var qty = fmt(qtyMap[id]);
+      $row.find('.item-qty-input').val(qty);
+    });
+    renderPickerLabel($picker);
+  }
+
+  function validatePickerOnSubmit(formSelector, pickerSelector){
+    $(formSelector).on('submit', function(e){
+      var checkedCount = $(pickerSelector).find('.item-check:checked').length;
+      if (checkedCount === 0) {
+        e.preventDefault();
+        alert('Vui lòng chọn ít nhất 1 món.');
+      }
+    });
+  }
+
+  initItemPicker('#add-item-picker');
+  initItemPicker('#edit-item-picker');
+  validatePickerOnSubmit('#addModal form', '#add-item-picker');
+  validatePickerOnSubmit('#editModal form', '#edit-item-picker');
+
   $('.btn-edit').on('click', function(){
     $('#edit-id').val($(this).data('id'));
     $('#edit-plan').val($(this).data('plan_id')).trigger('change');
-    $('#edit-item').val($(this).data('item_id')).trigger('change');
-    $('#edit-servings').val($(this).data('servings'));
+    var itemIdsRaw = String($(this).data('item_ids') || '');
+    var itemIds = itemIdsRaw ? itemIdsRaw.split(',').map(function(v){ return v.trim(); }).filter(function(v){ return v !== ''; }) : [];
+    var qtyRaw = String($(this).data('item_qtys') || '');
+    var qtyMap = {};
+    if (qtyRaw) {
+      qtyRaw.split(',').forEach(function(pair){
+        var p = pair.split(':');
+        if (p.length === 2) qtyMap[String(p[0]).trim()] = parseFloat(p[1]);
+      });
+    }
+    setPickerChecked('#edit-item-picker', itemIds, qtyMap);
     $('#edit-meal').val($(this).data('meal_time'));
     $('#edit-note').val($(this).data('note'));
   });
-  $('.btn-delete').on('click', function(){ $('#delete-id').val($(this).data('id')); });
+  $('.btn-delete').on('click', function(){
+    $('#delete-id').val($(this).data('id'));
+    $('#delete-plan-id').val($(this).data('plan_id'));
+  });
 });
 </script>

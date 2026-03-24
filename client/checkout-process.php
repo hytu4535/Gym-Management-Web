@@ -126,11 +126,46 @@ try {
     $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
     $total_amount = $subtotal + $shipping_fee;
     $status = 'pending';
-    $stmt_order = $conn->prepare("
-        INSERT INTO orders (member_id, address_id, total_amount, payment_method, status) 
-        VALUES (?, NULLIF(?, 0), ?, ?, ?)
-    ");
-    $stmt_order->bind_param("iidss", $member_id, $address_id, $total_amount, $payment_method, $status);
+
+    $transfer_code = null;
+    $proof_img = null;
+
+    if ($payment_method === 'bank_transfer') {
+        $transfer_code = trim($_POST['transfer_code'] ?? '');
+
+        if (empty($transfer_code)) {
+            throw new Exception("Nội dung chuyển khoản không được để trống.");
+        }
+
+        if (!isset($_FILES['proof_image']) || $_FILES['proof_image']['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception("Vui lòng upload ảnh biên lai thanh toán.");
+        }
+
+        $file = $_FILES['proof_image'];
+        $allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!in_array($file['type'], $allowed_types)) {
+            throw new Exception("Chỉ chấp nhận file ảnh JPG, JPEG, PNG, WEBP.");
+        }
+
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $new_name = 'order_' . time() . '_' . uniqid() . '.' . $ext;
+        $upload_dir = 'assets/uploads/';
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0755, true);
+        }
+
+        $upload_path = $upload_dir . $new_name;
+        if (!move_uploaded_file($file['tmp_name'], $upload_path)) {
+            throw new Exception("Lỗi upload file ảnh.");
+        }
+        $proof_img = $new_name;
+    }
+
+    $stmt_order = $conn->prepare(
+        "INSERT INTO orders (member_id, address_id, total_amount, payment_method, status, transfer_code, proof_img) 
+         VALUES (?, NULLIF(?, 0), ?, ?, ?, ?, ?)"
+    );
+    $stmt_order->bind_param("iidssss", $member_id, $address_id, $total_amount, $payment_method, $status, $transfer_code, $proof_img);
     $stmt_order->execute();
     $order_id = $conn->insert_id;
     $stmt_order->close();

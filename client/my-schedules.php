@@ -202,7 +202,7 @@ include 'layout/header.php';
                     <div style="text-align:center;padding:40px;color:#888;">
                         <i class="fa fa-calendar-times-o fa-3x" style="color:#ddd;"></i>
                         <p style="margin-top:15px;">Chưa có lịch hẹn nào với PT.</p>
-                        <a href="contact.php" class="primary-btn" style="display:inline-block;padding:10px 24px;margin-top:10px;">
+                        <a href="pt-booking.php" class="primary-btn" style="display:inline-block;padding:10px 24px;margin-top:10px;">
                             <i class="fa fa-phone"></i> Liên hệ đặt lịch
                         </a>
                     </div>

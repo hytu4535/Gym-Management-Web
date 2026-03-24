@@ -89,6 +89,17 @@ include 'layout/header.php';
                         if (trim($trainer['full_name']) === 'Trương Trung Kiên') {
                             $facebook = 'https://www.facebook.com/l14925';
                             $instagram = 'https://www.instagram.com/truongchungkin?fbclid=IwY2xjawQHjOpleHRuA2FlbQIxMABicmlkETJ1eG5EbThPR3BISlpzQXpPc3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHv3H1cB8v2JK6jh0tpCDOJiUPhLrSJ-Hw_pTmMn8K0taVDUXd4ItxkerE8jo_aem_Htg1W4aBbqfG076q56VyZw';
+                        } elseif (trim($trainer['full_name']) === 'Nguyễn Tường Huy') {
+                            $facebook = 'https://www.facebook.com/hytulasthope';
+                            $instagram = 'https://www.instagram.com/hytulasthope/?fbclid=IwY2xjawQHjOpleHRuA2FlbQIxMABicmlkETJ1eG5EbThPR3BISlpzQXpPc3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHv3H1cB8v2JK6jh0tpCDOJiUPhLrSJ-Hw_pTmMn8K0taVDUXd4ItxkerE8jo_aem_Htg1W4aBbqfG076q56VyZw';
+                        }
+                        elseif (trim($trainer['full_name']) === 'Nguyễn Thị Ý') {
+                            $facebook = 'https://www.facebook.com/nguyen.y.548494';
+                            $instagram = 'https://www.instagram.com/nguyen.y.548494/?fbclid=IwY2xjawQHjOpleHRuA2FlbQIxMABicmlkETJ1eG5EbThPR3BISlpzQXpPc3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHv3H1cB8v2JK6jh0tpCDOJiUPhLrSJ-Hw_pTmMn8K0taVDUXd4ItxkerE8jo_aem_Htg1W4aBbqfG076q56VyZw';
+                        }
+                        elseif (trim($trainer['full_name']) === 'Nguyễn Nguyên Bảo') {
+                            $facebook = 'https://www.facebook.com/nguyen.beo.340861';
+                            $instagram = 'https://www.instagram.com/nguyenbeo_/?fbclid=IwY2xjawQHjOpleHRuA2FlbQIxMABicmlkETJ1eG5EbThPR3BISlpzQXpPc3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHv3H1cB8v2JK6jh0tpCDOJiUPhLrSJ-Hw_pTmMn8K0taVDUXd4ItxkerE8jo_aem_Htg1W4aBbqfG076q56VyZw';
                         }
                         ?>
                         <div class="tt_social">

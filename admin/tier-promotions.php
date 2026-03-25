@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
   $tierId = intval($_POST['tier_id']);
   $discountType = sanitize($_POST['discount_type']);
   $discountValue = floatval($_POST['discount_value']);
-  $applicableItemsInput = trim($_POST['applicable_items'] ?? '');
+  $applicableItemsInput = $_POST['applicable_items'] ?? [];
   $startDate = sanitize($_POST['start_date']);
   $endDate = sanitize($_POST['end_date']);
   $usageLimit = isset($_POST['usage_limit']) && $_POST['usage_limit'] !== '' ? intval($_POST['usage_limit']) : null;
@@ -59,8 +59,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
   }
 
   $items = [];
-  if ($applicableItemsInput !== '') {
-    $items = array_values(array_filter(array_map('trim', explode(',', $applicableItemsInput))));
+  if (is_array($applicableItemsInput)) {
+    $items = array_values(array_unique(array_filter(array_map(static function ($item) {
+      return sanitize($item);
+    }, $applicableItemsInput), static function ($item) {
+      return $item !== '';
+    })));
+  } elseif (trim((string) $applicableItemsInput) !== '') {
+    // Backward compatibility for older form submissions.
+    $items = array_values(array_filter(array_map('trim', explode(',', (string) $applicableItemsInput))));
   }
   $applicableItems = !empty($items) ? json_encode($items, JSON_UNESCAPED_UNICODE) : null;
 
@@ -79,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id']))
   $tierId = intval($_POST['edit_tier_id']);
   $discountType = sanitize($_POST['edit_discount_type']);
   $discountValue = floatval($_POST['edit_discount_value']);
-  $applicableItemsInput = trim($_POST['edit_applicable_items'] ?? '');
+  $applicableItemsInput = $_POST['edit_applicable_items'] ?? [];
   $startDate = sanitize($_POST['edit_start_date']);
   $endDate = sanitize($_POST['edit_end_date']);
   $usageLimit = isset($_POST['edit_usage_limit']) && $_POST['edit_usage_limit'] !== '' ? intval($_POST['edit_usage_limit']) : null;
@@ -104,8 +111,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id']))
   }
 
   $items = [];
-  if ($applicableItemsInput !== '') {
-    $items = array_values(array_filter(array_map('trim', explode(',', $applicableItemsInput))));
+  if (is_array($applicableItemsInput)) {
+    $items = array_values(array_unique(array_filter(array_map(static function ($item) {
+      return sanitize($item);
+    }, $applicableItemsInput), static function ($item) {
+      return $item !== '';
+    })));
+  } elseif (trim((string) $applicableItemsInput) !== '') {
+    // Backward compatibility for older form submissions.
+    $items = array_values(array_filter(array_map('trim', explode(',', (string) $applicableItemsInput))));
   }
   $applicableItems = !empty($items) ? json_encode($items, JSON_UNESCAPED_UNICODE) : null;
 
@@ -132,6 +146,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_promotion_id']
 
 $tiersStmt = $db->query("SELECT id, name FROM member_tiers WHERE status = 'active' ORDER BY level ASC");
 $tiers = $tiersStmt->fetchAll();
+
+$categoriesStmt = $db->query("SELECT name FROM categories ORDER BY name ASC");
+$categories = $categoriesStmt->fetchAll(PDO::FETCH_COLUMN);
 
 $promotionsStmt = $db->query("SELECT tp.*, mt.name AS tier_name FROM tier_promotions tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id ORDER BY tp.id DESC");
 $promotions = $promotionsStmt->fetchAll();
@@ -303,8 +320,21 @@ function resolveTierDisplayName($tierId, $tierName) {
             <input type="number" class="form-control" id="discount_value" name="discount_value" min="0.01" step="0.01" required>
           </div>
           <div class="form-group">
-            <label for="applicable_items">Danh mục áp dụng (cách nhau bởi dấu phẩy)</label>
-            <input type="text" class="form-control" id="applicable_items" name="applicable_items" placeholder="personal_training, gym_session">
+            <label for="applicable_items">Danh mục áp dụng</label>
+            <div class="dropdown category-combobox" id="add_applicable_items_box">
+              <button class="btn btn-outline-secondary dropdown-toggle w-100 text-left category-combobox-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="category-combobox-label">-- Chọn danh mục áp dụng --</span>
+              </button>
+              <div class="dropdown-menu w-100 p-2 category-combobox-menu">
+                <?php foreach ($categories as $index => $categoryName): ?>
+                  <div class="form-check">
+                    <input class="form-check-input category-checkbox" type="checkbox" id="add_category_<?= $index ?>" name="applicable_items[]" value="<?= htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8') ?>">
+                    <label class="form-check-label" for="add_category_<?= $index ?>"><?= htmlspecialchars($categoryName) ?></label>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <small class="form-text text-muted">Nhấn vào ô danh mục để mở danh sách chọn.</small>
           </div>
           <div class="form-row">
             <div class="form-group col-md-6">
@@ -375,8 +405,21 @@ function resolveTierDisplayName($tierId, $tierName) {
             <input type="number" class="form-control" id="edit_discount_value" name="edit_discount_value" min="0.01" step="0.01" required>
           </div>
           <div class="form-group">
-            <label for="edit_applicable_items">Danh mục áp dụng (cách nhau bởi dấu phẩy)</label>
-            <input type="text" class="form-control" id="edit_applicable_items" name="edit_applicable_items">
+            <label for="edit_applicable_items">Danh mục áp dụng</label>
+            <div class="dropdown category-combobox" id="edit_applicable_items_box">
+              <button class="btn btn-outline-secondary dropdown-toggle w-100 text-left category-combobox-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="category-combobox-label">-- Chọn danh mục áp dụng --</span>
+              </button>
+              <div class="dropdown-menu w-100 p-2 category-combobox-menu">
+                <?php foreach ($categories as $index => $categoryName): ?>
+                  <div class="form-check">
+                    <input class="form-check-input category-checkbox" type="checkbox" id="edit_category_<?= $index ?>" name="edit_applicable_items[]" value="<?= htmlspecialchars($categoryName, ENT_QUOTES, 'UTF-8') ?>">
+                    <label class="form-check-label" for="edit_category_<?= $index ?>"><?= htmlspecialchars($categoryName) ?></label>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <small class="form-text text-muted">Nhấn vào ô danh mục để mở danh sách chọn.</small>
           </div>
           <div class="form-row">
             <div class="form-group col-md-6">
@@ -412,8 +455,90 @@ function resolveTierDisplayName($tierId, $tierName) {
 
 <?php include 'layout/footer.php'; ?>
 
+<style>
+  .category-combobox-menu {
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .category-combobox-toggle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+</style>
+
 <script>
 $(document).ready(function() {
+  function updateComboboxLabel($box) {
+    var selected = [];
+    $box.find('.category-checkbox:checked').each(function() {
+      selected.push($(this).val());
+    });
+
+    var label = '-- Chọn danh mục áp dụng --';
+    if (selected.length === 1) {
+      label = selected[0];
+    } else if (selected.length > 1) {
+      label = selected.length + ' danh mục đã chọn';
+    }
+
+    $box.find('.category-combobox-label').text(label);
+  }
+
+  function setCheckedItems($box, items, checkboxName) {
+    $box.find('.category-checkbox').prop('checked', false);
+    $box.find('.legacy-category-item').remove();
+
+    if (!Array.isArray(items)) {
+      updateComboboxLabel($box);
+      return;
+    }
+
+    items.forEach(function(item) {
+      var value = String(item || '').trim();
+      if (!value) {
+        return;
+      }
+
+      var $existingOption = $box.find('.category-checkbox').filter(function() {
+        return $(this).val() === value;
+      });
+
+      if ($existingOption.length > 0) {
+        $existingOption.prop('checked', true);
+      } else {
+        var checkboxId = 'legacy_edit_' + value.replace(/[^a-zA-Z0-9_]/g, '_');
+        var $legacy = $('<div class="form-check legacy-category-item">'
+          + '<input class="form-check-input category-checkbox" type="checkbox" checked>'
+          + '<label class="form-check-label"></label>'
+          + '</div>');
+        $legacy.find('input')
+          .attr('id', checkboxId)
+          .attr('name', checkboxName)
+          .val(value);
+        $legacy.find('label')
+          .attr('for', checkboxId)
+          .text(value + ' (cũ)');
+        $box.find('.category-combobox-menu').append($legacy);
+      }
+    });
+
+    updateComboboxLabel($box);
+  }
+
+  $('.category-combobox-menu').on('click', function(event) {
+    event.stopPropagation();
+  });
+
+  $(document).on('change', '.category-checkbox', function() {
+    var $box = $(this).closest('.category-combobox');
+    updateComboboxLabel($box);
+  });
+
+  updateComboboxLabel($('#add_applicable_items_box'));
+  updateComboboxLabel($('#edit_applicable_items_box'));
+
   $('.edit-promotion-btn').on('click', function() {
     $('#edit_promotion_id').val($(this).data('id'));
     $('#edit_name').val($(this).data('name'));
@@ -422,20 +547,20 @@ $(document).ready(function() {
     $('#edit_discount_value').val($(this).data('discount-value'));
 
     var rawItems = $(this).data('applicable-items');
-    var textItems = '';
+    var selectedItems = [];
     if (rawItems) {
       try {
         var parsed = JSON.parse(rawItems);
         if (Array.isArray(parsed)) {
-          textItems = parsed.join(', ');
+          selectedItems = parsed;
         } else {
-          textItems = rawItems;
+          selectedItems = [rawItems];
         }
       } catch (e) {
-        textItems = rawItems;
+        selectedItems = String(rawItems).split(',');
       }
     }
-    $('#edit_applicable_items').val(textItems);
+    setCheckedItems($('#edit_applicable_items_box'), selectedItems, 'edit_applicable_items[]');
 
     $('#edit_start_date').val($(this).data('start-date'));
     $('#edit_end_date').val($(this).data('end-date'));

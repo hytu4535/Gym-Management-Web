@@ -13,10 +13,6 @@ include '../includes/auth_permission.php';
 // chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
 checkPermission('MANAGE_FEEDBACK');
 
-// layout chung
-include 'layout/header.php'; 
-include 'layout/sidebar.php';
-
 require_once '../config/db.php';
 require_once '../includes/functions.php';
 
@@ -24,11 +20,12 @@ $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recipient_group'])) {
   $group   = $_POST['recipient_group'];
+  $recipientIdentifier = trim($_POST['recipient_identifier'] ?? '');
   $title   = sanitize($_POST['title']);
   $content = sanitize($_POST['content']);
 
   // Build query based on group
-  $allowedGroups = ['all', 'admin', 'staff', 'member'];
+  $allowedGroups = ['all', 'admin', 'staff', 'member', 'specific'];
   if (!in_array($group, $allowedGroups)) {
     echo "<script>alert('Nhóm nhận không hợp lệ!');window.location='notifications.php';</script>";
     exit;
@@ -36,6 +33,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recipient_group'])) {
 
   if ($group === 'all') {
     $targetStmt = $db->query("SELECT id FROM users WHERE status = 'active'");
+  } elseif ($group === 'specific') {
+    if ($recipientIdentifier === '') {
+      echo "<script>alert('Vui lòng nhập đúng tên/số điện thoại/gmail của người nhận!');window.location='notifications.php';</script>";
+      exit;
+    }
+
+    $targetStmt = $db->prepare(" 
+      SELECT DISTINCT u.id
+      FROM users u
+      LEFT JOIN members m ON m.users_id = u.id
+      LEFT JOIN staff st ON st.users_id = u.id
+      WHERE u.status = 'active'
+        AND (
+          u.username = ?
+          OR u.email = ?
+          OR m.full_name = ?
+          OR st.full_name = ?
+          OR m.phone = ?
+        )
+      LIMIT 1
+    ");
+    $targetStmt->execute([
+      $recipientIdentifier,
+      $recipientIdentifier,
+      $recipientIdentifier,
+      $recipientIdentifier,
+      $recipientIdentifier,
+    ]);
   } else {
     $targetStmt = $db->prepare("
       SELECT u.id FROM users u
@@ -47,7 +72,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recipient_group'])) {
   $targets = $targetStmt->fetchAll(PDO::FETCH_COLUMN);
 
   if (empty($targets)) {
-    echo "<script>alert('Không có người dùng nào trong nhóm này!');window.location='notifications.php';</script>";
+    if ($group === 'specific') {
+      echo "<script>alert('Người dùng không tồn tại!');window.location='notifications.php';</script>";
+    } else {
+      echo "<script>alert('Không có người dùng nào trong nhóm này!');window.location='notifications.php';</script>";
+    }
     exit;
   }
 
@@ -69,12 +98,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recipient_group'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_read_notification_id'])) {
   $notificationId = intval($_POST['mark_read_notification_id']);
-  $markReadStmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
+  $markReadStmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND is_read = 0");
+  $isAjax = isset($_POST['ajax_mark_read']) && $_POST['ajax_mark_read'] === '1';
 
   if ($markReadStmt->execute([$notificationId])) {
-    echo "<script>alert('Đã đánh dấu thông báo là đã đọc!');window.location='notifications.php';</script>";
+    if ($isAjax) {
+      echo json_encode([
+        'success' => true,
+        'updated' => $markReadStmt->rowCount() > 0,
+      ]);
+    } else {
+      echo "<script>alert('Đã đánh dấu thông báo là đã đọc!');window.location='notifications.php';</script>";
+    }
   } else {
-    echo "<script>alert('Lỗi khi cập nhật trạng thái thông báo!');window.location='notifications.php';</script>";
+    if ($isAjax) {
+      echo json_encode([
+        'success' => false,
+      ]);
+    } else {
+      echo "<script>alert('Lỗi khi cập nhật trạng thái thông báo!');window.location='notifications.php';</script>";
+    }
   }
   exit;
 }
@@ -93,6 +136,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_notification_i
 
 $notificationsStmt = $db->query("SELECT n.id, n.title, n.content, n.created_at, n.is_read, u.username, u.email FROM notifications n INNER JOIN users u ON n.user_id = u.id ORDER BY n.id DESC");
 $notifications = $notificationsStmt->fetchAll();
+
+// layout chung
+include 'layout/header.php';
+include 'layout/sidebar.php';
 
 ?>
 
@@ -146,24 +193,31 @@ $notifications = $notificationsStmt->fetchAll();
                   <?php foreach ($notifications as $notification): ?>
                   <tr>
                     <td><?= $notification['id'] ?></td>
-                    <td><?= htmlspecialchars($notification['title']) ?></td>
-                    <td><?= htmlspecialchars($notification['content']) ?></td>
+                    <td><?= htmlspecialchars(mb_strimwidth($notification['title'], 0, 15, '...')) ?></td>
+                    <td><?= htmlspecialchars(mb_strimwidth($notification['content'], 0, 15, '...')) ?></td>
                     <td><?= htmlspecialchars($notification['username']) ?> (<?= htmlspecialchars($notification['email']) ?>)</td>
                     <td><?= date('d/m/Y H:i', strtotime($notification['created_at'])) ?></td>
                     <td>
                       <?php if ((int) $notification['is_read'] === 1): ?>
-                        <span class="badge badge-success">Đã đọc</span>
+                        <span class="badge badge-success notification-status-badge" data-notification-id="<?= (int) $notification['id'] ?>">Đã đọc</span>
                       <?php else: ?>
-                        <span class="badge badge-warning">Chưa đọc</span>
+                        <span class="badge badge-warning notification-status-badge" data-notification-id="<?= (int) $notification['id'] ?>">Chưa đọc</span>
                       <?php endif; ?>
                     </td>
                     <td>
-                      <?php if ((int) $notification['is_read'] === 0): ?>
-                        <form method="POST" action="notifications.php" style="display:inline-block;">
-                          <input type="hidden" name="mark_read_notification_id" value="<?= $notification['id'] ?>">
-                          <button type="submit" class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                        </form>
-                      <?php endif; ?>
+                      <button
+                        type="button"
+                        class="btn btn-info btn-sm view-notification-btn"
+                        data-id="<?= (int) $notification['id'] ?>"
+                        data-title="<?= htmlspecialchars($notification['title'], ENT_QUOTES, 'UTF-8') ?>"
+                        data-content="<?= htmlspecialchars($notification['content'], ENT_QUOTES, 'UTF-8') ?>"
+                        data-recipient="<?= htmlspecialchars($notification['username'] . ' (' . $notification['email'] . ')', ENT_QUOTES, 'UTF-8') ?>"
+                        data-date="<?= htmlspecialchars(date('d/m/Y H:i', strtotime($notification['created_at'])), ENT_QUOTES, 'UTF-8') ?>"
+                        data-is-read="<?= (int) $notification['is_read'] ?>"
+                        title="Xem thông báo"
+                      >
+                        <i class="fas fa-eye"></i>
+                      </button>
                       <form method="POST" action="notifications.php" style="display:inline-block;">
                         <input type="hidden" name="delete_notification_id" value="<?= $notification['id'] ?>">
                         <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
@@ -200,7 +254,14 @@ $notifications = $notificationsStmt->fetchAll();
               <option value="admin">Admin</option>
               <option value="staff">Nhân viên (Staff)</option>
               <option value="member">Thành viên (Member)</option>
+              <option value="specific">Người dùng cụ thể</option>
             </select>
+          </div>
+
+          <div class="form-group" id="specific_recipient_group" style="display:none;">
+            <label for="recipient_identifier">Tên / Số điện thoại / Gmail người nhận</label>
+            <input type="text" class="form-control" id="recipient_identifier" name="recipient_identifier" placeholder="Nhập đúng username, số điện thoại hoặc email">
+            <small class="form-text text-muted">Hệ thống chỉ gửi khi khớp chính xác thông tin người dùng.</small>
           </div>
 
           <div class="form-group">
@@ -221,3 +282,91 @@ $notifications = $notificationsStmt->fetchAll();
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="viewNotificationModal" tabindex="-1" role="dialog" aria-labelledby="viewNotificationModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewNotificationModalLabel">Chi tiết thông báo</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2"><strong>Tiêu đề:</strong> <span id="view_notification_title">-</span></div>
+        <div class="mb-2"><strong>Người nhận:</strong> <span id="view_notification_recipient">-</span></div>
+        <div class="mb-3"><strong>Ngày gửi:</strong> <span id="view_notification_date">-</span></div>
+        <div>
+          <strong>Nội dung:</strong>
+          <div id="view_notification_content" class="border rounded p-2 mt-1" style="white-space: pre-wrap; min-height: 80px;">-</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    function toggleSpecificRecipientInput() {
+      const group = $('#recipient_group').val();
+      const isSpecific = group === 'specific';
+      $('#specific_recipient_group').toggle(isSpecific);
+      $('#recipient_identifier').prop('required', isSpecific);
+
+      if (!isSpecific) {
+        $('#recipient_identifier').val('');
+      }
+    }
+
+    $('#recipient_group').on('change', toggleSpecificRecipientInput);
+
+    $('#addNotificationModal').on('shown.bs.modal', function () {
+      toggleSpecificRecipientInput();
+    });
+
+    function setBadgeRead(notificationId) {
+      const $badge = $('.notification-status-badge[data-notification-id="' + notificationId + '"]');
+      if ($badge.length) {
+        $badge.removeClass('badge-warning').addClass('badge-success').text('Đã đọc');
+      }
+    }
+
+    function markNotificationRead(notificationId) {
+      return $.ajax({
+        url: 'notifications.php',
+        method: 'POST',
+        dataType: 'json',
+        data: {
+          mark_read_notification_id: notificationId,
+          ajax_mark_read: '1'
+        }
+      });
+    }
+
+    $(document).on('click', '.view-notification-btn', function () {
+      const $button = $(this);
+      const notificationId = Number($button.data('id')) || 0;
+      const isRead = Number($button.data('is-read')) === 1;
+
+      $('#view_notification_title').text($button.data('title') || '-');
+      $('#view_notification_recipient').text($button.data('recipient') || '-');
+      $('#view_notification_date').text($button.data('date') || '-');
+      $('#view_notification_content').text($button.data('content') || '-');
+
+      $('#viewNotificationModal').modal('show');
+
+      if (!isRead && notificationId > 0) {
+        markNotificationRead(notificationId)
+          .done(function (response) {
+            if (response && response.success) {
+              $button.attr('data-is-read', '1');
+              setBadgeRead(notificationId);
+            }
+          });
+      }
+    });
+  })();
+</script>

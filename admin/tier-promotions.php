@@ -27,7 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
   $tierId = intval($_POST['tier_id']);
   $discountType = sanitize($_POST['discount_type']);
   $discountValue = floatval($_POST['discount_value']);
-  $applicableItemsInput = trim($_POST['applicable_items'] ?? '');
   $startDate = sanitize($_POST['start_date']);
   $endDate = sanitize($_POST['end_date']);
   $usageLimit = isset($_POST['usage_limit']) && $_POST['usage_limit'] !== '' ? intval($_POST['usage_limit']) : null;
@@ -58,14 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
     exit;
   }
 
-  $items = [];
-  if ($applicableItemsInput !== '') {
-    $items = array_values(array_filter(array_map('trim', explode(',', $applicableItemsInput))));
-  }
-  $applicableItems = !empty($items) ? json_encode($items, JSON_UNESCAPED_UNICODE) : null;
-
   $insertStmt = $db->prepare("INSERT INTO tier_promotions (name, tier_id, discount_type, discount_value, applicable_items, start_date, end_date, usage_limit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-  if ($insertStmt->execute([$name, $tierId, $discountType, $discountValue, $applicableItems, $startDate, $endDate, $usageLimit, $status])) {
+  if ($insertStmt->execute([$name, $tierId, $discountType, $discountValue, null, $startDate, $endDate, $usageLimit, $status])) {
     echo "<script>alert('Thêm khuyến mãi theo hạng thành công!');window.location='tier-promotions.php';</script>";
   } else {
     echo "<script>alert('Lỗi khi thêm khuyến mãi!');window.location='tier-promotions.php';</script>";
@@ -79,7 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id']))
   $tierId = intval($_POST['edit_tier_id']);
   $discountType = sanitize($_POST['edit_discount_type']);
   $discountValue = floatval($_POST['edit_discount_value']);
-  $applicableItemsInput = trim($_POST['edit_applicable_items'] ?? '');
   $startDate = sanitize($_POST['edit_start_date']);
   $endDate = sanitize($_POST['edit_end_date']);
   $usageLimit = isset($_POST['edit_usage_limit']) && $_POST['edit_usage_limit'] !== '' ? intval($_POST['edit_usage_limit']) : null;
@@ -103,14 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id']))
     exit;
   }
 
-  $items = [];
-  if ($applicableItemsInput !== '') {
-    $items = array_values(array_filter(array_map('trim', explode(',', $applicableItemsInput))));
-  }
-  $applicableItems = !empty($items) ? json_encode($items, JSON_UNESCAPED_UNICODE) : null;
-
   $updateStmt = $db->prepare("UPDATE tier_promotions SET name = ?, tier_id = ?, discount_type = ?, discount_value = ?, applicable_items = ?, start_date = ?, end_date = ?, usage_limit = ?, status = ? WHERE id = ?");
-  if ($updateStmt->execute([$name, $tierId, $discountType, $discountValue, $applicableItems, $startDate, $endDate, $usageLimit, $status, $promotionId])) {
+  if ($updateStmt->execute([$name, $tierId, $discountType, $discountValue, null, $startDate, $endDate, $usageLimit, $status, $promotionId])) {
     echo "<script>alert('Cập nhật khuyến mãi thành công!');window.location='tier-promotions.php';</script>";
   } else {
     echo "<script>alert('Lỗi khi cập nhật khuyến mãi!');window.location='tier-promotions.php';</script>";
@@ -132,6 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_promotion_id']
 
 $tiersStmt = $db->query("SELECT id, name FROM member_tiers WHERE status = 'active' ORDER BY level ASC");
 $tiers = $tiersStmt->fetchAll();
+
+$categoriesStmt = $db->query("SELECT name FROM categories ORDER BY name ASC");
+$categories = $categoriesStmt->fetchAll(PDO::FETCH_COLUMN);
 
 $promotionsStmt = $db->query("SELECT tp.*, mt.name AS tier_name FROM tier_promotions tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id ORDER BY tp.id DESC");
 $promotions = $promotionsStmt->fetchAll();
@@ -242,7 +231,7 @@ function resolveTierDisplayName($tierId, $tierName) {
                         data-tier-id="<?= $promotion['tier_id'] ?>"
                         data-discount-type="<?= $promotion['discount_type'] ?>"
                         data-discount-value="<?= $promotion['discount_value'] ?>"
-                        data-applicable-items="<?= htmlspecialchars((string) $promotion['applicable_items'], ENT_QUOTES, 'UTF-8') ?>"
+
                         data-start-date="<?= $promotion['start_date'] ?>"
                         data-end-date="<?= $promotion['end_date'] ?>"
                         data-usage-limit="<?= $promotion['usage_limit'] ?>"
@@ -302,10 +291,7 @@ function resolveTierDisplayName($tierId, $tierName) {
             <label for="discount_value">Giá Trị</label>
             <input type="number" class="form-control" id="discount_value" name="discount_value" min="0.01" step="0.01" required>
           </div>
-          <div class="form-group">
-            <label for="applicable_items">Danh mục áp dụng (cách nhau bởi dấu phẩy)</label>
-            <input type="text" class="form-control" id="applicable_items" name="applicable_items" placeholder="personal_training, gym_session">
-          </div>
+
           <div class="form-row">
             <div class="form-group col-md-6">
               <label for="start_date">Ngày bắt đầu</label>
@@ -374,10 +360,7 @@ function resolveTierDisplayName($tierId, $tierName) {
             <label for="edit_discount_value">Giá Trị</label>
             <input type="number" class="form-control" id="edit_discount_value" name="edit_discount_value" min="0.01" step="0.01" required>
           </div>
-          <div class="form-group">
-            <label for="edit_applicable_items">Danh mục áp dụng (cách nhau bởi dấu phẩy)</label>
-            <input type="text" class="form-control" id="edit_applicable_items" name="edit_applicable_items">
-          </div>
+
           <div class="form-row">
             <div class="form-group col-md-6">
               <label for="edit_start_date">Ngày bắt đầu</label>
@@ -412,6 +395,8 @@ function resolveTierDisplayName($tierId, $tierName) {
 
 <?php include 'layout/footer.php'; ?>
 
+
+
 <script>
 $(document).ready(function() {
   $('.edit-promotion-btn').on('click', function() {
@@ -420,23 +405,6 @@ $(document).ready(function() {
     $('#edit_tier_id').val($(this).data('tier-id'));
     $('#edit_discount_type').val($(this).data('discount-type'));
     $('#edit_discount_value').val($(this).data('discount-value'));
-
-    var rawItems = $(this).data('applicable-items');
-    var textItems = '';
-    if (rawItems) {
-      try {
-        var parsed = JSON.parse(rawItems);
-        if (Array.isArray(parsed)) {
-          textItems = parsed.join(', ');
-        } else {
-          textItems = rawItems;
-        }
-      } catch (e) {
-        textItems = rawItems;
-      }
-    }
-    $('#edit_applicable_items').val(textItems);
-
     $('#edit_start_date').val($(this).data('start-date'));
     $('#edit_end_date').val($(this).data('end-date'));
     $('#edit_usage_limit').val($(this).data('usage-limit'));

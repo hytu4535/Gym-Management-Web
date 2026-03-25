@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($current_password) || empty($new_password) || empty($confirm_password)) {
         echo json_encode([
             'success' => false,
-            'message' => 'Vui lòng nhập đầy đủ thông tin!'
+            'message' => 'Vui lòng nhập đầy đủ thông tin để thay đổi mật khẩu!'
         ]);
         exit();
     }

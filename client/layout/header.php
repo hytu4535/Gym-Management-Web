@@ -5,6 +5,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
 // Lấy số lượng sản phẩm trong giỏ hàng từ database
 $cart_count = 0;
+$unread_notification_count = 0;
 if (isset($_SESSION['user_id'])) {
     require_once __DIR__ . '/../../config/db.php';
     
@@ -24,6 +25,15 @@ if (isset($_SESSION['user_id'])) {
         $cart_count = (int)$cart_row['total_items'];
     }
     $cart_stmt->close();
+
+    $noti_stmt = $conn->prepare("SELECT COUNT(*) AS unread_count FROM notifications WHERE user_id = ? AND is_read = 0");
+    $noti_stmt->bind_param("i", $_SESSION['user_id']);
+    $noti_stmt->execute();
+    $noti_result = $noti_stmt->get_result();
+    if ($noti_row = $noti_result->fetch_assoc()) {
+        $unread_notification_count = (int)$noti_row['unread_count'];
+    }
+    $noti_stmt->close();
 }
 ?>
 <!DOCTYPE html>
@@ -78,6 +88,7 @@ if (isset($_SESSION['user_id'])) {
                 <li class="<?php echo ($current_page == 'trainers.php') ? 'active' : ''; ?>"><a href="trainers.php">Huấn luyện viên</a></li>
                 <li class="<?php echo ($current_page == 'pt-booking.php') ? 'active' : ''; ?>"><a href="pt-booking.php">Lịch tập với PT</a></li>
                 <li class="<?php echo ($current_page == 'packages.php') ? 'active' : ''; ?>"><a href="packages.php">Gói tập</a></li>
+                <li class="<?php echo ($current_page == 'nutrition.php') ? 'active' : ''; ?>"><a href="nutrition.php">Dinh dưỡng</a></li>
                 <li class="<?php echo ($current_page == 'products.php' || $current_page == 'product-detail.php') ? 'active' : ''; ?>"><a href="products.php">Sản phẩm</a></li>
                 <li><a href="#">Khác</a>
                     <ul class="dropdown">
@@ -120,6 +131,7 @@ if (isset($_SESSION['user_id'])) {
                             <li class="<?php echo ($current_page == 'trainers.php') ? 'active' : ''; ?>"><a href="trainers.php">Huấn luyện viên</a></li>
                             <li class="<?php echo ($current_page == 'pt-booking.php') ? 'active' : ''; ?>"><a href="pt-booking.php">Lịch tập với PT</a></li>
                             <li class="<?php echo ($current_page == 'packages.php') ? 'active' : ''; ?>"><a href="packages.php">Gói tập</a></li>
+                            <li class="<?php echo ($current_page == 'nutrition.php') ? 'active' : ''; ?>"><a href="nutrition.php">Dinh dưỡng</a></li>
                             <li class="<?php echo ($current_page == 'products.php' || $current_page == 'product-detail.php') ? 'active' : ''; ?>"><a href="products.php">Sản phẩm</a></li>
                             <li class="<?php echo ($current_page == 'contact.php') ? 'active' : ''; ?>"><a href="contact.php">Liên hệ</a></li>
                             <li class="<?php echo ($current_page == 'subscription.php') ? 'active' : ''; ?>"><a href="subscription.php">Đánh giá & thông báo</a></li>
@@ -146,6 +158,10 @@ if (isset($_SESSION['user_id'])) {
                                 <?php endif; ?>
                             </a>
                             <?php if(isset($_SESSION['user_id'])): ?>
+                                <a href="subscription.php#tab-notifications" title="Thông báo" style="position: relative;">
+                                    <i class="fa fa-bell"></i>
+                                    <span id="notification-badge" style="position: absolute; top: -8px; right: -8px; background: #f36100; color: white; border-radius: 50%; min-width: 18px; height: 18px; padding: 0 4px; font-size: 10px; display: <?php echo $unread_notification_count > 0 ? 'flex' : 'none'; ?>; align-items: center; justify-content: center;"><?php echo $unread_notification_count; ?></span>
+                                </a>
                                 <div class="user-dropdown" style="position:relative;display:inline-block;">
                                     <a href="#" class="user-dropdown-toggle" title="Tài khoản" style="position:relative;">
                                         <i class="fa fa-user"></i>
@@ -208,6 +224,40 @@ if (isset($_SESSION['user_id'])) {
     });
     document.addEventListener('click', function(e){
         if (!e.target.closest('.user-dropdown')) menu.style.display = 'none';
+    });
+})();
+
+(function () {
+    var badge = document.getElementById('notification-badge');
+    if (!badge) return;
+
+    function updateNotificationBadge() {
+        fetch('api.php?action=unread_notification_count', {
+            method: 'GET',
+            credentials: 'same-origin'
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (result) {
+            if (!result || !result.success || !result.data) {
+                return;
+            }
+
+            var unread = Number(result.data.unread_count || 0);
+            badge.textContent = unread;
+            badge.style.display = unread > 0 ? 'flex' : 'none';
+        })
+        .catch(function () {
+            // Silent fail: keep current badge value on transient network issues.
+        });
+    }
+
+    updateNotificationBadge();
+    setInterval(updateNotificationBadge, 15000);
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') {
+            updateNotificationBadge();
+        }
     });
 })();
 </script>

@@ -18,6 +18,13 @@ $db = getDB();
 $message = '';
 $messageType = '';
 
+// Bộ lọc danh sách
+$filter_member_name = trim((string) ($_GET['filter_member_name'] ?? ''));
+$filter_full_address = trim((string) ($_GET['filter_full_address'] ?? ''));
+$filter_city = trim((string) ($_GET['filter_city'] ?? ''));
+$filter_district = trim((string) ($_GET['filter_district'] ?? ''));
+$filter_status = trim((string) ($_GET['filter_status'] ?? ''));
+
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     try {
@@ -57,17 +64,48 @@ if (isset($_GET['action']) && $_GET['action'] == 'set_default' && isset($_GET['i
 
 // Xử lý thêm/sửa
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $member_id = $_POST['member_id'];
-    $full_address = $_POST['full_address'];
-    $city = $_POST['city'];
-    $district = $_POST['district'];
+  $member_id = isset($_POST['member_id']) ? (int) $_POST['member_id'] : 0;
+  $address_id = isset($_POST['id']) && $_POST['id'] !== '' ? (int) $_POST['id'] : 0;
+  $full_address = trim((string) ($_POST['full_address'] ?? ''));
+  $city = trim((string) ($_POST['city'] ?? ''));
+  $district = trim((string) ($_POST['district'] ?? ''));
     $is_default = isset($_POST['is_default']) ? 1 : 0;
     
     try {
+    if ($member_id <= 0) {
+      throw new Exception("Vui lòng chọn hội viên hợp lệ.");
+    }
+
+    if ($full_address === '') {
+      throw new Exception("Địa chỉ đầy đủ là bắt buộc.");
+    }
+
+    $memberCheckStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE id = ?");
+    $memberCheckStmt->execute([$member_id]);
+    if ((int) $memberCheckStmt->fetchColumn() === 0) {
+      throw new Exception("Hội viên không tồn tại.");
+    }
+
+    $full_address = preg_replace('/\s+/u', ' ', $full_address);
+    $city = $city === '' ? null : preg_replace('/\s+/u', ' ', $city);
+    $district = $district === '' ? null : preg_replace('/\s+/u', ' ', $district);
+
+    $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM addresses WHERE member_id = ? AND full_address = ? AND IFNULL(city, '') = ? AND IFNULL(district, '') = ? AND id <> ?");
+    $duplicateStmt->execute([$member_id, $full_address, $city ?? '', $district ?? '', $address_id]);
+    if ((int) $duplicateStmt->fetchColumn() > 0) {
+      throw new Exception("Địa chỉ này đã tồn tại cho hội viên đã chọn.");
+    }
+
         if (isset($_POST['id']) && !empty($_POST['id'])) {
+      // Nếu chuyển địa chỉ này thành mặc định thì bỏ mặc định các địa chỉ khác của hội viên.
+      if ($is_default) {
+        $stmt = $db->prepare("UPDATE addresses SET is_default = 0 WHERE member_id = ? AND id <> ?");
+        $stmt->execute([$member_id, $address_id]);
+      }
+
             // Cập nhật
             $stmt = $db->prepare("UPDATE addresses SET member_id=?, full_address=?, city=?, district=?, is_default=? WHERE id=?");
-            $stmt->execute([$member_id, $full_address, $city, $district, $is_default, $_POST['id']]);
+      $stmt->execute([$member_id, $full_address, $city, $district, $is_default, $address_id]);
             $message = "Cập nhật địa chỉ thành công!";
         } else {
             // Nếu đặt mặc định, bỏ mặc định các địa chỉ khác
@@ -82,17 +120,48 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $message = "Thêm địa chỉ thành công!";
         }
         $messageType = "success";
-    } catch (PDOException $e) {
+        } catch (Exception $e) {
         $message = "Lỗi: " . $e->getMessage();
         $messageType = "danger";
     }
 }
 
 // Lấy danh sách địa chỉ
-$stmt = $db->query("SELECT a.*, m.full_name 
-                    FROM addresses a 
-                    LEFT JOIN members m ON a.member_id = m.id 
-                    ORDER BY m.full_name, a.is_default DESC, a.id DESC");
+    $whereParts = [];
+    $params = [];
+
+    if ($filter_member_name !== '') {
+      $whereParts[] = "m.full_name LIKE ?";
+      $params[] = '%' . $filter_member_name . '%';
+    }
+    if ($filter_full_address !== '') {
+      $whereParts[] = "a.full_address LIKE ?";
+      $params[] = '%' . $filter_full_address . '%';
+    }
+    if ($filter_city !== '') {
+      $whereParts[] = "a.city LIKE ?";
+      $params[] = '%' . $filter_city . '%';
+    }
+    if ($filter_district !== '') {
+      $whereParts[] = "a.district LIKE ?";
+      $params[] = '%' . $filter_district . '%';
+    }
+    if ($filter_status === 'default') {
+      $whereParts[] = "a.is_default = 1";
+    } elseif ($filter_status === 'secondary') {
+      $whereParts[] = "a.is_default = 0";
+    }
+
+    $sql = "SELECT a.*, m.full_name
+        FROM addresses a
+        LEFT JOIN members m ON a.member_id = m.id";
+    if (!empty($whereParts)) {
+      $sql .= " WHERE " . implode(' AND ', $whereParts);
+    }
+    $sql .= " ORDER BY m.full_name, a.is_default DESC, a.id DESC";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
 $addresses = $stmt->fetchAll();
 
 // Lấy danh sách hội viên cho form
@@ -143,6 +212,38 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
+                <form method="GET" class="mb-3">
+                  <div class="row">
+                    <div class="col-md-3 mb-2">
+                      <input type="text" name="filter_member_name" class="form-control" placeholder="Lọc theo tên hội viên" value="<?php echo htmlspecialchars($filter_member_name); ?>">
+                    </div>
+                    <div class="col-md-3 mb-2">
+                      <input type="text" name="filter_full_address" class="form-control" placeholder="Lọc theo địa chỉ đầy đủ" value="<?php echo htmlspecialchars($filter_full_address); ?>">
+                    </div>
+                    <div class="col-md-2 mb-2">
+                      <input type="text" name="filter_city" class="form-control" placeholder="Lọc theo thành phố" value="<?php echo htmlspecialchars($filter_city); ?>">
+                    </div>
+                    <div class="col-md-2 mb-2">
+                      <input type="text" name="filter_district" class="form-control" placeholder="Lọc theo quận/huyện" value="<?php echo htmlspecialchars($filter_district); ?>">
+                    </div>
+                    <div class="col-md-2 mb-2">
+                      <select name="filter_status" class="form-control">
+                        <option value="">-- Trạng thái --</option>
+                        <option value="default" <?php echo $filter_status === 'default' ? 'selected' : ''; ?>>Mặc định</option>
+                        <option value="secondary" <?php echo $filter_status === 'secondary' ? 'selected' : ''; ?>>Phụ</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="d-flex">
+                    <button type="submit" class="btn btn-info btn-sm mr-2">
+                      <i class="fas fa-filter"></i> Lọc
+                    </button>
+                    <a href="addresses.php" class="btn btn-secondary btn-sm">
+                      <i class="fas fa-times"></i> Xóa bộ lọc
+                    </a>
+                  </div>
+                </form>
+
                 <table id="addressTable" class="table table-bordered table-striped">
                   <thead>
                   <tr>
@@ -202,7 +303,7 @@ include 'layout/sidebar.php';
         <h4 class="modal-title" id="modalTitle">Thêm Địa Chỉ</h4>
         <button type="button" class="close" data-dismiss="modal">&times;</button>
       </div>
-      <form method="POST">
+      <form method="POST" id="addressForm">
         <div class="modal-body">
           <input type="hidden" name="id" id="address_id">
           <div class="form-group">
@@ -218,19 +319,19 @@ include 'layout/sidebar.php';
           </div>
           <div class="form-group">
             <label>Địa chỉ đầy đủ <span class="text-danger">*</span></label>
-            <textarea name="full_address" id="full_address" class="form-control" rows="3" required placeholder="Số nhà, tên đường..."></textarea>
+            <textarea name="full_address" id="full_address" class="form-control" rows="3" required maxlength="255" placeholder="Số nhà, tên đường..."></textarea>
           </div>
           <div class="row">
             <div class="col-md-6">
               <div class="form-group">
                 <label>Thành phố</label>
-                <input type="text" name="city" id="city" class="form-control" placeholder="TP. Hồ Chí Minh">
+                <input type="text" name="city" id="city" class="form-control" maxlength="100" placeholder="TP. Hồ Chí Minh">
               </div>
             </div>
             <div class="col-md-6">
               <div class="form-group">
                 <label>Quận/Huyện</label>
-                <input type="text" name="district" id="district" class="form-control" placeholder="Quận 1">
+                <input type="text" name="district" id="district" class="form-control" maxlength="100" placeholder="Quận 1">
               </div>
             </div>
           </div>
@@ -243,7 +344,7 @@ include 'layout/sidebar.php';
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-          <button type="submit" class="btn btn-primary">Lưu</button>
+          <button type="submit" class="btn btn-primary" id="addressSubmitBtn">Lưu</button>
         </div>
       </form>
     </div>
@@ -253,6 +354,8 @@ include 'layout/sidebar.php';
 <script>
 function resetForm() {
   document.getElementById('modalTitle').innerText = 'Thêm Địa Chỉ';
+  document.getElementById('addressSubmitBtn').disabled = false;
+  document.getElementById('addressSubmitBtn').innerText = 'Lưu';
   document.getElementById('address_id').value = '';
   document.getElementById('member_id').value = '';
   document.getElementById('full_address').value = '';
@@ -263,6 +366,8 @@ function resetForm() {
 
 function editAddress(address) {
   document.getElementById('modalTitle').innerText = 'Sửa Địa Chỉ';
+  document.getElementById('addressSubmitBtn').disabled = false;
+  document.getElementById('addressSubmitBtn').innerText = 'Lưu';
   document.getElementById('address_id').value = address.id;
   document.getElementById('member_id').value = address.member_id;
   document.getElementById('full_address').value = address.full_address;
@@ -273,6 +378,12 @@ function editAddress(address) {
 
 // Initialize DataTable
 $(document).ready(function() {
+  $('#addressForm').on('submit', function() {
+    var submitBtn = $('#addressSubmitBtn');
+    submitBtn.prop('disabled', true);
+    submitBtn.text('Đang lưu...');
+  });
+
     $('#addressTable').DataTable({
         "language": {
             "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Vietnamese.json"

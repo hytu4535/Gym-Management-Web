@@ -18,6 +18,33 @@ $db = getDB();
 $message = '';
 $messageType = '';
 
+// Xử lý xóa
+if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+  $deleteId = (int) $_GET['id'];
+
+  try {
+    $countStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE tier_id = ?");
+    $countStmt->execute([$deleteId]);
+    if ((int) $countStmt->fetchColumn() > 0) {
+      throw new Exception("Không thể xóa hạng này vì đang có hội viên sử dụng.");
+    }
+
+    $deleteStmt = $db->prepare("DELETE FROM member_tiers WHERE id = ?");
+    $deleteStmt->execute([$deleteId]);
+
+    if ($deleteStmt->rowCount() > 0) {
+      $message = "Xóa hạng hội viên thành công!";
+      $messageType = "success";
+    } else {
+      $message = "Không tìm thấy hạng hội viên để xóa.";
+      $messageType = "warning";
+    }
+  } catch (Exception $e) {
+    $message = "Lỗi: " . $e->getMessage();
+    $messageType = "danger";
+  }
+}
+
 // Xử lý cập nhật
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id = $_POST['id'];
@@ -41,8 +68,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $messageType = "success";
     } catch (PDOException $e) {
+      $isDuplicateLevel = $e->getCode() === '23000' && (
+        stripos($e->getMessage(), 'uk_tier_level') !== false ||
+        stripos($e->getMessage(), 'member_tiers.uk_tier_level') !== false
+      );
+
+      $isDuplicateName = $e->getCode() === '23000' && (
+        stripos($e->getMessage(), 'uk_tier_name') !== false ||
+        stripos($e->getMessage(), 'member_tiers.uk_tier_name') !== false
+      );
+
+      if ($isDuplicateLevel) {
+        $message = "Lỗi: Trùng cấp độ, đang có hạng khác có cấp độ này";
+      } elseif ($isDuplicateName) {
+        $message = "Lỗi: Trùng tên hạng, đang có hạng khác có tên hạng này";
+      } else {
         $message = "Lỗi: " . $e->getMessage();
-        $messageType = "danger";
+      }
+      $messageType = "danger";
     }
 }
 
@@ -130,6 +173,9 @@ include 'layout/sidebar.php';
                       <button class="btn btn-warning btn-sm" onclick='editTier(<?php echo json_encode($tier); ?>)' data-toggle="modal" data-target="#tierModal">
                         <i class="fas fa-edit"></i>
                       </button>
+                      <a href="?action=delete&id=<?php echo $tier['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa hạng này?')">
+                        <i class="fas fa-trash"></i>
+                      </a>
                     </td>
                   </tr>
                   <?php endforeach; ?>

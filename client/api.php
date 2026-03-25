@@ -290,6 +290,21 @@ function handleMarkNotificationRead(PDO $db, $member, $notificationId)
     jsonResponse(false, 'Không tìm thấy thông báo để cập nhật.');
 }
 
+function handleUnreadNotificationCount(PDO $db, $member)
+{
+    $stmt = $db->prepare(
+        "SELECT COUNT(*)
+         FROM notifications
+         WHERE user_id = ? AND is_read = 0"
+    );
+    $stmt->execute([(int) $member['users_id']]);
+    $count = (int) $stmt->fetchColumn();
+
+    jsonResponse(true, 'OK', [
+        'unread_count' => $count,
+    ]);
+}
+
 function handleSubmitFeedback(PDO $db, $member, $rating, $content)
 {
     $rating = intval($rating);
@@ -426,6 +441,69 @@ function handleSearch(PDO $db, $member, $keyword)
     ]);
 }
 
+function handleNutritionItems(PDO $db)
+{
+    $stmt = $db->query(
+        "SELECT id, name, serving_desc, calories, protein, carbs, fat, notes
+         FROM nutrition_items
+         WHERE status = 'hoạt động'
+         ORDER BY id DESC"
+    );
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    jsonResponse(true, 'OK', [
+        'items' => $items,
+    ]);
+}
+
+function handlePlanMeals(PDO $db, $nutritionPlanId)
+{
+    $nutritionPlanId = intval($nutritionPlanId);
+    if ($nutritionPlanId <= 0) {
+        jsonResponse(false, 'Kế hoạch dinh dưỡng không hợp lệ.');
+    }
+
+    $planStmt = $db->prepare(
+        "SELECT id, name, type, calories, bmi_range, description
+         FROM nutrition_plans
+         WHERE id = ?
+         LIMIT 1"
+    );
+    $planStmt->execute([$nutritionPlanId]);
+    $plan = $planStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$plan) {
+        jsonResponse(false, 'Không tìm thấy kế hoạch dinh dưỡng.');
+    }
+
+    $itemsStmt = $db->prepare(
+        "SELECT npi.id,
+                npi.nutrition_plan_id,
+                npi.item_id,
+                npi.servings_per_day,
+                npi.meal_time,
+                npi.note,
+                ni.name,
+                ni.serving_desc,
+                ni.calories,
+                ni.protein,
+                ni.carbs,
+                ni.fat,
+                ni.notes
+         FROM nutrition_plan_items npi
+         INNER JOIN nutrition_items ni ON ni.id = npi.item_id
+         WHERE npi.nutrition_plan_id = ?
+         ORDER BY npi.id ASC"
+    );
+    $itemsStmt->execute([$nutritionPlanId]);
+    $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    jsonResponse(true, 'OK', [
+        'plan' => $plan,
+        'items' => $items,
+    ]);
+}
+
 try {
     $action = $_POST['action'] ?? $_GET['action'] ?? '';
     $member = resolveMember($db, $_POST['member_id'] ?? $_GET['member_id'] ?? 0);
@@ -451,6 +529,10 @@ try {
             handleMarkNotificationRead($db, $member, $_POST['notification_id'] ?? 0);
             break;
 
+        case 'unread_notification_count':
+            handleUnreadNotificationCount($db, $member);
+            break;
+
         case 'delete_notification':
             handleDeleteNotification($db, $member, $_POST['notification_id'] ?? 0);
             break;
@@ -461,6 +543,14 @@ try {
 
         case 'search':
             handleSearch($db, $member, $_GET['q'] ?? '');
+            break;
+
+        case 'nutrition_items':
+            handleNutritionItems($db);
+            break;
+
+        case 'nutrition_plan_items':
+            handlePlanMeals($db, $_GET['nutrition_plan_id'] ?? $_POST['nutrition_plan_id'] ?? 0);
             break;
 
         default:

@@ -81,24 +81,52 @@ include 'layout/header.php';
     </div>
 </section>
 
+<style>
+.sidebar-item { display:block; padding:10px 15px; color:#333; border-radius:5px; margin-bottom:5px; text-decoration:none; }
+.sidebar-item:hover, .sidebar-item.active { background:#f36100; color:#fff; text-decoration:none; }
+.sidebar-item i { margin-right:8px; width:16px; }
+.profile-sidebar { background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.08); position:sticky; top:20px; }
+.user-avatar { color:#f36100; margin-bottom:15px; }
+</style>
+
 <section class="order-history-section spad">
     <div class="container">
         <div class="row">
-            <div class="col-lg-3">
+                        <div class="col-lg-3">
                 <div class="profile-sidebar">
-                    <div class="profile-avatar text-center mb-3">
-                        <img src="assets/img/avatar-default.jpg" alt="Avatar" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid #e7ab3c;">
+                    <div class="user-info text-center">
+                        <div class="user-avatar">
+                            <i class="fa fa-user-circle fa-5x" style="color:#f36100;"></i>
+                        </div>
+                        <h5 class="mt-3"><?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Hội viên'); ?></h5>
+                        <p style="color:#888;font-size:13px;"><?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?></p>
                     </div>
-                    <h4 class="text-center mb-4"><?php echo htmlspecialchars($member['full_name']); ?></h4>
-                    <ul class="profile-menu" style="list-style: none; padding: 0;">
-                        <li style="margin-bottom: 15px;"><a href="profile.php" style="color: #333; text-decoration: none;">Thông tin cá nhân</a></li>
-                        <li style="margin-bottom: 15px;"><a href="order-history.php" style="color: #e7ab3c; font-weight: bold;">Lịch sử mua hàng</a></li>
-                        <li style="margin-bottom: 15px;"><a href="addresses.php" style="color: #333; text-decoration: none;">Địa chỉ giao hàng</a></li>
-                        <li><a href="logout.php" style="color: #dc3545; text-decoration: none;">Đăng xuất</a></li>
-                    </ul>
+                    <hr>
+                    <div class="sidebar-menu">
+                        <a href="profile.php" class="sidebar-item">
+                            <i class="fa fa-user"></i> Thông tin cá nhân
+                        </a>
+                        <a href="my-membership.php" class="sidebar-item">
+                            <i class="fa fa-star"></i> Thông tin hội viên
+                        </a>
+                        <a href="my-packages.php" class="sidebar-item">
+                            <i class="fa fa-ticket"></i> Gói tập của tôi
+                        </a>
+                        <a href="my-schedules.php" class="sidebar-item">
+                            <i class="fa fa-calendar"></i> Lịch tập của tôi
+                        </a>
+                        <a href="order-history.php" class="sidebar-item" active>
+                            <i class="fa fa-shopping-bag"></i> Lịch sử mua hàng
+                        </a>
+                        <a href="addresses.php" class="sidebar-item">
+                            <i class="fa fa-map-marker"></i> Địa chỉ
+                        </a>
+                        <a href="logout.php" class="sidebar-item text-danger">
+                            <i class="fa fa-sign-out"></i> Đăng xuất
+                        </a>
+                    </div>
                 </div>
             </div>
-
             <div class="col-lg-9">
                 <div class="order-history-content">
                     <h4 class="mb-4">Danh sách đơn hàng</h4>

@@ -1,6 +1,5 @@
 <?php include 'layout/header.php'; ?>
 
-<!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
     <div class="container">
         <div class="row">
@@ -16,9 +15,7 @@
         </div>
     </div>
 </section>
-<!-- Breadcrumb Section End -->
 
-<!-- Register Section Begin -->
 <section class="register-section spad">
     <div class="container">
         <div class="row">
@@ -50,22 +47,6 @@
                             <label>Xác nhận mật khẩu <span>*</span></label>
                             <input type="password" id="confirm_password" name="confirm_password" required>
                         </div>
-                        <div class="form-group">
-                            <label>Ngày sinh</label>
-                            <input type="date" id="birth_date" name="birth_date">
-                        </div>
-                        <div class="form-group">
-                            <label>Giới tính</label>
-                            <select id="gender" name="gender" class="form-control">
-                                <option value="Male">Nam</option>
-                                <option value="Female">Nữ</option>
-                                <option value="Other">Khác</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Địa chỉ</label>
-                            <textarea id="address" name="address" rows="3"></textarea>
-                        </div>
                         <div id="message-container"></div>
                         <button type="submit" class="site-btn">Đăng ký</button>
                     </form>
@@ -77,42 +58,48 @@
         </div>
     </div>
 </section>
-<!-- Register Section End -->
 
 <script>
-// TODO: Implement AJAX registration với Fetch API
 document.getElementById('register-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    
-    // Validate password match
+
+    var email = document.getElementById('email').value;
+    var phone = document.getElementById('phone').value;
     var password = document.getElementById('password').value;
     var confirmPassword = document.getElementById('confirm_password').value;
-    
+
+    var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    var phoneRegex = /^[0-9]{10}$/;
+
+    if (!emailRegex.test(email)) {
+        showMessage('Email không đúng định dạng!', 'error');
+        return;
+    }
+    if (!phoneRegex.test(phone)) {
+        showMessage('Số điện thoại phải có 10 chữ số!', 'error');
+        return;
+    }
     if (password !== confirmPassword) {
         showMessage('Mật khẩu không khớp!', 'error');
         return;
     }
-    
-    // TODO: Send data to ajax/register-process.php using Fetch API
+
     var formData = new FormData(this);
-    
     fetch('ajax/register-process.php', {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
         if (data.success) {
             showMessage(data.message, 'success');
-            setTimeout(() => {
-                window.location.href = 'login.php';
-            }, 2000);
+            setTimeout(() => { window.location.href = 'login.php?registered=success'; }, 2000);
         } else {
             showMessage(data.message, 'error');
         }
     })
-    .catch(error => {
-        console.error('Error:', error);
+    .catch(err => {
+        console.error(err);
         showMessage('Có lỗi xảy ra!', 'error');
     });
 });

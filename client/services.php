@@ -99,12 +99,23 @@ include 'layout/header.php';
                         $buttonDisabled = 'disabled';
                     }
 
-                    $imagePath = !empty($service['img']) ? '../' . ltrim($service['img'], '/') : 'assets/img/services/services-1.jpg';
+                    if (!empty($service['img'])) {
+                        $storedImagePath = ltrim($service['img'], '/');
+                        if (strpos($storedImagePath, 'assets/uploads/services/') === 0 || strpos($storedImagePath, 'assets/') === 0) {
+                            $imagePath = '../' . $storedImagePath;
+                        } else {
+                            $imagePath = '../assets/uploads/services/' . $storedImagePath;
+                        }
+                    } else {
+                        $imagePath = 'assets/img/services/services-1.jpg';
+                    }
                     ?>
                     <div class="col-lg-4 col-sm-6 mb-4">
                         <div class="services-item" style="padding-bottom: 20px;">
                             <img src="<?php echo htmlspecialchars($imagePath); ?>" alt="<?php echo htmlspecialchars($service['name']); ?>" style="height: 220px; width: 100%; object-fit: cover;">
-                            <h4><?php echo htmlspecialchars($service['name']); ?></h4>
+                            <h4 style="color: #ffffff; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);">
+                                <?php echo htmlspecialchars($service['name']); ?>
+                            </h4>
                             <p style="min-height: 72px;"><?php echo htmlspecialchars($service['description'] ?? 'Dịch vụ chăm sóc và hỗ trợ hội viên.'); ?></p>
                             <div style="font-weight: 700; color: #f36100; margin-bottom: 12px;">
                                 <?php echo number_format((float) $service['price'], 0, ',', '.'); ?>đ

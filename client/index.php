@@ -1,4 +1,31 @@
-<?php include 'layout/header.php'; ?>
+<?php
+require_once '../config/db.php';
+
+$featuredProducts = [];
+$featuredSql = "SELECT
+                    p.id,
+                    p.name,
+                    p.img,
+                    p.selling_price,
+                    c.name AS category_name,
+                    COALESCE(SUM(oi.quantity), 0) AS sold_qty
+                FROM products p
+                LEFT JOIN categories c ON c.id = p.category_id
+                LEFT JOIN order_items oi ON oi.item_type = 'product' AND oi.item_id = p.id
+                LEFT JOIN orders o ON o.id = oi.order_id AND o.status <> 'cancelled'
+                WHERE p.status = 'active'
+                GROUP BY p.id, p.name, p.img, p.selling_price, c.name
+                ORDER BY sold_qty DESC, p.id DESC
+                LIMIT 4";
+
+if ($featuredResult = $conn->query($featuredSql)) {
+    while ($row = $featuredResult->fetch_assoc()) {
+        $featuredProducts[] = $row;
+    }
+}
+
+include 'layout/header.php';
+?>
 
 <!-- Hero Section Begin -->
 <section class="hero-section">
@@ -186,90 +213,41 @@
             </div>
         </div>
         <div class="row">
-            <!-- TODO: Load sản phẩm nổi bật từ database -->
-            <div class="col-lg-3 col-md-4 col-sm-6">
-                <div class="product-item">
-                    <div class="pi-pic">
-                        <img src="assets/img/products/product-1.jpg" alt="" style="width: 100%; height: 250px; object-fit: cover;">
-                        <div class="sale">Sale</div>
-                        <ul class="pi-links">
-                            <li><a href="product-detail.php?id=1" class="view-btn"><i class="fa fa-eye"></i></a></li>
-                            <li><a href="#" class="add-cart" onclick="addToCart(1); return false;"><i class="fa fa-shopping-cart"></i></a></li>
-                        </ul>
-                    </div>
-                    <div class="pi-text">
-                        <div class="catagory-name">Thực phẩm bổ sung</div>
-                        <a href="product-detail.php?id=1">
-                            <h5>Whey Protein</h5>
-                        </a>
-                        <div class="product-price">
-                            1.200.000 VNĐ
-                            <span>1.500.000 VNĐ</span>
+            <?php if (!empty($featuredProducts)): ?>
+                <?php foreach ($featuredProducts as $product): ?>
+                    <?php
+                        $imageFile = $product['img'] ?? '';
+                        $imgPath = !empty($imageFile) ? "../assets/uploads/products/{$imageFile}" : "../assets/uploads/products/default-product.jpg";
+                    ?>
+                    <div class="col-lg-3 col-md-4 col-sm-6">
+                        <div class="product-item">
+                            <div class="pi-pic">
+                                <img src="<?= htmlspecialchars($imgPath) ?>" alt="<?= htmlspecialchars($product['name']) ?>" style="width: 100%; height: 250px; object-fit: cover;">
+                                <?php if ((int) $product['sold_qty'] > 0): ?>
+                                    <div class="sale">Top</div>
+                                <?php endif; ?>
+                                <ul class="pi-links">
+                                    <li><a href="product-detail.php?id=<?= (int) $product['id'] ?>" class="view-btn"><i class="fa fa-eye"></i></a></li>
+                                    <li><a href="#" class="add-cart" onclick="addToCart(<?= (int) $product['id'] ?>); return false;"><i class="fa fa-shopping-cart"></i></a></li>
+                                </ul>
+                            </div>
+                            <div class="pi-text">
+                                <div class="catagory-name"><?= htmlspecialchars($product['category_name'] ?: 'Chưa phân loại') ?></div>
+                                <a href="product-detail.php?id=<?= (int) $product['id'] ?>">
+                                    <h5><?= htmlspecialchars($product['name']) ?></h5>
+                                </a>
+                                <div class="product-price">
+                                    <?= number_format((float) $product['selling_price'], 0, ',', '.') ?> VNĐ
+                                </div>
+                            </div>
                         </div>
                     </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="col-lg-12 text-center">
+                    <p>Chưa có sản phẩm nổi bật để hiển thị.</p>
                 </div>
-            </div>
-            <div class="col-lg-3 col-md-4 col-sm-6">
-                <div class="product-item">
-                    <div class="pi-pic">
-                        <img src="assets/img/products/product-2.jpg" alt="" style="width: 100%; height: 250px; object-fit: cover;">
-                        <ul class="pi-links">
-                            <li><a href="product-detail.php?id=2" class="view-btn"><i class="fa fa-eye"></i></a></li>
-                            <li><a href="#" class="add-cart" onclick="addToCart(2); return false;"><i class="fa fa-shopping-cart"></i></a></li>
-                        </ul>
-                    </div>
-                    <div class="pi-text">
-                        <div class="catagory-name">Phụ kiện tập luyện</div>
-                        <a href="product-detail.php?id=2">
-                            <h5>Găng tay tập Gym</h5>
-                        </a>
-                        <div class="product-price">
-                            250.000 VNĐ
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-4 col-sm-6">
-                <div class="product-item">
-                    <div class="pi-pic">
-                        <img src="assets/img/products/product-3.jpg" alt="" style="width: 100%; height: 250px; object-fit: cover;">
-                        <ul class="pi-links">
-                            <li><a href="product-detail.php?id=3" class="view-btn"><i class="fa fa-eye"></i></a></li>
-                            <li><a href="#" class="add-cart" onclick="addToCart(3); return false;"><i class="fa fa-shopping-cart"></i></a></li>
-                        </ul>
-                    </div>
-                    <div class="pi-text">
-                        <div class="catagory-name">Thiết bị tập</div>
-                        <a href="product-detail.php?id=3">
-                            <h5>Tạ tay 5kg</h5>
-                        </a>
-                        <div class="product-price">
-                            350.000 VNĐ
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-4 col-sm-6">
-                <div class="product-item">
-                    <div class="pi-pic">
-                        <img src="assets/img/products/product-4.jpg" alt="" style="width: 100%; height: 250px; object-fit: cover;">
-                        <div class="sale">Hot</div>
-                        <ul class="pi-links">
-                            <li><a href="product-detail.php?id=4" class="view-btn"><i class="fa fa-eye"></i></a></li>
-                            <li><a href="#" class="add-cart" onclick="addToCart(4); return false;"><i class="fa fa-shopping-cart"></i></a></li>
-                        </ul>
-                    </div>
-                    <div class="pi-text">
-                        <div class="catagory-name">Thực phẩm bổ sung</div>
-                        <a href="product-detail.php?id=4">
-                            <h5>Mass Gainer</h5>
-                        </a>
-                        <div class="product-price">
-                            950.000 VNĐ
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <?php endif; ?>
         </div>
         <div class="row">
             <div class="col-lg-12 text-center">

@@ -103,9 +103,15 @@ $promotionUsages = $usageStmt->fetchAll();
                         <td><?= number_format((float) $usage['applied_amount'], 0, ',', '.') ?> VNĐ</td>
                         <td><?= date('d/m/Y H:i', strtotime($usage['applied_at'])) ?></td>
                         <td>
-                          <button type="button" class="btn btn-info btn-sm" title="ID hội viên: <?= $usage['member_id'] ?> | ID khuyến mãi: <?= $usage['promotion_id'] ?>">
-                            <i class="fas fa-eye"></i>
-                          </button>
+                          <?php if (!empty($usage['order_id'])): ?>
+                            <a href="order-items.php?id=<?= (int) $usage['order_id'] ?>" class="btn btn-info btn-sm" title="Xem chi tiết đơn hàng #<?= (int) $usage['order_id'] ?>">
+                              <i class="fas fa-eye"></i>
+                            </a>
+                          <?php else: ?>
+                            <button type="button" class="btn btn-secondary btn-sm" title="Bản ghi này không gắn với đơn hàng" disabled>
+                              <i class="fas fa-eye-slash"></i>
+                            </button>
+                          <?php endif; ?>
                         </td>
                       </tr>
                     <?php endforeach; ?>

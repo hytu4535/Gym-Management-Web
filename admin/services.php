@@ -17,6 +17,62 @@ include '../includes/functions.php';
 
 $db = getDB();
 
+function processServiceImageUpload($fileInputName, $existingPath = null) {
+  if (!isset($_FILES[$fileInputName]) || !is_array($_FILES[$fileInputName])) {
+    return $existingPath;
+  }
+
+  $file = $_FILES[$fileInputName];
+
+  if (!isset($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
+    return $existingPath;
+  }
+
+  if ($file['error'] !== UPLOAD_ERR_OK) {
+    throw new RuntimeException('Tải ảnh thất bại. Vui lòng thử lại.');
+  }
+
+  if (!is_uploaded_file($file['tmp_name'])) {
+    throw new RuntimeException('Tệp tải lên không hợp lệ.');
+  }
+
+  $finfo = @getimagesize($file['tmp_name']);
+  if ($finfo === false) {
+    throw new RuntimeException('Vui lòng chọn đúng tệp hình ảnh.');
+  }
+
+  $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+  $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+  if (!in_array($extension, $allowedExtensions, true)) {
+    throw new RuntimeException('Ảnh chỉ hỗ trợ định dạng: jpg, jpeg, png, webp, gif.');
+  }
+
+  $uploadDirAbsolute = realpath(__DIR__ . '/../assets/uploads');
+  if ($uploadDirAbsolute === false) {
+    $uploadDirAbsolute = __DIR__ . '/../assets/uploads';
+  }
+
+  $serviceDirAbsolute = $uploadDirAbsolute . '/services';
+  if (!is_dir($serviceDirAbsolute) && !mkdir($serviceDirAbsolute, 0755, true)) {
+    throw new RuntimeException('Không thể tạo thư mục lưu ảnh dịch vụ.');
+  }
+
+  $newFileName = 'service_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
+  $targetAbsolutePath = $serviceDirAbsolute . '/' . $newFileName;
+  if (!move_uploaded_file($file['tmp_name'], $targetAbsolutePath)) {
+    throw new RuntimeException('Không thể lưu ảnh dịch vụ.');
+  }
+
+  if (!empty($existingPath) && strpos($existingPath, 'assets/uploads/services/') === 0) {
+    $oldAbsolutePath = __DIR__ . '/../' . ltrim($existingPath, '/');
+    if (is_file($oldAbsolutePath)) {
+      @unlink($oldAbsolutePath);
+    }
+  }
+
+  return 'assets/uploads/services/' . $newFileName;
+}
+
 // Xử lý thêm dịch vụ
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
@@ -27,11 +83,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $status = $_POST['status'];
 
         try {
-            $stmt = $db->prepare("INSERT INTO services (name, type, price, description, status) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$name, $type, $price, $description, $status]);
+      $imagePath = processServiceImageUpload('img');
+      $stmt = $db->prepare("INSERT INTO services (name, img, type, price, description, status) VALUES (?, ?, ?, ?, ?, ?)");
+      $stmt->execute([$name, $imagePath, $type, $price, $description, $status]);
             setFlashMessage('success', 'Thêm dịch vụ thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
+    } catch (RuntimeException $e) {
+      setFlashMessage('danger', $e->getMessage());
         }
         redirect('services.php');
         exit;
@@ -44,13 +103,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $price = floatval($_POST['price']);
         $description = sanitize($_POST['description']);
         $status = $_POST['status'];
+        $oldImagePath = !empty($_POST['old_img']) ? sanitize($_POST['old_img']) : null;
 
         try {
-            $stmt = $db->prepare("UPDATE services SET name = ?, type = ?, price = ?, description = ?, status = ? WHERE id = ?");
-            $stmt->execute([$name, $type, $price, $description, $status, $id]);
+          $imagePath = processServiceImageUpload('img', $oldImagePath);
+          $stmt = $db->prepare("UPDATE services SET name = ?, img = ?, type = ?, price = ?, description = ?, status = ? WHERE id = ?");
+          $stmt->execute([$name, $imagePath, $type, $price, $description, $status, $id]);
             setFlashMessage('success', 'Cập nhật dịch vụ thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
+        } catch (RuntimeException $e) {
+          setFlashMessage('danger', $e->getMessage());
         }
         redirect('services.php');
         exit;
@@ -59,8 +122,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'delete') {
         $id = intval($_POST['id']);
         try {
+        $stmt = $db->prepare("SELECT img FROM services WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        $serviceToDelete = $stmt->fetch();
+
             $stmt = $db->prepare("DELETE FROM services WHERE id = ?");
             $stmt->execute([$id]);
+
+        if (!empty($serviceToDelete['img']) && strpos($serviceToDelete['img'], 'assets/uploads/services/') === 0) {
+          $oldAbsolutePath = __DIR__ . '/../' . ltrim($serviceToDelete['img'], '/');
+          if (is_file($oldAbsolutePath)) {
+            @unlink($oldAbsolutePath);
+          }
+        }
+
             setFlashMessage('success', 'Xóa dịch vụ thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: Không thể xóa dịch vụ. ' . $e->getMessage());
@@ -128,6 +203,7 @@ include 'layout/sidebar.php';
                   <thead>
                   <tr>
                     <th>ID</th>
+                    <th>Ảnh</th>
                     <th>Tên dịch vụ</th>
                     <th>Loại</th>
                     <th>Giá (VNĐ)</th>
@@ -138,8 +214,15 @@ include 'layout/sidebar.php';
                   </thead>
                   <tbody>
                   <?php foreach ($services as $service): ?>
+                  <?php $serviceImage = !empty($service['img']) ? '../' . ltrim($service['img'], '/') : '../assets/user_template/img/services/services-1.jpg'; ?>
                   <tr>
                     <td><?= $service['id'] ?></td>
+                    <td style="width: 90px;">
+                      <img src="<?= htmlspecialchars($serviceImage) ?>"
+                           alt="<?= htmlspecialchars($service['name']) ?>"
+                           style="width: 70px; height: 50px; object-fit: cover; border-radius: 6px;"
+                           onerror="this.onerror=null;this.src='../assets/user_template/img/services/services-1.jpg';">
+                    </td>
                     <td><?= htmlspecialchars($service['name']) ?></td>
                     <td><?= ucfirst($service['type']) ?></td>
                     <td><?= formatCurrency($service['price']) ?></td>
@@ -158,6 +241,7 @@ include 'layout/sidebar.php';
                         data-type="<?= $service['type'] ?>"
                         data-price="<?= $service['price'] ?>"
                         data-description="<?= htmlspecialchars($service['description'] ?? '') ?>"
+                        data-img="<?= htmlspecialchars($service['img'] ?? '') ?>"
                         data-status="<?= $service['status'] ?>"
                         data-toggle="modal" data-target="#editServiceModal">
                         <i class="fas fa-edit"></i>
@@ -184,7 +268,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="addServiceModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="services.php">
+          <form method="POST" action="services.php" enctype="multipart/form-data">
             <input type="hidden" name="action" value="add">
             <div class="modal-header">
               <h5 class="modal-title">Thêm dịch vụ mới</h5>
@@ -212,6 +296,11 @@ include 'layout/sidebar.php';
                 <textarea class="form-control" name="description" rows="3" placeholder="Nhập mô tả dịch vụ"></textarea>
               </div>
               <div class="form-group">
+                <label>Hình ảnh dịch vụ</label>
+                <input type="file" class="form-control" name="img" accept="image/*">
+                <small class="text-muted">Ảnh sẽ được lưu tại assets/uploads/services</small>
+              </div>
+              <div class="form-group">
                 <label>Trạng thái</label>
                 <select class="form-control" name="status">
                   <option value="hoạt động">Hoạt động</option>
@@ -232,9 +321,10 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="editServiceModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="services.php">
+          <form method="POST" action="services.php" enctype="multipart/form-data">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
+            <input type="hidden" name="old_img" id="edit-old-img">
             <div class="modal-header">
               <h5 class="modal-title">Sửa dịch vụ</h5>
               <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
@@ -259,6 +349,17 @@ include 'layout/sidebar.php';
               <div class="form-group">
                 <label>Mô tả</label>
                 <textarea class="form-control" name="description" id="edit-description" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Ảnh hiện tại</label>
+                <div>
+                  <img id="edit-preview-img" src="../assets/user_template/img/services/services-1.jpg" alt="Ảnh dịch vụ" style="width: 120px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd;">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Đổi hình ảnh dịch vụ</label>
+                <input type="file" class="form-control" name="img" accept="image/*">
+                <small class="text-muted">Để trống nếu không muốn thay đổi ảnh</small>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
@@ -315,6 +416,9 @@ $(function() {
     $('#edit-type').val($(this).data('type'));
     $('#edit-price').val($(this).data('price'));
     $('#edit-description').val($(this).data('description'));
+    const imgPath = $(this).data('img') || '';
+    $('#edit-old-img').val(imgPath);
+    $('#edit-preview-img').attr('src', imgPath ? ('../' + imgPath.replace(/^\/+/, '')) : '../assets/user_template/img/services/services-1.jpg');
     $('#edit-status').val($(this).data('status'));
   });
 

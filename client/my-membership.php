@@ -44,6 +44,18 @@ $bmi_stmt->bind_param("i", $member_id);
 $bmi_stmt->execute();
 $latest_bmi = $bmi_stmt->get_result()->fetch_assoc();
 
+// Lấy lịch sử BMI của hội viên
+$bmi_history_query = "SELECT bm.id, bm.height, bm.weight, bm.bmi, bm.body_type, bm.measured_at,
+                             bd.device_code, bd.location
+                      FROM bmi_measurements bm
+                      LEFT JOIN bmi_devices bd ON bm.device_id = bd.id
+                      WHERE bm.member_id = ?
+                      ORDER BY bm.measured_at DESC, bm.id DESC";
+$bmi_history_stmt = $conn->prepare($bmi_history_query);
+$bmi_history_stmt->bind_param("i", $member_id);
+$bmi_history_stmt->execute();
+$bmi_history = $bmi_history_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
 // Tính BMI từ height/weight hiện tại nếu không có đo lường
 $current_bmi = null;
 $current_body_type = 'Chưa xác định';
@@ -114,6 +126,34 @@ function getBodyTypeText($type) {
         'beo phi' => 'Béo phì'
     ];
     return $types[$type] ?? ucfirst($type);
+}
+
+// Hàm lấy class màu cho trạng thái BMI
+function getBmiStatusClass($type) {
+    $classes = [
+        'gay' => 'status-underweight',
+        'binh thuong' => 'status-normal',
+        'thua can' => 'status-overweight',
+        'beo phi' => 'status-obese'
+    ];
+
+    return $classes[$type] ?? 'status-normal';
+}
+
+function getBmiStatusClassByValue($bmi) {
+    if ($bmi < 18.5) {
+        return 'status-underweight';
+    }
+
+    if ($bmi < 25) {
+        return 'status-normal';
+    }
+
+    if ($bmi < 30) {
+        return 'status-overweight';
+    }
+
+    return 'status-obese';
 }
 
 // Hàm chuyển đổi discount_type
@@ -424,6 +464,34 @@ include 'layout/header.php';
     padding: 15px;
     margin-top: 20px;
 }
+
+.bmi-history-table {
+    margin-top: 10px;
+}
+
+.bmi-history-table th {
+    background: #f4f6f9;
+    white-space: nowrap;
+}
+
+.bmi-history-table td {
+    vertical-align: middle;
+}
+
+.delta-up {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.delta-down {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.delta-flat {
+    color: #6c757d;
+    font-weight: 600;
+}
 </style>
 
 <!-- Breadcrumb Section Begin -->
@@ -473,7 +541,7 @@ include 'layout/header.php';
                         </div>
                         <div class="bmi-info-item">
                             <strong>Phân loại:</strong>
-                            <span class="bmi-status status-<?= strtolower(str_replace(' ', '', getBodyTypeText($latest_bmi['body_type']))) ?>">
+                            <span class="bmi-status <?= getBmiStatusClass($latest_bmi['body_type']) ?>">
                                 <?= getBodyTypeText($latest_bmi['body_type']) ?>
                             </span>
                         </div>
@@ -507,7 +575,7 @@ include 'layout/header.php';
                         </div>
                         <div class="bmi-info-item">
                             <strong>Phân loại:</strong>
-                            <span class="bmi-status"><?= $current_body_type ?></span>
+                            <span class="bmi-status <?= getBmiStatusClassByValue($current_bmi) ?>"><?= $current_body_type ?></span>
                         </div>
                     </div>
                 </div>
@@ -520,6 +588,90 @@ include 'layout/header.php';
                     <i class="fa fa-chart-line"></i>
                     <h5>Chưa có thông tin BMI</h5>
                     <p>Vui lòng cập nhật chiều cao và cân nặng trong hồ sơ hoặc đến phòng gym để đo BMI.</p>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- BMI History Card -->
+        <div class="membership-card">
+            <h3>
+                <i class="fa fa-history"></i>
+                Lịch Sử Đo BMI
+            </h3>
+
+            <?php if (!empty($bmi_history)): ?>
+                <div class="table-responsive bmi-history-table">
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Ngày đo</th>
+                                <th>BMI</th>
+                                <th>Thể trạng</th>
+                                <th>Chiều cao</th>
+                                <th>Cân nặng</th>
+                                <th>Biến động BMI</th>
+                                <th>Thiết bị</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($bmi_history as $index => $measure): ?>
+                                <?php
+                                    $olderMeasure = $bmi_history[$index + 1] ?? null;
+                                    $deltaText = '--';
+                                    $deltaClass = 'delta-flat';
+
+                                    if ($olderMeasure) {
+                                        $delta = (float) $measure['bmi'] - (float) $olderMeasure['bmi'];
+
+                                        if ($delta > 0.01) {
+                                            $deltaText = '+' . number_format($delta, 2);
+                                            $deltaClass = 'delta-up';
+                                        } elseif ($delta < -0.01) {
+                                            $deltaText = number_format($delta, 2);
+                                            $deltaClass = 'delta-down';
+                                        } else {
+                                            $deltaText = '0.00';
+                                            $deltaClass = 'delta-flat';
+                                        }
+                                    }
+                                ?>
+                                <tr>
+                                    <td><?= $index + 1 ?></td>
+                                    <td><?= date('d/m/Y H:i', strtotime($measure['measured_at'])) ?></td>
+                                    <td><strong><?= number_format((float) $measure['bmi'], 2) ?></strong></td>
+                                    <td>
+                                        <span class="bmi-status <?= getBmiStatusClass($measure['body_type']) ?>">
+                                            <?= getBodyTypeText($measure['body_type']) ?>
+                                        </span>
+                                    </td>
+                                    <td><?= number_format((float) $measure['height'], 0) ?> cm</td>
+                                    <td><?= number_format((float) $measure['weight'], 1) ?> kg</td>
+                                    <td><span class="<?= $deltaClass ?>"><?= $deltaText ?></span></td>
+                                    <td>
+                                        <?php if (!empty($measure['device_code'])): ?>
+                                            <?= htmlspecialchars($measure['device_code']) ?>
+                                            <?php if (!empty($measure['location'])): ?>
+                                                <div class="text-muted small"><?= htmlspecialchars($measure['location']) ?></div>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">N/A</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="fa fa-info-circle"></i>
+                    Dữ liệu được sắp xếp từ lần đo mới nhất đến cũ nhất.
+                </div>
+            <?php else: ?>
+                <div class="no-benefits">
+                    <i class="fa fa-heartbeat"></i>
+                    <h5>Bạn chưa có lịch sử đo BMI</h5>
+                    <p>Hãy đến phòng gym để thực hiện lần đo đầu tiên và theo dõi tiến độ sức khỏe của bạn.</p>
                 </div>
             <?php endif; ?>
         </div>

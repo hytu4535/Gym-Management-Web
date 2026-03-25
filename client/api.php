@@ -290,6 +290,21 @@ function handleMarkNotificationRead(PDO $db, $member, $notificationId)
     jsonResponse(false, 'Không tìm thấy thông báo để cập nhật.');
 }
 
+function handleUnreadNotificationCount(PDO $db, $member)
+{
+    $stmt = $db->prepare(
+        "SELECT COUNT(*)
+         FROM notifications
+         WHERE user_id = ? AND is_read = 0"
+    );
+    $stmt->execute([(int) $member['users_id']]);
+    $count = (int) $stmt->fetchColumn();
+
+    jsonResponse(true, 'OK', [
+        'unread_count' => $count,
+    ]);
+}
+
 function handleSubmitFeedback(PDO $db, $member, $rating, $content)
 {
     $rating = intval($rating);
@@ -449,6 +464,10 @@ try {
 
         case 'mark_notification_read':
             handleMarkNotificationRead($db, $member, $_POST['notification_id'] ?? 0);
+            break;
+
+        case 'unread_notification_count':
+            handleUnreadNotificationCount($db, $member);
             break;
 
         case 'delete_notification':

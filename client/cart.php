@@ -162,7 +162,7 @@ include 'layout/header.php';
                                                     <div class="quantity">
                                                         <div class="custom-pro-qty">
                                                             <?php if ($isProduct): ?>
-                                                                <input type="number" value="<?php echo $itemQuantity; ?>" min="1" max="<?php echo (int) $item['stock_quantity']; ?>" onchange="updateQuantity('product', <?php echo $id; ?>, this.value)" style="width: 70px; height: 35px; text-align: center; border: 1px solid #ebebeb; border-radius: 4px; outline: none;">
+                                                                <input type="number" value="<?php echo $itemQuantity; ?>" min="0" max="<?php echo (int) $item['stock_quantity']; ?>" onchange="updateQuantity('product', <?php echo $id; ?>, this.value)" style="width: 70px; height: 35px; text-align: center; border: 1px solid #ebebeb; border-radius: 4px; outline: none;">
                                                             <?php else: ?>
                                                                 <input type="number" value="1" min="1" max="1" readonly style="width: 70px; height: 35px; text-align: center; border: 1px solid #ebebeb; border-radius: 4px; outline: none; background: #f3f3f3; cursor: not-allowed;">
                                                             <?php endif; ?>
@@ -311,7 +311,11 @@ include 'layout/header.php';
 
 <script>
 function updateQuantity(itemType, itemId, newQuantity) {
-    if (newQuantity < 1) return;
+    if (newQuantity < 1) {
+        removeFromCart(itemType, itemId);
+        window.location.reload();
+        return;
+    }
     if (itemType === 'package' || itemType === 'service') return;
     
     var formData = new FormData();

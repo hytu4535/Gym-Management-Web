@@ -325,7 +325,7 @@ include 'layout/header.php';
                                 <input type="hidden" name="transfer_code" value="<?php echo htmlspecialchars($plannedTransferCode); ?>">
                                 <div class="form-group">
                                     <label for="proof-image">Ảnh biên lai (bằng chứng thanh toán) <span class="text-danger">*</span></label>
-                                    <input type="file" name="proof_image" id="proof-image" class="form-control" accept=".jpg,.jpeg,.png,.webp" required>
+                                    <input type="file" name="proof_image" id="proof-image" class="form-control" accept=".jpg,.jpeg,.png,.webp">
                                     <small class="form-text text-muted">Chỉ chấp nhận file JPG, JPEG, PNG, WEBP.</small>
                                 </div>
                             </div>
@@ -359,10 +359,12 @@ if (useNewAddress) {
 document.querySelectorAll('input[name="payment_method"]').forEach(function(radio) {
     radio.addEventListener('change', function() {
         var bankInfo = document.getElementById('bank-transfer-info');
+        var proofInput = document.getElementById('proof-image');
         if (this.value === 'bank_transfer') {
             bankInfo.style.display = 'block';
         } else {
             bankInfo.style.display = 'none';
+            proofInput.value = "";
         }
     });
 });

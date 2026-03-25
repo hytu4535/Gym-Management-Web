@@ -88,6 +88,7 @@ if (isset($_SESSION['user_id'])) {
                 <li class="<?php echo ($current_page == 'trainers.php') ? 'active' : ''; ?>"><a href="trainers.php">Huấn luyện viên</a></li>
                 <li class="<?php echo ($current_page == 'pt-booking.php') ? 'active' : ''; ?>"><a href="pt-booking.php">Lịch tập với PT</a></li>
                 <li class="<?php echo ($current_page == 'packages.php') ? 'active' : ''; ?>"><a href="packages.php">Gói tập</a></li>
+                <li class="<?php echo ($current_page == 'nutrition.php') ? 'active' : ''; ?>"><a href="nutrition.php">Dinh dưỡng</a></li>
                 <li class="<?php echo ($current_page == 'products.php' || $current_page == 'product-detail.php') ? 'active' : ''; ?>"><a href="products.php">Sản phẩm</a></li>
                 <li><a href="#">Khác</a>
                     <ul class="dropdown">
@@ -130,6 +131,7 @@ if (isset($_SESSION['user_id'])) {
                             <li class="<?php echo ($current_page == 'trainers.php') ? 'active' : ''; ?>"><a href="trainers.php">Huấn luyện viên</a></li>
                             <li class="<?php echo ($current_page == 'pt-booking.php') ? 'active' : ''; ?>"><a href="pt-booking.php">Lịch tập với PT</a></li>
                             <li class="<?php echo ($current_page == 'packages.php') ? 'active' : ''; ?>"><a href="packages.php">Gói tập</a></li>
+                            <li class="<?php echo ($current_page == 'nutrition.php') ? 'active' : ''; ?>"><a href="nutrition.php">Dinh dưỡng</a></li>
                             <li class="<?php echo ($current_page == 'products.php' || $current_page == 'product-detail.php') ? 'active' : ''; ?>"><a href="products.php">Sản phẩm</a></li>
                             <li class="<?php echo ($current_page == 'contact.php') ? 'active' : ''; ?>"><a href="contact.php">Liên hệ</a></li>
                             <li class="<?php echo ($current_page == 'subscription.php') ? 'active' : ''; ?>"><a href="subscription.php">Đánh giá & thông báo</a></li>

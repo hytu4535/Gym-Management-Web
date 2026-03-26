@@ -17,6 +17,27 @@ include '../includes/functions.php';
 
 $db = getDB();
 
+function isPastDate($date)
+{
+  if (empty($date)) {
+    return false;
+  }
+
+  try {
+    $today = new DateTimeImmutable('today');
+    $endDate = new DateTimeImmutable($date);
+    return $endDate < $today;
+  } catch (Exception $e) {
+    return false;
+  }
+}
+
+try {
+  $db->exec("UPDATE member_nutrition_plans SET status = 'kết thúc' WHERE end_date IS NOT NULL AND end_date < CURDATE() AND status <> 'kết thúc'");
+} catch (PDOException $e) {
+  // Không chặn trang nếu đồng bộ trạng thái tự động gặp lỗi.
+}
+
 // Helper: calculate total calories for a plan from items
 function calculatePlanCalories($db, $plan_id) {
   $stmt = $db->prepare("SELECT SUM(ni.calories * npi.servings_per_day) AS calc
@@ -57,6 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $end_date = !empty($_POST['end_date']) ? sanitize($_POST['end_date']) : null;
         $status = sanitize($_POST['status']);
 
+      if ($end_date !== null && isPastDate($end_date)) {
+        $status = 'kết thúc';
+      }
+
         try {
             $stmt = $db->prepare("INSERT INTO member_nutrition_plans (member_id, nutrition_plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$member_id, $nutrition_plan_id, $start_date, $end_date, $status]);
@@ -75,6 +100,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $start_date = sanitize($_POST['start_date']);
         $end_date = !empty($_POST['end_date']) ? sanitize($_POST['end_date']) : null;
         $status = sanitize($_POST['status']);
+
+      $currentStmt = $db->prepare("SELECT end_date FROM member_nutrition_plans WHERE id = ? LIMIT 1");
+      $currentStmt->execute([$id]);
+      $currentRecord = $currentStmt->fetch(PDO::FETCH_ASSOC);
+
+      if (!$currentRecord) {
+        setFlashMessage('danger', 'Không tìm thấy bản ghi cần sửa.');
+        redirect('member_nutrition_plans.php');
+        exit;
+      }
+
+      if (!empty($currentRecord['end_date']) && isPastDate($currentRecord['end_date'])) {
+        setFlashMessage('danger', 'Bản ghi này đã quá ngày kết thúc nên không thể sửa nữa.');
+        redirect('member_nutrition_plans.php');
+        exit;
+      }
+
+      if ($end_date !== null && isPastDate($end_date)) {
+        $status = 'kết thúc';
+      }
 
         try {
             $stmt = $db->prepare("UPDATE member_nutrition_plans SET member_id = ?, nutrition_plan_id = ?, start_date = ?, end_date = ?, status = ? WHERE id = ?");
@@ -112,6 +157,14 @@ $stmt = $db->query("
     ORDER BY mnp.start_date DESC
 ");
 $records = $stmt->fetchAll();
+
+foreach ($records as &$record) {
+  $record['is_expired'] = !empty($record['end_date']) && isPastDate($record['end_date']);
+  if ($record['is_expired']) {
+    $record['status'] = 'kết thúc';
+  }
+}
+unset($record);
 
 // Lấy danh sách hội viên (active)
 $stmt = $db->query("SELECT id, full_name, phone FROM members WHERE status = 'active' ORDER BY full_name ASC");
@@ -267,7 +320,7 @@ include 'layout/sidebar.php';
                         data-start_date="<?= $row['start_date'] ?>"
                         data-end_date="<?= $row['end_date'] ?? '' ?>"
                         data-status="<?= htmlspecialchars($row['status']) ?>"
-                        data-toggle="modal" data-target="#editModal">
+                        <?= !empty($row['is_expired']) ? 'disabled title="Bản ghi đã quá ngày kết thúc nên không thể sửa"' : 'data-toggle="modal" data-target="#editModal"' ?>>
                         <i class="fas fa-edit"></i>
                       </button>
                       <button class="btn btn-danger btn-sm btn-delete"
@@ -293,7 +346,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="addModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="member_nutrition_plans.php">
+          <form method="POST" action="member_nutrition_plans.php" novalidate>
             <input type="hidden" name="action" value="add">
             <div class="modal-header bg-primary">
               <h5 class="modal-title"><i class="fas fa-apple-alt"></i> Gán chế độ dinh dưỡng</h5>
@@ -302,7 +355,7 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control select2" name="member_id" required style="width: 100%;">
+                <select class="form-control select2" name="member_id" data-field="member_id" style="width: 100%;">
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -310,13 +363,14 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
                 <?php if (empty($members)): ?>
                   <small class="text-danger">Chưa có hội viên nào.</small>
                 <?php endif; ?>
               </div>
               <div class="form-group">
                 <label>Chế độ dinh dưỡng <span class="text-danger">*</span></label>
-                <select class="form-control select2" name="nutrition_plan_id" required style="width: 100%;">
+                <select class="form-control select2" name="nutrition_plan_id" data-field="nutrition_plan_id" style="width: 100%;">
                   <option value="">-- Chọn chế độ --</option>
                   <?php foreach ($plans as $plan): ?>
                     <option value="<?= $plan['id'] ?>">
@@ -325,6 +379,7 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
                 <?php if (empty($plans)): ?>
                   <small class="text-danger">Chưa có chế độ dinh dưỡng nào.</small>
                 <?php endif; ?>
@@ -333,22 +388,25 @@ include 'layout/sidebar.php';
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày bắt đầu <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="start_date" required value="<?= date('Y-m-d') ?>">
+                    <input type="date" class="form-control" name="start_date" data-field="start_date" value="<?= date('Y-m-d') ?>">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày kết thúc</label>
-                    <input type="date" class="form-control" name="end_date">
+                    <input type="date" class="form-control" name="end_date" data-field="end_date">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
-                <select class="form-control" name="status">
+                <select class="form-control" name="status" data-field="status">
                   <option value="đã áp dụng">Đang áp dụng</option>
                   <option value="kết thúc">Đã kết thúc</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -364,7 +422,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="editModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="member_nutrition_plans.php">
+          <form method="POST" action="member_nutrition_plans.php" novalidate>
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
             <div class="modal-header bg-warning">
@@ -374,7 +432,7 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control" name="member_id" id="edit-member_id" required>
+                <select class="form-control" name="member_id" id="edit-member_id" data-field="member_id">
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -382,10 +440,11 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Chế độ dinh dưỡng <span class="text-danger">*</span></label>
-                <select class="form-control" name="nutrition_plan_id" id="edit-nutrition_plan_id" required>
+                <select class="form-control" name="nutrition_plan_id" id="edit-nutrition_plan_id" data-field="nutrition_plan_id">
                   <option value="">-- Chọn chế độ --</option>
                   <?php foreach ($plans as $plan): ?>
                     <option value="<?= $plan['id'] ?>">
@@ -394,27 +453,31 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="row">
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày bắt đầu <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="start_date" id="edit-start_date" required>
+                    <input type="date" class="form-control" name="start_date" id="edit-start_date" data-field="start_date">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày kết thúc</label>
-                    <input type="date" class="form-control" name="end_date" id="edit-end_date">
+                    <input type="date" class="form-control" name="end_date" id="edit-end_date" data-field="end_date">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
-                <select class="form-control" name="status" id="edit-status">
+                <select class="form-control" name="status" id="edit-status" data-field="status">
                   <option value="đã áp dụng">Đang áp dụng</option>
                   <option value="kết thúc">Đã kết thúc</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -476,4 +539,23 @@ $(function() {
     $('#delete-plan').text($(this).data('plan'));
   });
 });
+
+(function() {
+  function label(field) {
+    if (field === 'member_id') return 'Vui lòng chọn hội viên';
+    if (field === 'nutrition_plan_id') return 'Vui lòng chọn chế độ dinh dưỡng';
+    if (field === 'start_date') return 'Vui lòng chọn ngày bắt đầu';
+    if (field === 'end_date') return 'Vui lòng chọn ngày kết thúc';
+    if (field === 'status') return 'Vui lòng chọn trạng thái';
+    return 'Vui lòng nhập dữ liệu hợp lệ';
+  }
+  function box(input) { return input.closest('.form-group')?.querySelector('small.text-danger') || null; }
+  function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
+  function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
+  function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); clear(input); if (!field) return true; if (!value) { show(input, label(field)); return false; } return true; }
+  document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
+  document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('submit', function(e){ if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return; let ok = true; e.target.querySelectorAll('[data-field]').forEach(function(field){ if (!validate(field)) ok = false; }); if (!ok) e.preventDefault(); }, true);
+})();
 </script>

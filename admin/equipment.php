@@ -119,7 +119,7 @@ $db = getDB();
 <div class="modal fade" id="editEquipmentModal" tabindex="-1" role="dialog" aria-labelledby="editEquipmentModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <form id="editEquipmentForm" method="POST" action="equipment.php">
+      <form id="editEquipmentForm" method="POST" action="equipment.php" novalidate>
         <input type="hidden" name="edit_equipment_id" id="edit_equipment_id">
         <div class="modal-header">
           <h5 class="modal-title" id="editEquipmentModalLabel">Sửa Thiết Bị</h5>
@@ -130,19 +130,22 @@ $db = getDB();
         <div class="modal-body">
           <div class="form-group">
             <label for="edit_equipment_name">Tên thiết bị</label>
-            <input type="text" class="form-control" id="edit_equipment_name" name="edit_equipment_name" required>
+            <input type="text" class="form-control" id="edit_equipment_name" name="edit_equipment_name">
+            <small class="text-danger d-none validation-error"></small>
           </div>
           <div class="form-group">
             <label for="edit_equipment_quantity">Số lượng</label>
-            <input type="number" class="form-control" id="edit_equipment_quantity" name="edit_equipment_quantity" min="1" required>
+            <input type="number" class="form-control" id="edit_equipment_quantity" name="edit_equipment_quantity" min="1">
+            <small class="text-danger d-none validation-error"></small>
           </div>
           <div class="form-group">
             <label for="edit_equipment_status">Tình trạng</label>
-            <select class="form-control" id="edit_equipment_status" name="edit_equipment_status" required>
+            <select class="form-control" id="edit_equipment_status" name="edit_equipment_status">
               <option value="dang su dung">Đang sử dụng</option>
               <option value="bao tri">Bảo trì</option>
               <option value="ngung hoat dong">Ngừng hoạt động</option>
             </select>
+            <small class="text-danger d-none validation-error"></small>
           </div>
         </div>
         <div class="modal-footer">
@@ -180,6 +183,61 @@ $db = getDB();
 
 <script>
 $(document).ready(function() {
+  var validStatuses = ['dang su dung', 'bao tri', 'ngung hoat dong'];
+
+  function setFieldError($field, message) {
+    var $error = $field.closest('.form-group').find('.validation-error');
+    $field.addClass('is-invalid');
+    $error.text(message).removeClass('d-none');
+  }
+
+  function clearFieldError($field) {
+    var $error = $field.closest('.form-group').find('.validation-error');
+    $field.removeClass('is-invalid');
+    $error.text('').addClass('d-none');
+  }
+
+  function validateEquipmentForm($form) {
+    var isValid = true;
+    var $name = $form.find('input[name="equipment_name"], input[name="edit_equipment_name"]');
+    var $quantity = $form.find('input[name="equipment_quantity"], input[name="edit_equipment_quantity"]');
+    var $status = $form.find('select[name="equipment_status"], select[name="edit_equipment_status"]');
+
+    $form.find('.form-control').each(function() {
+      clearFieldError($(this));
+    });
+
+    if (!$name.val().trim()) {
+      setFieldError($name, 'Vui lòng nhập tên thiết bị.');
+      isValid = false;
+    }
+
+    if (!$quantity.val().trim()) {
+      setFieldError($quantity, 'Vui lòng nhập số lượng.');
+      isValid = false;
+    } else if (Number($quantity.val()) < 1) {
+      setFieldError($quantity, 'Số lượng phải lớn hơn hoặc bằng 1.');
+      isValid = false;
+    }
+
+    if (!validStatuses.includes($status.val())) {
+      setFieldError($status, 'Vui lòng chọn tình trạng hợp lệ.');
+      isValid = false;
+    }
+
+    return isValid;
+  }
+
+  $('#addEquipmentForm, #editEquipmentForm').on('submit', function(e) {
+    if (!validateEquipmentForm($(this))) {
+      e.preventDefault();
+    }
+  });
+
+  $('#addEquipmentForm, #editEquipmentForm').find('.form-control').on('input change', function() {
+    clearFieldError($(this));
+  });
+
   $('.edit-equipment-btn').on('click', function() {
     var id = $(this).data('id');
     var name = $(this).data('name');
@@ -197,6 +255,12 @@ $(document).ready(function() {
     $('#delete_equipment_id').val(id);
     $('#delete_equipment_name').text(name);
     $('#deleteEquipmentModal').modal('show');
+  });
+
+  $('#addEquipmentModal, #editEquipmentModal').on('hidden.bs.modal', function() {
+    $(this).find('.form-control').each(function() {
+      clearFieldError($(this));
+    });
   });
 });
 </script>
@@ -242,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_equipment_id']
 <div class="modal fade" id="addEquipmentModal" tabindex="-1" role="dialog" aria-labelledby="addEquipmentModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <form id="addEquipmentForm" method="POST" action="equipment.php">
+      <form id="addEquipmentForm" method="POST" action="equipment.php" novalidate>
         <div class="modal-header">
           <h5 class="modal-title" id="addEquipmentModalLabel">Thêm Thiết Bị</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -252,19 +316,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_equipment_id']
         <div class="modal-body">
           <div class="form-group">
             <label for="equipment_name">Tên thiết bị</label>
-            <input type="text" class="form-control" id="equipment_name" name="equipment_name" required>
+            <input type="text" class="form-control" id="equipment_name" name="equipment_name">
+            <small class="text-danger d-none validation-error"></small>
           </div>
           <div class="form-group">
             <label for="equipment_quantity">Số lượng</label>
-            <input type="number" class="form-control" id="equipment_quantity" name="equipment_quantity" min="1" required>
+            <input type="number" class="form-control" id="equipment_quantity" name="equipment_quantity" min="1">
+            <small class="text-danger d-none validation-error"></small>
           </div>
           <div class="form-group">
             <label for="equipment_status">Tình trạng</label>
-            <select class="form-control" id="equipment_status" name="equipment_status" required>
+            <select class="form-control" id="equipment_status" name="equipment_status">
               <option value="dang su dung">Đang sử dụng</option>
               <option value="bao tri">Bảo trì</option>
               <option value="ngung hoat dong">Ngừng hoạt động</option>
             </select>
+            <small class="text-danger d-none validation-error"></small>
           </div>
         </div>
         <div class="modal-footer">

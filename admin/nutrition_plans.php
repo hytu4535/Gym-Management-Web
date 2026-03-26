@@ -207,7 +207,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="addNutritionModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="nutrition_plans.php">
+          <form method="POST" action="nutrition_plans.php" novalidate>
             <input type="hidden" name="action" value="add">
             <div class="modal-header">
               <h5 class="modal-title">Thêm chế độ dinh dưỡng mới</h5>
@@ -216,11 +216,12 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Tên chế độ <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" name="name" placeholder="Nhập tên chế độ dinh dưỡng" required>
+                <input type="text" class="form-control" name="name" placeholder="Nhập tên chế độ dinh dưỡng" data-field="name">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Loại <span class="text-danger">*</span></label>
-                <select class="form-control" name="type" required>
+                <select class="form-control" name="type" data-field="type">
                   <option value="tăng cân">tăng cân</option>
                   <option value="giảm cân">giảm cân</option>
                   <option value="tư vấn">tư vấn</option>
@@ -229,25 +230,30 @@ include 'layout/sidebar.php';
                   <option value="giảm mỡ">giảm mỡ</option>
                   <option value="khác">khác</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Calories/ngày</label>
-                <input type="number" class="form-control" name="calories" placeholder="Nhập tổng calo/ngày" min="0">
+                <input type="number" class="form-control" name="calories" placeholder="Nhập tổng calo/ngày" min="0" data-field="calories">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>BMI phù hợp</label>
-                <input type="text" class="form-control" name="bmi_range" placeholder="VD: 18.5 - 25">
+                <input type="text" class="form-control" name="bmi_range" placeholder="VD: 18.5 - 25" data-field="bmi_range">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Mô tả</label>
-                <textarea class="form-control" name="description" rows="3" placeholder="Nhập mô tả chi tiết"></textarea>
+                <textarea class="form-control" name="description" rows="3" placeholder="Nhập mô tả chi tiết" data-field="description"></textarea>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
-                <select class="form-control" name="status">
+                <select class="form-control" name="status" data-field="status">
                   <option value="hoạt động">Hoạt động</option>
                   <option value="không hoạt động">Không hoạt động</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -263,7 +269,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="editNutritionModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="nutrition_plans.php">
+          <form method="POST" action="nutrition_plans.php" novalidate>
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
             <div class="modal-header">
@@ -273,11 +279,12 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Tên chế độ <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" name="name" id="edit-name" required>
+                <input type="text" class="form-control" name="name" id="edit-name" data-field="name">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Loại <span class="text-danger">*</span></label>
-                <select class="form-control" name="type" id="edit-type" required>
+                <select class="form-control" name="type" id="edit-type" data-field="type">
                   <option value="tăng cân">tăng cân</option>
                   <option value="giảm cân">giảm cân</option>
                   <option value="tư vấn">tư vấn</option>
@@ -286,25 +293,30 @@ include 'layout/sidebar.php';
                   <option value="giảm mỡ">giảm mỡ</option>
                   <option value="khác">khác</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Calories/ngày</label>
-                <input type="number" class="form-control" name="calories" id="edit-calories" min="0">
+                <input type="number" class="form-control" name="calories" id="edit-calories" min="0" data-field="calories">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>BMI phù hợp</label>
-                <input type="text" class="form-control" name="bmi_range" id="edit-bmi">
+                <input type="text" class="form-control" name="bmi_range" id="edit-bmi" data-field="bmi_range">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Mô tả</label>
-                <textarea class="form-control" name="description" id="edit-description" rows="3"></textarea>
+                <textarea class="form-control" name="description" id="edit-description" rows="3" data-field="description"></textarea>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
-                <select class="form-control" name="status" id="edit-status">
+                <select class="form-control" name="status" id="edit-status" data-field="status">
                   <option value="hoạt động">Hoạt động</option>
                   <option value="không hoạt động">Không hoạt động</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -364,4 +376,32 @@ $(function() {
     $('#delete-name').text($(this).data('name'));
   });
 });
+
+(function() {
+  function label(field) {
+    if (field === 'name') return 'Vui lòng nhập tên chế độ';
+    if (field === 'type') return 'Vui lòng chọn loại chế độ';
+    if (field === 'calories') return 'Vui lòng nhập calories hợp lệ';
+    if (field === 'bmi_range') return 'Vui lòng nhập BMI phù hợp';
+    if (field === 'description') return 'Vui lòng nhập mô tả';
+    if (field === 'status') return 'Vui lòng chọn trạng thái';
+    return 'Vui lòng nhập dữ liệu hợp lệ';
+  }
+  function box(input) { return input.closest('.form-group')?.querySelector('small.text-danger') || null; }
+  function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
+  function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
+  function validate(input) {
+    const field = input.getAttribute('data-field');
+    const value = String(input.value || '').trim();
+    clear(input);
+    if (!field) return true;
+    if (field === 'calories') { if (!value || Number(value) < 0) { show(input, label(field)); return false; } return true; }
+    if (!value) { show(input, label(field)); return false; }
+    return true;
+  }
+  document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
+  document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('submit', function(e){ if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return; let ok = true; e.target.querySelectorAll('[data-field]').forEach(function(field){ if (!validate(field)) ok = false; }); if (!ok) e.preventDefault(); }, true);
+})();
 </script>

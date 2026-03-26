@@ -31,9 +31,15 @@ $filter_to = $_GET['to_date'] ?? '';
 
 $query = "
     SELECT o.id, o.order_date, o.status, o.total_amount, 
-           COALESCE(SUM(oi.quantity), 0) AS total_items
+           COALESCE(SUM(oi.quantity), 0) AS total_items,
+           COALESCE(order_addr.full_address, default_addr.full_address, m.address) AS shipping_address,
+           COALESCE(order_addr.district, default_addr.district, '') AS shipping_district,
+           COALESCE(order_addr.city, default_addr.city, '') AS shipping_city
     FROM orders o
+    JOIN members m ON o.member_id = m.id
     LEFT JOIN order_items oi ON o.id = oi.order_id
+    LEFT JOIN addresses default_addr ON default_addr.member_id = o.member_id AND default_addr.is_default = 1
+    LEFT JOIN addresses order_addr ON order_addr.id = o.address_id AND order_addr.member_id = o.member_id
     WHERE o.member_id = ?
 ";
 $params = [$member_id];
@@ -182,6 +188,12 @@ include 'layout/header.php';
                                         <div class="row align-items-center">
                                             <div class="col-md-7">
                                                 <p class="mb-1">Số lượng: <strong><?php echo $order['total_items']; ?></strong> món</p>
+                                                <p class="mb-1">Địa chỉ giao hàng: <strong><?php echo htmlspecialchars($order['shipping_address'] ?? 'Chưa cập nhật'); ?></strong></p>
+                                                <?php if (!empty($order['shipping_district']) || !empty($order['shipping_city'])): ?>
+                                                <p class="mb-1 text-muted" style="font-size: 13px;">
+                                                    <?php echo htmlspecialchars(trim(($order['shipping_district'] ?? '') . (!empty($order['shipping_district']) && !empty($order['shipping_city']) ? ', ' : '') . ($order['shipping_city'] ?? ''))); ?>
+                                                </p>
+                                                <?php endif; ?>
                                                 <p class="mb-0">Tổng tiền: <strong style="color: #e7ab3c; font-size: 1.1rem;"><?php echo number_format($order['total_amount'], 0, ',', '.'); ?>đ</strong></p>
                                             </div>
                                             <div class="col-md-5 text-md-right mt-3 mt-md-0">

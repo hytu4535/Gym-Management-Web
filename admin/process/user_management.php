@@ -1,21 +1,81 @@
 <?php
+session_start();
 include '../../includes/database.php';
 $db = getDB();
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 if ($action == 'add') {
-    $username = $_POST['username'];
-    $email = $_POST['email'];
-    $password = $_POST['password'];
+    $username = $_POST['username'] ?? '';
+    $email = $_POST['email'] ?? '';
+    $password = $_POST['password'] ?? '';
     $password_confirm = $_POST['password_confirm'] ?? '';
     $phone = $_POST['phone'] ?? '';
-    $role_id = $_POST['role_id'];
+    $role_id = $_POST['role_id'] ?? '';
     $status = 'active';
+    
+    $errors = [];
+
+    // Kiểm tra các trường bắt buộc
+    if (empty($username)) {
+        $errors['username'] = 'Vui lòng nhập tên đăng nhập';
+    }
+    if (empty($email)) {
+        $errors['email'] = 'Vui lòng nhập email';
+    }
+    if (empty($password)) {
+        $errors['password'] = 'Vui lòng nhập mật khẩu';
+    }
+    if (empty($password_confirm)) {
+        $errors['password_confirm'] = 'Vui lòng xác nhận mật khẩu';
+    }
+    if (empty($role_id)) {
+        $errors['role_id'] = 'Vui lòng chọn vai trò';
+    }
+    
+    // Kiểm tra email format
+    if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors['email'] = 'Email không hợp lệ';
+    }
+    
+    // Kiểm tra phone format nếu có
+    if (!empty($phone) && !preg_match('/^[0-9]{10,11}$/', $phone)) {
+        $errors['phone'] = 'Vui lòng nhập 10-11 chữ số';
+    }
 
     // Kiểm tra password khớp
-    if ($password !== $password_confirm) {
-        header("Location: ../users.php?error=password_mismatch");
+    if (!empty($password) && !empty($password_confirm) && $password !== $password_confirm) {
+        $errors['password_confirm'] = 'Mật khẩu xác nhận không khớp';
+    }
+    
+    // Kiểm tra username tồn tại
+    if (!empty($username)) {
+        $checkUser = $db->prepare("SELECT COUNT(*) as cnt FROM users WHERE username = ?");
+        $checkUser->execute([$username]);
+        if ($checkUser->fetch()['cnt'] > 0) {
+            $errors['username'] = 'Tên đăng nhập này đã tồn tại';
+        }
+    }
+    
+    // Kiểm tra email tồn tại
+    if (!empty($email)) {
+        $checkEmail = $db->prepare("SELECT COUNT(*) as cnt FROM users WHERE email = ?");
+        $checkEmail->execute([$email]);
+        if ($checkEmail->fetch()['cnt'] > 0) {
+            $errors['email'] = 'Email này đã tồn tại';
+        }
+    }
+    
+    // Nếu có lỗi, lưu vào session và redirect về form
+    if (!empty($errors)) {
+        $_SESSION['validation_errors'] = $errors;
+        $_SESSION['form_data'] = [
+            'username' => $username,
+            'email' => $email,
+            'phone' => $phone,
+            'role_id' => $role_id
+        ];
+        header("Location: ../users.php#addUserModal");
         exit();
     }
 
@@ -34,34 +94,106 @@ if ($action == 'add') {
         $stmt->execute([$username, $password, $email, $role_id, $status]);
     }
 
+    unset($_SESSION['validation_errors']);
+    unset($_SESSION['form_data']);
     header("Location: ../users.php");
     exit();
 }
 
 if ($action == 'delete') {
-    $id = $_GET['id'];
-    $sql = "DELETE FROM users WHERE id = ?";
-    $stmt = $db->prepare($sql);
-    $stmt->execute([$id]);
+    $id = $_GET['id'] ?? '';
+    if (empty($id)) {
+        $_SESSION['validation_errors'] = ['general' => 'Yêu cầu không hợp lệ'];
+        header("Location: ../users.php");
+        exit();
+    }
 
-    header("Location: ../users.php");
-    exit();
+    try {
+        // Nếu user đang được tham chiếu (ví dụ members.users_id), không được xóa cứng.
+        // Thay vào đó, chuyển trạng thái sang inactive.
+        $refStmt = $db->prepare("SELECT COUNT(*) AS cnt FROM members WHERE users_id = ?");
+        $refStmt->execute([$id]);
+        $refCount = (int)($refStmt->fetch()['cnt'] ?? 0);
+
+        if ($refCount > 0) {
+            $softStmt = $db->prepare("UPDATE users SET status = 'inactive' WHERE id = ?");
+            $softStmt->execute([$id]);
+            $_SESSION['validation_errors'] = ['general' => 'User đang có dữ liệu liên kết (hội viên). Đã chuyển sang trạng thái Inactive thay vì xóa.'];
+            header("Location: ../users.php");
+            exit();
+        }
+
+        $sql = "DELETE FROM users WHERE id = ?";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$id]);
+        header("Location: ../users.php");
+        exit();
+    } catch (PDOException $e) {
+        // Bắt lỗi FK hoặc lỗi DB khác để không fatal
+        $_SESSION['validation_errors'] = ['general' => 'Không thể xóa user do đang có dữ liệu liên kết. Vui lòng kiểm tra các bảng liên quan hoặc chuyển trạng thái Inactive.'];
+        header("Location: ../users.php");
+        exit();
+    }
 }
 
 // xử lý edit
 if ($action == 'edit') {
-    $id = $_POST['id'];
-    $username = $_POST['username'];
-    $email = $_POST['email'];
-    $role_id = $_POST['role_id'];
-    $status = $_POST['status'];
-    $password = $_POST['password'];
+    $id = $_POST['id'] ?? '';
+    $role_id = $_POST['role_id'] ?? '';
+    $status = $_POST['status'] ?? 'active';
+    $password = $_POST['password'] ?? '';
     $password_confirm = $_POST['password_confirm'] ?? '';
     $phone = $_POST['phone'] ?? '';
+    
+    $errors = [];
+
+    // Kiểm tra các trường bắt buộc
+    if (empty($id)) {
+        $errors['general'] = 'Yêu cầu không hợp lệ';
+    }
+    if (empty($role_id)) {
+        $errors['role_id'] = 'Vui lòng chọn vai trò';
+    }
+
+    // Lấy lại username/email hiện tại từ DB để không bị ghi đè bằng chuỗi rỗng từ form disabled
+    $currentUser = null;
+    if (empty($errors)) {
+        $currentStmt = $db->prepare("SELECT username, email FROM users WHERE id = ? LIMIT 1");
+        $currentStmt->execute([$id]);
+        $currentUser = $currentStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$currentUser) {
+            $errors['general'] = 'Không tìm thấy user cần cập nhật';
+        }
+    }
+    
+    // Kiểm tra phone format nếu có
+    if (!empty($phone) && !preg_match('/^[0-9]{10,11}$/', $phone)) {
+        $errors['phone'] = 'Vui lòng nhập 10-11 chữ số';
+    }
 
     // Kiểm tra password khớp nếu nhập mật khẩu
-    if (!empty($password) && $password !== $password_confirm) {
-        header("Location: ../users.php?error=password_mismatch");
+    if (!empty($password)) {
+        if (empty($password_confirm)) {
+            $errors['password_confirm'] = 'Vui lòng xác nhận mật khẩu';
+        }
+        if ($password !== $password_confirm) {
+            $errors['password_confirm'] = 'Mật khẩu xác nhận không khớp';
+        }
+        if (strlen($password) < 6) {
+            $errors['password'] = 'Mật khẩu phải có ít nhất 6 ký tự';
+        }
+    }
+    
+    // Nếu có lỗi, lưu vào session và redirect về form
+    if (!empty($errors)) {
+        $_SESSION['validation_errors'] = $errors;
+        $_SESSION['form_data'] = [
+            'phone' => $phone,
+            'role_id' => $role_id,
+            'status' => $status
+        ];
+        header("Location: ../users.php?edit=" . $id . "#editUserModal" . $id);
         exit();
     }
 
@@ -72,21 +204,21 @@ if ($action == 'edit') {
         if (!empty($password)) {
             $sql = "UPDATE users SET username=?, email=?, phone=?, role_id=?, status=?, password=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$username, $email, $phone, $role_id, $status, $password, $id]);
+            $stmt->execute([$currentUser['username'], $currentUser['email'], $phone, $role_id, $status, $password, $id]);
         } else {
             $sql = "UPDATE users SET username=?, email=?, phone=?, role_id=?, status=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$username, $email, $phone, $role_id, $status, $id]);
+            $stmt->execute([$currentUser['username'], $currentUser['email'], $phone, $role_id, $status, $id]);
         }
     } else {
         if (!empty($password)) {
             $sql = "UPDATE users SET username=?, email=?, role_id=?, status=?, password=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$username, $email, $role_id, $status, $password, $id]);
+            $stmt->execute([$currentUser['username'], $currentUser['email'], $role_id, $status, $password, $id]);
         } else {
             $sql = "UPDATE users SET username=?, email=?, role_id=?, status=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$username, $email, $role_id, $status, $id]);
+            $stmt->execute([$currentUser['username'], $currentUser['email'], $role_id, $status, $id]);
         }
     }
 

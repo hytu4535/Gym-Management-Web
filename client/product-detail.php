@@ -205,21 +205,13 @@ include 'layout/header.php';
                     <a class="nav-link active" data-toggle="tab" href="#tabs-1" role="tab">Mô tả chi tiết</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-toggle="tab" href="#tabs-2" role="tab">Thông số kỹ thuật</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-toggle="tab" href="#tabs-3" role="tab">Đánh giá (5)</a>
+                    <a class="nav-link" data-toggle="tab" href="#tabs-3" role="tab">Đánh giá</a>
                 </li>
             </ul>
             <div class="tab-content" style="background: #fff; padding: 20px; border: 1px solid #dee2e6; border-top: none;">
                 <div class="tab-pane active" id="tabs-1" role="tabpanel">
                     <div class="product-content">
                         <p><?php echo nl2br(htmlspecialchars($product['description'] ?? 'Chưa có mô tả cho sản phẩm này.')); ?></p>
-                    </div>
-                </div>
-                <div class="tab-pane" id="tabs-2" role="tabpanel">
-                    <div class="product-content">
-                        <p>Đang cập nhật...</p>
                     </div>
                 </div>
                 <div class="tab-pane" id="tabs-3" role="tabpanel">

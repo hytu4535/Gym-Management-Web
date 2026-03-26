@@ -264,7 +264,7 @@ include 'layout/sidebar.php';
   <div class="modal fade" id="addClassModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
-        <form method="POST" action="classes.php">
+        <form method="POST" action="classes.php" novalidate>
           <input type="hidden" name="action" value="add">
           <div class="modal-header">
             <h5 class="modal-title">Thêm lớp tập mới</h5>
@@ -273,43 +273,51 @@ include 'layout/sidebar.php';
           <div class="modal-body">
             <div class="form-group">
               <label>Tên lớp <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" name="class_name" required>
+              <input type="text" class="form-control" name="class_name" data-field="class_name">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Loại lớp <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" name="class_type" placeholder="VD: yoga, cardio, boxing" required>
+              <input type="text" class="form-control" name="class_type" placeholder="VD: yoga, cardio, boxing" data-field="class_type">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Huấn luyện viên</label>
-              <select class="form-control" name="trainer_id">
+              <select class="form-control" name="trainer_id" data-field="trainer_id">
                 <option value="">-- Chưa gán --</option>
                 <?php foreach ($trainers as $trainer): ?>
                   <option value="<?= $trainer['id'] ?>"><?= htmlspecialchars($trainer['full_name']) ?></option>
                 <?php endforeach; ?>
               </select>
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Khung giờ</label>
-              <input type="text" class="form-control" name="schedule_time" placeholder="VD: 06:00 - 07:30">
+              <input type="text" class="form-control" name="schedule_time" placeholder="VD: 06:00 - 07:30" data-field="schedule_time">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Lịch ngày</label>
-              <input type="text" class="form-control" name="schedule_days" placeholder="VD: Thứ 2, Thứ 4, Thứ 6">
+              <input type="text" class="form-control" name="schedule_days" placeholder="VD: Thứ 2, Thứ 4, Thứ 6" data-field="schedule_days">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Sức chứa <span class="text-danger">*</span></label>
-              <input type="number" min="1" class="form-control" name="capacity" value="20" required>
+              <input type="number" min="1" class="form-control" name="capacity" value="20" data-field="capacity">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Phòng tập</label>
-              <input type="text" class="form-control" name="room" placeholder="VD: Phòng A1">
+              <input type="text" class="form-control" name="room" placeholder="VD: Phòng A1" data-field="room">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Trạng thái</label>
-              <select class="form-control" name="status">
+              <select class="form-control" name="status" data-field="status">
                 <option value="active">Đang mở</option>
                 <option value="inactive">Đóng lớp</option>
               </select>
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
           </div>
           <div class="modal-footer">
@@ -324,7 +332,7 @@ include 'layout/sidebar.php';
   <div class="modal fade" id="editClassModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
-        <form method="POST" action="classes.php">
+        <form method="POST" action="classes.php" novalidate>
           <input type="hidden" name="action" value="edit">
           <input type="hidden" name="id" id="edit-id">
           <div class="modal-header">
@@ -334,44 +342,52 @@ include 'layout/sidebar.php';
           <div class="modal-body">
             <div class="form-group">
               <label>Tên lớp <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" name="class_name" id="edit-class_name" required>
+              <input type="text" class="form-control" name="class_name" id="edit-class_name" data-field="class_name">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Loại lớp <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" name="class_type" id="edit-class_type" required>
+              <input type="text" class="form-control" name="class_type" id="edit-class_type" data-field="class_type">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Huấn luyện viên</label>
-              <select class="form-control" name="trainer_id" id="edit-trainer_id">
+              <select class="form-control" name="trainer_id" id="edit-trainer_id" data-field="trainer_id">
                 <option value="">-- Chưa gán --</option>
                 <?php foreach ($trainers as $trainer): ?>
                   <option value="<?= $trainer['id'] ?>"><?= htmlspecialchars($trainer['full_name']) ?></option>
                 <?php endforeach; ?>
               </select>
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Khung giờ</label>
-              <input type="text" class="form-control" name="schedule_time" id="edit-schedule_time">
+              <input type="text" class="form-control" name="schedule_time" id="edit-schedule_time" data-field="schedule_time">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Lịch ngày</label>
-              <input type="text" class="form-control" name="schedule_days" id="edit-schedule_days">
+              <input type="text" class="form-control" name="schedule_days" id="edit-schedule_days" data-field="schedule_days">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Sức chứa <span class="text-danger">*</span></label>
-              <input type="number" min="1" class="form-control" name="capacity" id="edit-capacity" required>
+              <input type="number" min="1" class="form-control" name="capacity" id="edit-capacity" data-field="capacity">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
               <small class="text-muted">Đã đăng ký hiện tại: <span id="edit-enrolled_count">0</span></small>
             </div>
             <div class="form-group">
               <label>Phòng tập</label>
-              <input type="text" class="form-control" name="room" id="edit-room">
+              <input type="text" class="form-control" name="room" id="edit-room" data-field="room">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
               <label>Trạng thái</label>
-              <select class="form-control" name="status" id="edit-status">
+              <select class="form-control" name="status" id="edit-status" data-field="status">
                 <option value="active">Đang mở</option>
                 <option value="inactive">Đóng lớp</option>
               </select>
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
           </div>
           <div class="modal-footer">
@@ -429,4 +445,68 @@ $(function() {
     $('#delete-name').text($(this).data('name'));
   });
 });
+
+(function() {
+  function getMsg(field) {
+    if (field === 'class_name') return 'Vui lòng nhập tên lớp';
+    if (field === 'class_type') return 'Vui lòng nhập loại lớp';
+    if (field === 'capacity') return 'Vui lòng nhập sức chứa hợp lệ';
+    if (field === 'trainer_id') return 'Vui lòng chọn huấn luyện viên';
+    if (field === 'schedule_time') return 'Vui lòng nhập khung giờ';
+    if (field === 'schedule_days') return 'Vui lòng nhập lịch ngày';
+    if (field === 'room') return 'Vui lòng nhập phòng tập';
+    if (field === 'status') return 'Vui lòng chọn trạng thái';
+    return 'Vui lòng nhập dữ liệu hợp lệ';
+  }
+
+  function container(input) {
+    return input.closest('.form-group')?.querySelector('small.text-danger') || null;
+  }
+
+  function show(input, message) {
+    const c = container(input);
+    if (c) { c.textContent = message; c.style.display = 'block'; }
+    input.classList.add('is-invalid');
+  }
+
+  function clear(input) {
+    const c = container(input);
+    if (c) { c.textContent = ''; c.style.display = 'none'; }
+    input.classList.remove('is-invalid');
+  }
+
+  function validate(input) {
+    const field = input.getAttribute('data-field');
+    const value = String(input.value || '').trim();
+    clear(input);
+    if (!field) return true;
+    if (field === 'capacity') {
+      if (!value || Number(value) < 1) { show(input, getMsg(field)); return false; }
+      return true;
+    }
+    if (!value) { show(input, getMsg(field)); return false; }
+    return true;
+  }
+
+  document.addEventListener('invalid', function(e) {
+    const form = e.target.closest('form');
+    if (form && form.hasAttribute('novalidate')) e.preventDefault();
+  }, true);
+
+  document.addEventListener('input', function(e) {
+    if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target);
+  }, true);
+
+  document.addEventListener('change', function(e) {
+    if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target);
+  }, true);
+
+  document.addEventListener('submit', function(e) {
+    if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return;
+    const fields = e.target.querySelectorAll('[data-field]');
+    let ok = true;
+    fields.forEach(function(field) { if (!validate(field)) ok = false; });
+    if (!ok) e.preventDefault();
+  }, true);
+})();
 </script>

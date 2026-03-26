@@ -252,7 +252,7 @@ include 'layout/sidebar.php';
         <div class="card-header">
           <h3 class="card-title">Danh sách liên kết plan ↔ items</h3>
           <div class="card-tools">
-            <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addModal">Thêm</button>
+              <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addModal">Thêm</button>
           </div>
         </div>
         <div class="card-body">
@@ -304,15 +304,22 @@ include 'layout/sidebar.php';
   <div class="modal fade" id="addModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
-        <form method="POST" action="nutrition_plan_items.php">
+        <form method="POST" action="nutrition_plan_items.php" novalidate>
           <input type="hidden" name="action" value="add">
           <div class="modal-header"><h5 class="modal-title">Thêm liên kết</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
-            <div class="form-group"><label>Plan</label><select name="nutrition_plan_id" class="form-control select2" required><option value="">-- Chọn --</option><?php foreach($plans as $p){ echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['name']).'</option>'; } ?></select></div>
+            <div class="form-group">
+              <label>Plan <span class="text-danger">*</span></label>
+              <select name="nutrition_plan_id" class="form-control select2" data-field="nutrition_plan_id" style="width: 100%;">
+                <option value="">-- Chọn --</option>
+                <?php foreach($plans as $p){ echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['name']).'</option>'; } ?>
+              </select>
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
+            </div>
             <div class="form-group">
               <label>Items (chọn nhiều món)</label>
               <div class="dropdown item-picker" id="add-item-picker">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100 item-picker-toggle" type="button" data-field="item_ids" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <span class="picker-label text-muted">Chọn món...</span>
                 </button>
                 <div class="dropdown-menu">
@@ -331,9 +338,14 @@ include 'layout/sidebar.php';
                   <?php endforeach; ?>
                 </div>
               </div>
+              <small class="text-danger d-block mt-2 item-picker-error" style="display:none;"></small>
               <small class="form-text text-muted">Bấm mũi tên để mở danh sách rồi tick các món muốn chọn.</small>
             </div>
-            <div class="form-group"><label>Meal time</label><input class="form-control" name="meal_time"></div>
+            <div class="form-group">
+              <label>Meal time <span class="text-danger">*</span></label>
+              <input class="form-control" name="meal_time" data-field="meal_time">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
+            </div>
             <div class="form-group"><label>Ghi chú</label><input class="form-control" name="note"></div>
           </div>
           <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button><button class="btn btn-primary">Lưu</button></div>
@@ -346,16 +358,23 @@ include 'layout/sidebar.php';
   <div class="modal fade" id="editModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
-        <form method="POST" action="nutrition_plan_items.php">
+        <form method="POST" action="nutrition_plan_items.php" novalidate>
           <input type="hidden" name="action" value="edit">
           <input type="hidden" name="id" id="edit-id">
           <div class="modal-header"><h5 class="modal-title">Sửa liên kết</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
-            <div class="form-group"><label>Plan</label><select name="nutrition_plan_id" id="edit-plan" class="form-control select2" required><option value="">-- Chọn --</option><?php foreach($plans as $p){ echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['name']).'</option>'; } ?></select></div>
+            <div class="form-group">
+              <label>Plan <span class="text-danger">*</span></label>
+              <select name="nutrition_plan_id" id="edit-plan" class="form-control select2" data-field="nutrition_plan_id" style="width: 100%;">
+                <option value="">-- Chọn --</option>
+                <?php foreach($plans as $p){ echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['name']).'</option>'; } ?>
+              </select>
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
+            </div>
             <div class="form-group">
               <label>Items (có thể chọn nhiều món)</label>
               <div class="dropdown item-picker" id="edit-item-picker">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100 item-picker-toggle" type="button" data-field="item_ids" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <span class="picker-label text-muted">Chọn món...</span>
                 </button>
                 <div class="dropdown-menu">
@@ -374,9 +393,14 @@ include 'layout/sidebar.php';
                   <?php endforeach; ?>
                 </div>
               </div>
+              <small class="text-danger d-block mt-2 item-picker-error" style="display:none;"></small>
               <small class="form-text text-muted">Khi sửa, hệ thống sẽ cập nhật dòng hiện tại và thêm các món mới bạn chọn (nếu chưa có).</small>
             </div>
-            <div class="form-group"><label>Meal time</label><input class="form-control" id="edit-meal" name="meal_time"></div>
+            <div class="form-group">
+              <label>Meal time <span class="text-danger">*</span></label>
+              <input class="form-control" id="edit-meal" name="meal_time" data-field="meal_time">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
+            </div>
             <div class="form-group"><label>Ghi chú</label><input class="form-control" id="edit-note" name="note"></div>
           </div>
           <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button><button class="btn btn-primary">Cập nhật</button></div>
@@ -473,6 +497,42 @@ $(function(){
     $label.toggleClass('text-muted', muted);
   }
 
+  function renderPickerError($picker, message) {
+    var $error = $picker.closest('.form-group').find('.item-picker-error');
+    if (!$error.length) return;
+    if (message) {
+      $error.text(message).show();
+    } else {
+      $error.text('').hide();
+    }
+  }
+
+  function renderPlanError($field, message) {
+    var $group = $field.closest('.form-group');
+    var $error = $group.find('small.text-danger').not('.item-picker-error').first();
+    if (!$error.length) return;
+    if (message) {
+      $error.text(message).show();
+      $field.addClass('is-invalid');
+    } else {
+      $error.text('').hide();
+      $field.removeClass('is-invalid');
+    }
+  }
+
+  function renderSimpleFieldError($field, message) {
+    var $group = $field.closest('.form-group');
+    var $error = $group.find('small.text-danger').not('.item-picker-error').first();
+    if (!$error.length) return;
+    if (message) {
+      $error.text(message).show();
+      $field.addClass('is-invalid');
+    } else {
+      $error.text('').hide();
+      $field.removeClass('is-invalid');
+    }
+  }
+
   function initItemPicker(selector){
     var $picker = $(selector);
     if (!$picker.length) return;
@@ -480,6 +540,9 @@ $(function(){
     renderPickerLabel($picker);
 
     $picker.on('change', '.item-check', function(){
+      if ($picker.find('.item-check:checked').length > 0) {
+        renderPickerError($picker, '');
+      }
       renderPickerLabel($picker);
     });
 
@@ -488,6 +551,7 @@ $(function(){
       if (!isFinite(val) || val < 1) val = 1;
       $(this).val(val);
       $(this).closest('.dropdown-item').find('.item-check').prop('checked', true);
+      renderPickerError($picker, '');
       renderPickerLabel($picker);
     });
 
@@ -517,14 +581,38 @@ $(function(){
       $row.find('.item-qty-input').val(qty);
     });
     renderPickerLabel($picker);
+    renderPickerError($picker, '');
   }
 
   function validatePickerOnSubmit(formSelector, pickerSelector){
     $(formSelector).on('submit', function(e){
+      var ok = true;
+      var $plan = $(this).find('[name="nutrition_plan_id"]');
+      var $mealTime = $(this).find('[name="meal_time"]');
+      if (!$plan.val()) {
+        renderPlanError($plan, 'Vui lòng chọn plan.');
+        ok = false;
+      } else {
+        renderPlanError($plan, '');
+      }
+
+      if (!$mealTime.val() || !String($mealTime.val()).trim()) {
+        renderSimpleFieldError($mealTime, 'Vui lòng nhập Meal time.');
+        ok = false;
+      } else {
+        renderSimpleFieldError($mealTime, '');
+      }
+
       var checkedCount = $(pickerSelector).find('.item-check:checked').length;
       if (checkedCount === 0) {
+        renderPickerError($(pickerSelector), 'Vui lòng chọn ít nhất 1 món.');
+        ok = false;
+      } else {
+        renderPickerError($(pickerSelector), '');
+      }
+
+      if (!ok) {
         e.preventDefault();
-        alert('Vui lòng chọn ít nhất 1 món.');
       }
     });
   }
@@ -554,6 +642,28 @@ $(function(){
   $('.btn-delete').on('click', function(){
     $('#delete-id').val($(this).data('id'));
     $('#delete-plan-id').val($(this).data('plan_id'));
+  });
+
+  $(document).on('input change', '#addModal [data-field], #editModal [data-field]', function() {
+    var $field = $(this);
+    var value = String($field.val() || '').trim();
+    if ($field.attr('data-field') === 'nutrition_plan_id') {
+      renderPlanError($field, value ? '' : 'Vui lòng chọn plan.');
+      return;
+    }
+    if ($field.attr('data-field') === 'meal_time') {
+      renderSimpleFieldError($field, value ? '' : 'Vui lòng nhập Meal time.');
+      return;
+    }
+    var box = $field.closest('.form-group').find('small.text-danger').not('.item-picker-error');
+    if (value) {
+      box.text('').hide();
+      $field.removeClass('is-invalid');
+    }
+  });
+
+  $(document).on('change', '#addModal [name="nutrition_plan_id"], #editModal [name="nutrition_plan_id"]', function() {
+    renderPlanError($(this), $(this).val() ? '' : 'Vui lòng chọn plan.');
   });
 });
 </script>

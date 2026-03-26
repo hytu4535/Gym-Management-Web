@@ -65,7 +65,7 @@ include 'layout/header.php';
 
                     <div id="pt-booking-message" style="display:none;padding:10px 14px;border-radius:6px;margin-bottom:16px;"></div>
 
-                    <form id="pt-booking-form">
+                    <form id="pt-booking-form" novalidate>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
@@ -82,8 +82,8 @@ include 'layout/header.php';
                         </div>
 
                         <div class="form-group">
-                            <label style="color:#ddd;">Chọn huấn luyện viên</label>
-                            <select class="form-control" name="trainer_id" required>
+                            <label style="color:#ddd;">Chọn huấn luyện viên <span style="color:#ff6b6b;">*</span></label>
+                            <select class="form-control" name="trainer_id" data-field="trainer_id">
                                 <option value="">-- Chọn HLV --</option>
                                 <?php foreach ($trainers as $trainer): ?>
                                 <option value="<?php echo (int) $trainer['id']; ?>">
@@ -94,17 +94,20 @@ include 'layout/header.php';
                                 </option>
                                 <?php endforeach; ?>
                             </select>
+                            <small class="text-danger d-block mt-2" style="display:none;"></small>
                         </div>
 
                         <div class="form-group">
-                            <label style="color:#ddd;">Thời gian hẹn tập</label>
-                            <input type="datetime-local" class="form-control" name="training_date" required>
+                            <label style="color:#ddd;">Thời gian hẹn tập <span style="color:#ff6b6b;">*</span></label>
+                            <input type="datetime-local" class="form-control" name="training_date" data-field="training_date">
                             <small style="color:#888;">Nên đặt lịch trước ít nhất 30 phút.</small>
+                            <small class="text-danger d-block mt-2" style="display:none;"></small>
                         </div>
 
                         <div class="form-group">
                             <label style="color:#ddd;">Mục tiêu / Ghi chú buổi tập</label>
-                            <textarea class="form-control" name="note" rows="4" placeholder="Ví dụ: Tập thân dưới, cải thiện sức bền, cần PT hỗ trợ kỹ thuật squat..."></textarea>
+                            <textarea class="form-control" name="note" rows="4" data-field="note" placeholder="Ví dụ: Tập thân dưới, cải thiện sức bền, cần PT hỗ trợ kỹ thuật squat..."></textarea>
+                            <small class="text-danger d-block mt-2" style="display:none;"></small>
                         </div>
 
                         <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -131,6 +134,48 @@ include 'layout/footer.php';
     var btn = document.getElementById('btn-submit-pt');
     var messageBox = document.getElementById('pt-booking-message');
 
+    function label(field) {
+        if (field === 'trainer_id') return 'Vui lòng chọn huấn luyện viên.';
+        if (field === 'training_date') return 'Vui lòng chọn thời gian hẹn tập.';
+        if (field === 'note') return '';
+        return 'Vui lòng nhập dữ liệu hợp lệ.';
+    }
+
+    function errorBox(input) {
+        var group = input.closest('.form-group');
+        return group ? group.querySelector('small.text-danger') : null;
+    }
+
+    function showFieldError(input, message) {
+        var box = errorBox(input);
+        if (!box) return;
+
+        if (message) {
+            box.textContent = message;
+            box.style.display = 'block';
+            input.classList.add('is-invalid');
+        } else {
+            box.textContent = '';
+            box.style.display = 'none';
+            input.classList.remove('is-invalid');
+        }
+    }
+
+    function validateField(input) {
+        var field = input.getAttribute('data-field');
+        var value = String(input.value || '').trim();
+
+        if (!field) return true;
+
+        if (!value) {
+            showFieldError(input, label(field));
+            return false;
+        }
+
+        showFieldError(input, '');
+        return true;
+    }
+
     function showMessage(text, ok) {
         messageBox.style.display = 'block';
         messageBox.textContent = text;
@@ -140,6 +185,18 @@ include 'layout/footer.php';
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
+
+        var isValid = true;
+        form.querySelectorAll('[data-field]').forEach(function (field) {
+            if (!validateField(field)) {
+                isValid = false;
+            }
+        });
+
+        if (!isValid) {
+            return;
+        }
+
         btn.disabled = true;
 
         var formData = new URLSearchParams(new FormData(form));
@@ -164,6 +221,18 @@ include 'layout/footer.php';
             showMessage('Không thể kết nối đến máy chủ.', false);
             btn.disabled = false;
         });
+    });
+
+    form.addEventListener('input', function (e) {
+        if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-field')) {
+            validateField(e.target);
+        }
+    });
+
+    form.addEventListener('change', function (e) {
+        if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-field')) {
+            validateField(e.target);
+        }
     });
 })();
 </script>

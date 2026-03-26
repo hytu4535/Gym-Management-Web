@@ -23,6 +23,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     ob_clean();
   }
     header('Content-Type: application/json');
+
+    $normalizePhone = function ($phone) {
+      $digits = preg_replace('/\D+/', '', (string) $phone);
+      if (strpos($digits, '84') === 0) {
+        $digits = '0' . substr($digits, 2);
+      }
+      return $digits;
+    };
+
+    $validateSupplierData = function (array $data) {
+      $errors = [];
+
+      if ($data['name'] === '') {
+        $errors['name'] = 'Tên nhà cung cấp không được để trống.';
+      }
+
+      if ($data['phone'] === '') {
+        $errors['phone'] = 'Số điện thoại không được để trống.';
+      } elseif (!preg_match('/^0\d{9}$/', $data['phone'])) {
+        $errors['phone'] = 'Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 số.';
+      }
+
+      if ($data['address'] === '') {
+        $errors['address'] = 'Địa chỉ không được để trống.';
+      }
+
+      return $errors;
+    };
     
     $action = $_POST['action'];
     
@@ -34,13 +62,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             
             $data = [
-                'name' => $_POST['name'] ?? '',
-                'phone' => $_POST['phone'] ?? '',
-                'address' => $_POST['address'] ?? ''
+              'name' => trim($_POST['name'] ?? ''),
+              'phone' => $normalizePhone($_POST['phone'] ?? ''),
+              'address' => trim($_POST['address'] ?? '')
             ];
-            
-            if (empty($data['name'])) {
-                echo json_encode(['success' => false, 'message' => 'Tên nhà cung cấp không được để trống']);
+
+            $errors = $validateSupplierData($data);
+            if (!empty($errors)) {
+              echo json_encode([
+                'success' => false,
+                'message' => implode(' ', array_values($errors)),
+                'errors' => $errors
+              ]);
                 exit;
             }
             
@@ -61,13 +94,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             
             $data = [
-                'name' => $_POST['name'] ?? '',
-                'phone' => $_POST['phone'] ?? '',
-                'address' => $_POST['address'] ?? ''
+              'name' => trim($_POST['name'] ?? ''),
+              'phone' => $normalizePhone($_POST['phone'] ?? ''),
+              'address' => trim($_POST['address'] ?? '')
             ];
-            
-            if (empty($data['name'])) {
-                echo json_encode(['success' => false, 'message' => 'Tên nhà cung cấp không được để trống']);
+
+            $errors = $validateSupplierData($data);
+            if (!empty($errors)) {
+              echo json_encode([
+                'success' => false,
+                'message' => implode(' ', array_values($errors)),
+                'errors' => $errors
+              ]);
                 exit;
             }
             
@@ -203,25 +241,32 @@ $suppliers = getAllSuppliers();
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
-      <form id="addSupplierForm">
+      <form id="addSupplierForm" novalidate>
         <div class="modal-body">
           <input type="hidden" id="supplierId" value="">
           <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+
+          <div id="supplierFormErrors" class="alert alert-danger d-none" role="alert">
+            <ul id="supplierFormErrorsList" class="mb-0 pl-3"></ul>
+          </div>
           
           <div class="form-group">
             <label for="supplierName">Tên Nhà Cung Cấp *</label>
-            <input type="text" class="form-control" id="supplierName" name="name" required>
+            <input type="text" class="form-control" id="supplierName" name="name">
+            <small id="supplierNameError" class="text-danger d-none"></small>
           </div>
           
           <div class="form-group">
-            <label for="supplierPhone">Số Điện Thoại</label>
+            <label for="supplierPhone">Số Điện Thoại *</label>
             <input type="tel" class="form-control" id="supplierPhone" name="phone" placeholder="0901234567 hoặc +84901234567">
-            <small class="form-text text-muted">Nếu nhập, số điện thoại phải bắt đầu bằng 0 và đủ 10 số.</small>
+            <small id="supplierPhoneError" class="text-danger d-none">Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 số.</small>
+            <small class="form-text text-muted">Bắt buộc nhập số điện thoại bắt đầu bằng 0 và đủ 10 số.</small>
           </div>
           
           <div class="form-group">
-            <label for="supplierAddress">Địa Chỉ</label>
+            <label for="supplierAddress">Địa Chỉ *</label>
             <textarea class="form-control" id="supplierAddress" name="address" rows="3" placeholder="Nhập địa chỉ..."></textarea>
+            <small id="supplierAddressError" class="text-danger d-none"></small>
           </div>
         </div>
         <div class="modal-footer">
@@ -265,6 +310,20 @@ $(document).ready(function() {
         $('#supplierId').val('');
         $('#addSupplierModalLabel').text('Thêm Nhà Cung Cấp');
         $('#submitBtn').text('Thêm NCC');
+        clearSupplierValidationErrors();
+    });
+
+    $('#supplierName, #supplierPhone, #supplierAddress').on('input', function() {
+      clearSupplierFormErrors();
+
+      const fieldId = this.id;
+      if (fieldId === 'supplierName') {
+        clearSupplierNameError();
+      } else if (fieldId === 'supplierPhone') {
+        clearSupplierPhoneError();
+      } else if (fieldId === 'supplierAddress') {
+        clearSupplierAddressError();
+      }
     });
     
     // Handle form submission
@@ -273,20 +332,17 @@ $(document).ready(function() {
         
         const supplierId = $('#supplierId').val();
         const action = supplierId ? 'update' : 'add';
-        
-        const rawPhone = $('#supplierPhone').val().trim();
-        const normalizedPhone = normalizeSupplierPhoneInput(rawPhone);
 
-        if (normalizedPhone !== '' && !/^0\d{9}$/.test(normalizedPhone)) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Lỗi',
-            text: 'Số điện thoại không hợp lệ (phải bắt đầu bằng 0 và đủ 10 số)'
-          });
+        const validation = validateSupplierForm();
+        if (!validation.isValid) {
+          const firstInvalidField = validation.firstInvalidField;
+          if (firstInvalidField) {
+            $('#' + firstInvalidField).focus();
+          }
           return;
         }
 
-        $('#supplierPhone').val(normalizedPhone);
+        $('#supplierPhone').val(validation.normalizedPhone);
 
         const formData = new FormData(this);
         formData.append('action', action);
@@ -313,6 +369,26 @@ $(document).ready(function() {
                     $('#addSupplierModal').modal('hide');
                     loadSuppliers($('#searchInput').val().trim());
                 } else {
+                    const serverErrors = response.errors || {};
+                    const errorMessages = [];
+
+                    if (serverErrors.name) {
+                      showSupplierNameError(serverErrors.name);
+                      errorMessages.push(serverErrors.name);
+                    }
+                    if (serverErrors.phone) {
+                      showSupplierPhoneError(serverErrors.phone);
+                      errorMessages.push(serverErrors.phone);
+                    }
+                    if (serverErrors.address) {
+                      showSupplierAddressError(serverErrors.address);
+                      errorMessages.push(serverErrors.address);
+                    }
+
+                    if (errorMessages.length > 0) {
+                      showSupplierFormErrors(errorMessages);
+                    }
+
                     Swal.fire({
                         icon: 'error',
                         title: 'Lỗi',
@@ -500,6 +576,7 @@ function editSupplier(id) {
       $('#supplierName').val(supplier.name || '');
       $('#supplierPhone').val(supplier.phone || '');
       $('#supplierAddress').val(supplier.address || '');
+      clearSupplierValidationErrors();
 
       $('#addSupplierModalLabel').text('Chỉnh sửa Nhà Cung Cấp');
       $('#submitBtn').text('Cập nhật NCC');
@@ -585,5 +662,118 @@ function normalizeSupplierPhoneInput(phone) {
   }
 
   return normalized;
+}
+
+function validateSupplierForm() {
+  clearSupplierValidationErrors();
+
+  const name = $('#supplierName').val().trim();
+  const rawPhone = $('#supplierPhone').val().trim();
+  const normalizedPhone = normalizeSupplierPhoneInput(rawPhone);
+  const address = $('#supplierAddress').val().trim();
+
+  const errors = [];
+  let firstInvalidField = '';
+
+  if (name === '') {
+    const msg = 'Tên nhà cung cấp không được để trống.';
+    showSupplierNameError(msg);
+    errors.push(msg);
+    firstInvalidField = firstInvalidField || 'supplierName';
+  }
+
+  if (normalizedPhone === '') {
+    const msg = 'Số điện thoại không được để trống.';
+    showSupplierPhoneError(msg);
+    errors.push(msg);
+    firstInvalidField = firstInvalidField || 'supplierPhone';
+  } else if (!/^0\d{9}$/.test(normalizedPhone)) {
+    const msg = 'Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 số.';
+    showSupplierPhoneError(msg);
+    errors.push(msg);
+    firstInvalidField = firstInvalidField || 'supplierPhone';
+  }
+
+  if (address === '') {
+    const msg = 'Địa chỉ không được để trống.';
+    showSupplierAddressError(msg);
+    errors.push(msg);
+    firstInvalidField = firstInvalidField || 'supplierAddress';
+  }
+
+  if (errors.length > 0) {
+    showSupplierFormErrors(errors);
+    return {
+      isValid: false,
+      normalizedPhone: normalizedPhone,
+      firstInvalidField: firstInvalidField
+    };
+  }
+
+  return {
+    isValid: true,
+    normalizedPhone: normalizedPhone,
+    firstInvalidField: ''
+  };
+}
+
+function showSupplierFormErrors(messages) {
+  const html = messages.map(function(message) {
+    return '<li>' + escapeHtmlText(message) + '</li>';
+  }).join('');
+
+  $('#supplierFormErrorsList').html(html);
+  $('#supplierFormErrors').removeClass('d-none');
+}
+
+function clearSupplierFormErrors() {
+  $('#supplierFormErrorsList').empty();
+  $('#supplierFormErrors').addClass('d-none');
+}
+
+function showSupplierNameError(message) {
+  $('#supplierName').addClass('is-invalid');
+  $('#supplierNameError').text(message).removeClass('d-none');
+}
+
+function clearSupplierNameError() {
+  $('#supplierName').removeClass('is-invalid');
+  $('#supplierNameError').addClass('d-none').text('');
+}
+
+function showSupplierPhoneError(message) {
+  $('#supplierPhone').addClass('is-invalid');
+  $('#supplierPhoneError').text(message).removeClass('d-none');
+}
+
+function clearSupplierPhoneError() {
+  $('#supplierPhone').removeClass('is-invalid');
+  $('#supplierPhoneError').addClass('d-none').text('');
+}
+
+function showSupplierAddressError(message) {
+  $('#supplierAddress').addClass('is-invalid');
+  $('#supplierAddressError').text(message).removeClass('d-none');
+}
+
+function clearSupplierAddressError() {
+  $('#supplierAddress').removeClass('is-invalid');
+  $('#supplierAddressError').addClass('d-none').text('');
+}
+
+function clearSupplierValidationErrors() {
+  clearSupplierFormErrors();
+  clearSupplierNameError();
+  clearSupplierPhoneError();
+  clearSupplierAddressError();
+}
+
+function escapeHtmlText(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 </script>

@@ -268,7 +268,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="addServiceModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="services.php" enctype="multipart/form-data">
+          <form method="POST" action="services.php" enctype="multipart/form-data" novalidate>
             <input type="hidden" name="action" value="add">
             <div class="modal-header">
               <h5 class="modal-title">Thêm dịch vụ mới</h5>
@@ -277,35 +277,41 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Tên dịch vụ <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" name="name" placeholder="Nhập tên dịch vụ" required>
+                <input type="text" class="form-control" name="name" placeholder="Nhập tên dịch vụ" data-field="name">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Loại dịch vụ <span class="text-danger">*</span></label>
-                <select class="form-control" name="type" required>
+                <select class="form-control" name="type" data-field="type">
                   <option value="thư giãn">Thư giãn</option>
                   <option value="xoa bóp">Xoa bóp</option>
                   <option value="hỗ trợ">Hỗ trợ</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Giá (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="price" placeholder="Nhập giá dịch vụ" min="0" step="1000" required>
+                <input type="number" class="form-control" name="price" placeholder="Nhập giá dịch vụ" min="0" step="1000" data-field="price">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Mô tả</label>
-                <textarea class="form-control" name="description" rows="3" placeholder="Nhập mô tả dịch vụ"></textarea>
+                <textarea class="form-control" name="description" rows="3" placeholder="Nhập mô tả dịch vụ" data-field="description"></textarea>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Hình ảnh dịch vụ</label>
-                <input type="file" class="form-control" name="img" accept="image/*">
+                <input type="file" class="form-control" name="img" accept="image/*" data-field="img">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
                 <small class="text-muted">Ảnh sẽ được lưu tại assets/uploads/services</small>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
-                <select class="form-control" name="status">
+                <select class="form-control" name="status" data-field="status">
                   <option value="hoạt động">Hoạt động</option>
                   <option value="không hoạt động">Không hoạt động</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -321,7 +327,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="editServiceModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="services.php" enctype="multipart/form-data">
+          <form method="POST" action="services.php" enctype="multipart/form-data" novalidate>
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
             <input type="hidden" name="old_img" id="edit-old-img">
@@ -332,23 +338,27 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Tên dịch vụ <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" name="name" id="edit-name" required>
+                <input type="text" class="form-control" name="name" id="edit-name" data-field="name">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Loại dịch vụ <span class="text-danger">*</span></label>
-                <select class="form-control" name="type" id="edit-type" required>
+                <select class="form-control" name="type" id="edit-type" data-field="type">
                   <option value="thư giãn">Thư giãn</option>
                   <option value="xoa bóp">Xoa bóp</option>
                   <option value="hỗ trợ">Hỗ trợ</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Giá (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="price" id="edit-price" min="0" step="1000" required>
+                <input type="number" class="form-control" name="price" id="edit-price" min="0" step="1000" data-field="price">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Mô tả</label>
-                <textarea class="form-control" name="description" id="edit-description" rows="3"></textarea>
+                <textarea class="form-control" name="description" id="edit-description" rows="3" data-field="description"></textarea>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Ảnh hiện tại</label>
@@ -363,10 +373,11 @@ include 'layout/sidebar.php';
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
-                <select class="form-control" name="status" id="edit-status">
+                <select class="form-control" name="status" id="edit-status" data-field="status">
                   <option value="hoạt động">Hoạt động</option>
                   <option value="không hoạt động">Không hoạt động</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -428,4 +439,33 @@ $(function() {
     $('#delete-name').text($(this).data('name'));
   });
 });
+
+(function() {
+  function msg(field) {
+    if (field === 'name') return 'Vui lòng nhập tên dịch vụ';
+    if (field === 'type') return 'Vui lòng chọn loại dịch vụ';
+    if (field === 'price') return 'Vui lòng nhập giá dịch vụ hợp lệ';
+    if (field === 'description') return 'Vui lòng nhập mô tả dịch vụ';
+    if (field === 'img') return 'Vui lòng chọn hình ảnh dịch vụ';
+    if (field === 'status') return 'Vui lòng chọn trạng thái';
+    return 'Vui lòng nhập dữ liệu hợp lệ';
+  }
+  function box(input) { return input.closest('.form-group')?.querySelector('small.text-danger') || null; }
+  function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
+  function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
+  function validate(input) {
+    const field = input.getAttribute('data-field');
+    const value = String(input.value || '').trim();
+    clear(input);
+    if (!field) return true;
+    if (field === 'price') { if (!value || Number(value) < 0) { show(input, msg(field)); return false; } return true; }
+    if (field === 'img') { if (!value) { show(input, msg(field)); return false; } return true; }
+    if (!value) { show(input, msg(field)); return false; }
+    return true;
+  }
+  document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
+  document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('submit', function(e){ if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return; let ok = true; e.target.querySelectorAll('[data-field]').forEach(function(field){ if (!validate(field)) ok = false; }); if (!ok) e.preventDefault(); }, true);
+})();
 </script>

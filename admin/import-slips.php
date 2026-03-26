@@ -394,7 +394,7 @@ include 'layout/sidebar.php';
 <div class="modal fade" id="addImportModal" tabindex="-1" role="dialog" aria-labelledby="addImportModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <form method="POST" action="import-slips.php">
+      <form method="POST" action="import-slips.php" novalidate>
         <div class="modal-header">
           <h5 class="modal-title" id="addImportModalLabel">Tạo Phiếu Nhập</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -414,24 +414,30 @@ include 'layout/sidebar.php';
             <div class="alert alert-warning mb-3">Chưa có sản phẩm hoặc thiết bị để nhập kho. Vui lòng tạo dữ liệu trước khi lập phiếu.</div>
           <?php endif; ?>
 
+          <div id="importFormErrors" class="alert alert-danger" style="display:none;">
+            <ul id="importFormErrorsList" class="mb-0 pl-3"></ul>
+          </div>
+
           <div class="form-group">
-            <label for="supplier_id">Nhà Cung Cấp</label>
-            <select class="form-control" id="supplier_id" name="supplier_id" required <?= empty($suppliers) ? 'disabled' : '' ?>>
+            <label for="supplier_id">Nhà Cung Cấp <span class="text-danger">*</span></label>
+            <select class="form-control" id="supplier_id" name="supplier_id" <?= empty($suppliers) ? 'disabled' : '' ?>>
               <option value="">-- Chọn nhà cung cấp --</option>
               <?php foreach ($suppliers as $supplier): ?>
                 <option value="<?= $supplier['id'] ?>"><?= htmlspecialchars($supplier['name']) ?></option>
               <?php endforeach; ?>
             </select>
+            <small id="supplierIdError" class="text-danger" style="display:none;"></small>
           </div>
 
           <div class="form-group">
-            <label for="staff_id">Nhân Viên</label>
-            <select class="form-control" id="staff_id" name="staff_id" required <?= empty($staffs) ? 'disabled' : '' ?>>
+            <label for="staff_id">Nhân Viên <span class="text-danger">*</span></label>
+            <select class="form-control" id="staff_id" name="staff_id" <?= empty($staffs) ? 'disabled' : '' ?>>
               <option value="">-- Chọn nhân viên --</option>
               <?php foreach ($staffs as $staff): ?>
                 <option value="<?= $staff['id'] ?>"><?= htmlspecialchars($staff['full_name']) ?></option>
               <?php endforeach; ?>
             </select>
+            <small id="staffIdError" class="text-danger" style="display:none;"></small>
           </div>
 
           <div class="form-group">
@@ -454,6 +460,7 @@ include 'layout/sidebar.php';
             <button type="button" class="btn btn-outline-primary btn-sm" id="add_import_detail_row">
               <i class="fas fa-plus"></i> Thêm dòng
             </button>
+            <div><small id="importDetailError" class="text-danger" style="display:none;"></small></div>
           </div>
 
           <div class="form-group">
@@ -462,8 +469,9 @@ include 'layout/sidebar.php';
           </div>
 
           <div class="form-group">
-            <label for="import_date">Ngày Nhập</label>
-            <input type="datetime-local" class="form-control" id="import_date" name="import_date" required>
+            <label for="import_date">Ngày Nhập <span class="text-danger">*</span></label>
+            <input type="datetime-local" class="form-control" id="import_date" name="import_date">
+            <small id="importDateError" class="text-danger" style="display:none;"></small>
           </div>
 
           <div class="form-group">
@@ -613,19 +621,19 @@ include 'layout/sidebar.php';
       const type = initialType === 'equipment' ? 'equipment' : 'product';
       const $row = $('<tr>\
         <td>\
-          <select class="form-control form-control-sm detail-type" name="detail_type[]" required>\
+          <select class="form-control form-control-sm detail-type" name="detail_type[]">\
             <option value="product">Sản phẩm</option>\
             <option value="equipment">Thiết bị</option>\
           </select>\
         </td>\
         <td>\
-          <select class="form-control form-control-sm detail-item" name="detail_item_id[]" required></select>\
+          <select class="form-control form-control-sm detail-item" name="detail_item_id[]"></select>\
         </td>\
         <td>\
-          <input type="number" class="form-control form-control-sm detail-quantity" name="detail_quantity[]" min="1" step="1" required>\
+          <input type="number" class="form-control form-control-sm detail-quantity" name="detail_quantity[]" min="1" step="1">\
         </td>\
         <td>\
-          <input type="number" class="form-control form-control-sm detail-price" name="detail_import_price[]" min="1" step="any" required>\
+          <input type="number" class="form-control form-control-sm detail-price" name="detail_import_price[]" min="1" step="any">\
         </td>\
         <td class="text-right align-middle detail-line-total">0 VNĐ</td>\
         <td class="text-center">\
@@ -758,33 +766,108 @@ include 'layout/sidebar.php';
       updateImportTotal();
     });
 
+    function showImportFieldError(id, message) {
+      $('#' + id).text(message).show();
+    }
+
+    function clearImportFormErrors() {
+      $('#importFormErrors').hide().find('ul').empty();
+      $('#supplierIdError, #staffIdError, #importDetailError, #importDateError').text('').hide();
+      $('#import_detail_body .is-invalid').removeClass('is-invalid');
+    }
+
+    function showImportFormErrors(errorList) {
+      const $ul = $('#importFormErrorsList');
+      $ul.empty();
+      errorList.forEach(function (msg) {
+        $ul.append('<li>' + escapeHtml(msg) + '</li>');
+      });
+      $('#importFormErrors').show();
+    }
+
+    $('#supplier_id').on('change', function () {
+      if ($(this).val()) { $('#supplierIdError').text('').hide(); }
+    });
+
+    $('#staff_id').on('change', function () {
+      if ($(this).val()) { $('#staffIdError').text('').hide(); }
+    });
+
+    $('#import_date').on('change', function () {
+      if ($(this).val()) { $('#importDateError').text('').hide(); }
+    });
+
+    $(document).on('change input', '.detail-item, .detail-quantity, .detail-price', function () {
+      $(this).removeClass('is-invalid');
+    });
+
     $('#addImportModal form').on('submit', function (event) {
-      if ($('#import_detail_body tr').length === 0) {
-        event.preventDefault();
-        alert('Vui lòng thêm ít nhất 1 dòng chi tiết trước khi tạo phiếu nhập.');
-        return;
+      clearImportFormErrors();
+      const errors = [];
+
+      const supplierId = $('#supplier_id').val();
+      if (!supplierId) {
+        errors.push('Vui lòng chọn nhà cung cấp.');
+        showImportFieldError('supplierIdError', 'Vui lòng chọn nhà cung cấp.');
       }
 
-      let invalid = false;
-      $('#import_detail_body tr').each(function () {
-        const type = $(this).find('.detail-type').val();
-        const item = $(this).find('.detail-item').val();
-        const quantity = Number($(this).find('.detail-quantity').val()) || 0;
-        const price = Number($(this).find('.detail-price').val()) || 0;
-        const options = getItemOptionsByType(type);
+      const staffId = $('#staff_id').val();
+      if (!staffId) {
+        errors.push('Vui lòng chọn nhân viên.');
+        showImportFieldError('staffIdError', 'Vui lòng chọn nhân viên.');
+      }
 
-        if (!item || quantity <= 0 || price <= 0 || options.length === 0) {
-          invalid = true;
+      const $rows = $('#import_detail_body tr');
+      if ($rows.length === 0) {
+        errors.push('Vui lòng thêm ít nhất 1 dòng chi tiết nhập kho.');
+        showImportFieldError('importDetailError', 'Vui lòng thêm ít nhất 1 dòng chi tiết nhập kho.');
+      } else {
+        let hasDetailError = false;
+        $rows.each(function () {
+          const $row = $(this);
+          const type = $row.find('.detail-type').val();
+          const item = $row.find('.detail-item').val();
+          const quantity = Number($row.find('.detail-quantity').val()) || 0;
+          const price = Number($row.find('.detail-price').val()) || 0;
+          const options = getItemOptionsByType(type);
+
+          if (!item || options.length === 0) {
+            $row.find('.detail-item').addClass('is-invalid');
+            hasDetailError = true;
+          }
+          if (quantity <= 0) {
+            $row.find('.detail-quantity').addClass('is-invalid');
+            hasDetailError = true;
+          }
+          if (price <= 0) {
+            $row.find('.detail-price').addClass('is-invalid');
+            hasDetailError = true;
+          }
+        });
+
+        if (hasDetailError) {
+          errors.push('Vui lòng kiểm tra lại chi tiết nhập kho (mục chọn, số lượng, đơn giá phải hợp lệ).');
+          showImportFieldError('importDetailError', 'Vui lòng kiểm tra lại chi tiết nhập kho (mục chọn, số lượng, đơn giá phải hợp lệ).');
         }
-      });
+      }
 
-      if (invalid) {
+      const importDate = $('#import_date').val();
+      if (!importDate) {
+        errors.push('Vui lòng chọn ngày nhập.');
+        showImportFieldError('importDateError', 'Vui lòng chọn ngày nhập.');
+      }
+
+      if (errors.length > 0) {
         event.preventDefault();
-        alert('Vui lòng kiểm tra lại dữ liệu chi tiết (loại, mục, số lượng, đơn giá).');
+        showImportFormErrors(errors);
         return;
       }
 
       updateImportTotal();
+    });
+
+    $('#addImportModal').on('hidden.bs.modal', function () {
+      clearImportFormErrors();
     });
 
     if ((productOptions.length + equipmentOptions.length) > 0) {

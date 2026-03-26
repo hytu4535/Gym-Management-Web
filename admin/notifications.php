@@ -239,7 +239,7 @@ include 'layout/sidebar.php';
 <div class="modal fade" id="addNotificationModal" tabindex="-1" role="dialog" aria-labelledby="addNotificationModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <form method="POST" action="notifications.php">
+      <form id="addNotificationForm" method="POST" action="notifications.php" novalidate>
         <div class="modal-header">
           <h5 class="modal-title" id="addNotificationModalLabel">Tạo thông báo</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -249,29 +249,33 @@ include 'layout/sidebar.php';
         <div class="modal-body">
           <div class="form-group">
             <label for="recipient_group">Gửi tới</label>
-            <select class="form-control" id="recipient_group" name="recipient_group" required>
+            <select class="form-control" id="recipient_group" name="recipient_group">
               <option value="all">Tất cả mọi người</option>
               <option value="admin">Admin</option>
               <option value="staff">Nhân viên (Staff)</option>
               <option value="member">Thành viên (Member)</option>
               <option value="specific">Người dùng cụ thể</option>
             </select>
+            <small class="text-danger d-none validation-error"></small>
           </div>
 
           <div class="form-group" id="specific_recipient_group" style="display:none;">
             <label for="recipient_identifier">Tên / Số điện thoại / Gmail người nhận</label>
             <input type="text" class="form-control" id="recipient_identifier" name="recipient_identifier" placeholder="Nhập đúng username, số điện thoại hoặc email">
             <small class="form-text text-muted">Hệ thống chỉ gửi khi khớp chính xác thông tin người dùng.</small>
+            <small class="text-danger d-none validation-error"></small>
           </div>
 
           <div class="form-group">
             <label for="title">Tiêu đề</label>
-            <input type="text" class="form-control" id="title" name="title" required maxlength="255">
+            <input type="text" class="form-control" id="title" name="title" maxlength="255">
+            <small class="text-danger d-none validation-error"></small>
           </div>
 
           <div class="form-group">
             <label for="content">Nội dung</label>
-            <textarea class="form-control" id="content" name="content" rows="4" required></textarea>
+            <textarea class="form-control" id="content" name="content" rows="4"></textarea>
+            <small class="text-danger d-none validation-error"></small>
           </div>
         </div>
         <div class="modal-footer">
@@ -310,21 +314,85 @@ include 'layout/sidebar.php';
 
 <script>
   (function () {
+    const allowedGroups = ['all', 'admin', 'staff', 'member', 'specific'];
+
+    function setFieldError($field, message) {
+      const $error = $field.closest('.form-group').find('.validation-error').last();
+      $field.addClass('is-invalid');
+      $error.text(message).removeClass('d-none');
+    }
+
+    function clearFieldError($field) {
+      const $error = $field.closest('.form-group').find('.validation-error').last();
+      $field.removeClass('is-invalid');
+      $error.text('').addClass('d-none');
+    }
+
+    function validateNotificationForm() {
+      let isValid = true;
+      const group = $('#recipient_group').val();
+      const recipientIdentifier = $('#recipient_identifier').val().trim();
+      const title = $('#title').val().trim();
+      const content = $('#content').val().trim();
+
+      $('#addNotificationForm').find('.form-control').each(function () {
+        clearFieldError($(this));
+      });
+
+      if (!allowedGroups.includes(group)) {
+        setFieldError($('#recipient_group'), 'Vui lòng chọn nhóm người nhận hợp lệ.');
+        isValid = false;
+      }
+
+      if (group === 'specific' && !recipientIdentifier) {
+        setFieldError($('#recipient_identifier'), 'Vui lòng nhập người nhận cụ thể.');
+        isValid = false;
+      }
+
+      if (!title) {
+        setFieldError($('#title'), 'Vui lòng nhập tiêu đề.');
+        isValid = false;
+      }
+
+      if (!content) {
+        setFieldError($('#content'), 'Vui lòng nhập nội dung.');
+        isValid = false;
+      }
+
+      return isValid;
+    }
+
     function toggleSpecificRecipientInput() {
       const group = $('#recipient_group').val();
       const isSpecific = group === 'specific';
       $('#specific_recipient_group').toggle(isSpecific);
-      $('#recipient_identifier').prop('required', isSpecific);
 
       if (!isSpecific) {
         $('#recipient_identifier').val('');
+        clearFieldError($('#recipient_identifier'));
       }
     }
 
     $('#recipient_group').on('change', toggleSpecificRecipientInput);
 
+    $('#addNotificationForm').on('submit', function (e) {
+      if (!validateNotificationForm()) {
+        e.preventDefault();
+      }
+    });
+
+    $('#addNotificationForm').find('.form-control').on('input change', function () {
+      clearFieldError($(this));
+    });
+
     $('#addNotificationModal').on('shown.bs.modal', function () {
       toggleSpecificRecipientInput();
+    });
+
+    $('#addNotificationModal').on('hidden.bs.modal', function () {
+      $('#addNotificationForm').find('.form-control').each(function () {
+        clearFieldError($(this));
+      });
     });
 
     function setBadgeRead(notificationId) {

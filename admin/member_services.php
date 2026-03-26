@@ -16,6 +16,27 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
+function isPastDate($date)
+{
+  if (empty($date)) {
+    return false;
+  }
+
+  try {
+    $today = new DateTimeImmutable('today');
+    $endDate = new DateTimeImmutable($date);
+    return $endDate < $today;
+  } catch (Exception $e) {
+    return false;
+  }
+}
+
+try {
+  $db->exec("UPDATE member_services SET status = 'đã dùng' WHERE end_date IS NOT NULL AND end_date < CURDATE() AND status <> 'đã dùng'");
+} catch (PDOException $e) {
+  // Không chặn trang nếu đồng bộ trạng thái tự động gặp lỗi.
+}
+
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
@@ -24,6 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $start_date = sanitize($_POST['start_date']);
         $end_date = !empty($_POST['end_date']) ? sanitize($_POST['end_date']) : null;
         $status = sanitize($_POST['status']);
+
+      if ($end_date !== null && isPastDate($end_date)) {
+        $status = 'đã dùng';
+      }
 
         try {
             $stmt = $db->prepare("INSERT INTO member_services (member_id, service_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)");
@@ -43,6 +68,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $start_date = sanitize($_POST['start_date']);
         $end_date = !empty($_POST['end_date']) ? sanitize($_POST['end_date']) : null;
         $status = sanitize($_POST['status']);
+
+      $currentStmt = $db->prepare("SELECT end_date FROM member_services WHERE id = ? LIMIT 1");
+      $currentStmt->execute([$id]);
+      $currentRecord = $currentStmt->fetch(PDO::FETCH_ASSOC);
+
+      if (!$currentRecord) {
+        setFlashMessage('danger', 'Không tìm thấy bản ghi cần sửa.');
+        redirect('member_services.php');
+        exit;
+      }
+
+      if (!empty($currentRecord['end_date']) && isPastDate($currentRecord['end_date'])) {
+        setFlashMessage('danger', 'Bản ghi này đã quá ngày kết thúc nên không thể sửa nữa.');
+        redirect('member_services.php');
+        exit;
+      }
+
+      if ($end_date !== null && isPastDate($end_date)) {
+        $status = 'đã dùng';
+      }
 
         try {
             $stmt = $db->prepare("UPDATE member_services SET member_id = ?, service_id = ?, start_date = ?, end_date = ?, status = ? WHERE id = ?");
@@ -80,6 +125,14 @@ $stmt = $db->query("
     ORDER BY ms.start_date DESC
 ");
 $records = $stmt->fetchAll();
+
+foreach ($records as &$record) {
+  $record['is_expired'] = !empty($record['end_date']) && isPastDate($record['end_date']);
+  if ($record['is_expired']) {
+    $record['status'] = 'đã dùng';
+  }
+}
+unset($record);
 
 // Lấy danh sách hội viên (active)
 $stmt = $db->query("SELECT id, full_name, phone FROM members WHERE status = 'active' ORDER BY full_name ASC");
@@ -205,24 +258,27 @@ include 'layout/sidebar.php';
                     <td><?= date('d/m/Y', strtotime($row['start_date'])) ?></td>
                     <td><?= $row['end_date'] ? date('d/m/Y', strtotime($row['end_date'])) : '<span class="text-muted">—</span>' ?></td>
                     <td>
-                      <?php if ($row['status'] === 'còn hiệu lực'): ?>
+                      <?php if (!empty($row['is_expired'])): ?>
+                        <span class="badge badge-secondary">Hết hiệu lực</span>
+                      <?php elseif ($row['status'] === 'còn hiệu lực'): ?>
                         <span class="badge badge-success">Còn hiệu lực</span>
                       <?php else: ?>
                         <span class="badge badge-secondary">Đã dùng</span>
                       <?php endif; ?>
                     </td>
                     <td>
-                      <button class="btn btn-warning btn-sm btn-edit"
+                      <button type="button" class="btn btn-warning btn-sm btn-edit"
                         data-id="<?= $row['id'] ?>"
                         data-member_id="<?= $row['member_id'] ?>"
                         data-service_id="<?= $row['service_id'] ?>"
                         data-start_date="<?= $row['start_date'] ?>"
                         data-end_date="<?= $row['end_date'] ?? '' ?>"
                         data-status="<?= htmlspecialchars($row['status']) ?>"
-                        data-toggle="modal" data-target="#editModal">
+                        <?= !empty($row['is_expired']) ? 'disabled title="Bản ghi đã quá ngày kết thúc nên không thể sửa"' : 'data-toggle="modal" data-target="#editModal"' ?>
+                        >
                         <i class="fas fa-edit"></i>
                       </button>
-                      <button class="btn btn-danger btn-sm btn-delete"
+                      <button type="button" class="btn btn-danger btn-sm btn-delete"
                         data-id="<?= $row['id'] ?>"
                         data-member="<?= htmlspecialchars($row['member_name'] ?? 'N/A') ?>"
                         data-service="<?= htmlspecialchars($row['service_name'] ?? 'N/A') ?>"
@@ -245,7 +301,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="addModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="member_services.php">
+          <form method="POST" action="member_services.php" novalidate>
             <input type="hidden" name="action" value="add">
             <div class="modal-header bg-primary">
               <h5 class="modal-title"><i class="fas fa-concierge-bell"></i> Gán dịch vụ cho hội viên</h5>
@@ -254,7 +310,7 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control select2" name="member_id" required style="width: 100%;">
+                <select class="form-control select2" name="member_id" data-field="member_id" style="width: 100%;">
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -262,13 +318,14 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
                 <?php if (empty($members)): ?>
                   <small class="text-danger">Chưa có hội viên nào.</small>
                 <?php endif; ?>
               </div>
               <div class="form-group">
                 <label>Dịch vụ <span class="text-danger">*</span></label>
-                <select class="form-control select2" name="service_id" required style="width: 100%;">
+                <select class="form-control select2" name="service_id" data-field="service_id" style="width: 100%;">
                   <option value="">-- Chọn dịch vụ --</option>
                   <?php foreach ($services as $svc): ?>
                     <option value="<?= $svc['id'] ?>">
@@ -276,6 +333,7 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
                 <?php if (empty($services)): ?>
                   <small class="text-danger">Chưa có dịch vụ nào.</small>
                 <?php endif; ?>
@@ -284,22 +342,25 @@ include 'layout/sidebar.php';
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày bắt đầu <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="start_date" required value="<?= date('Y-m-d') ?>">
+                    <input type="date" class="form-control" name="start_date" data-field="start_date" value="<?= date('Y-m-d') ?>">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày kết thúc</label>
-                    <input type="date" class="form-control" name="end_date">
+                    <input type="date" class="form-control" name="end_date" data-field="end_date">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
-                <select class="form-control" name="status">
+                <select class="form-control" name="status" data-field="status">
                   <option value="còn hiệu lực">Còn hiệu lực</option>
                   <option value="đã dùng">Đã dùng</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -315,7 +376,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="editModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="member_services.php">
+          <form method="POST" action="member_services.php" novalidate>
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
             <div class="modal-header bg-warning">
@@ -325,7 +386,7 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control" name="member_id" id="edit-member_id" required>
+                <select class="form-control" name="member_id" id="edit-member_id" data-field="member_id">
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -333,10 +394,11 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Dịch vụ <span class="text-danger">*</span></label>
-                <select class="form-control" name="service_id" id="edit-service_id" required>
+                <select class="form-control" name="service_id" id="edit-service_id" data-field="service_id">
                   <option value="">-- Chọn dịch vụ --</option>
                   <?php foreach ($services as $svc): ?>
                     <option value="<?= $svc['id'] ?>">
@@ -344,27 +406,31 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="row">
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày bắt đầu <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="start_date" id="edit-start_date" required>
+                    <input type="date" class="form-control" name="start_date" id="edit-start_date" data-field="start_date">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày kết thúc</label>
-                    <input type="date" class="form-control" name="end_date" id="edit-end_date">
+                    <input type="date" class="form-control" name="end_date" id="edit-end_date" data-field="end_date">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
-                <select class="form-control" name="status" id="edit-status">
+                <select class="form-control" name="status" id="edit-status" data-field="status">
                   <option value="còn hiệu lực">Còn hiệu lực</option>
                   <option value="đã dùng">Đã dùng</option>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -426,4 +492,23 @@ $(function() {
     $('#delete-service').text($(this).data('service'));
   });
 });
+
+(function() {
+  function label(field) {
+    if (field === 'member_id') return 'Vui lòng chọn hội viên';
+    if (field === 'service_id') return 'Vui lòng chọn dịch vụ';
+    if (field === 'start_date') return 'Vui lòng chọn ngày bắt đầu';
+    if (field === 'end_date') return 'Vui lòng chọn ngày kết thúc';
+    if (field === 'status') return 'Vui lòng chọn trạng thái';
+    return 'Vui lòng nhập dữ liệu hợp lệ';
+  }
+  function box(input) { return input.closest('.form-group')?.querySelector('small.text-danger') || null; }
+  function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
+  function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
+  function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); clear(input); if (!field) return true; if (!value) { show(input, label(field)); return false; } return true; }
+  document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
+  document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('submit', function(e){ if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return; let ok = true; e.target.querySelectorAll('[data-field]').forEach(function(field){ if (!validate(field)) ok = false; }); if (!ok) e.preventDefault(); }, true);
+})();
 </script>

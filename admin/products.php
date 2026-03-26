@@ -133,13 +133,13 @@ $result = $conn->query($sql);
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
-      <form action="process/product_add.php" method="POST" enctype="multipart/form-data">
+      <form id="addProductForm" action="process/product_add.php" method="POST" enctype="multipart/form-data" novalidate>
         <div class="modal-body">
           <div class="row">
             <div class="col-md-6">
               <div class="form-group">
                 <label for="name">Tên Sản Phẩm <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="name" name="name" required placeholder="Nhập tên sản phẩm...">
+                <input type="text" class="form-control" id="name" name="name" placeholder="Nhập tên sản phẩm...">
               </div>
               
               <div class="form-group">
@@ -177,12 +177,12 @@ $result = $conn->query($sql);
 
               <div class="form-group">
                 <label for="selling_price">Giá Bán Lẻ (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" id="selling_price" name="selling_price" required min="0" value="0">
+                <input type="number" class="form-control" id="selling_price" name="selling_price" min="0" placeholder="Nhập giá bán...">
               </div>
 
               <div class="form-group">
                 <label for="stock_quantity">Số Lượng Tồn Kho</label>
-                <input type="number" class="form-control" id="stock_quantity" name="stock_quantity" min="0" value="0">
+                <input type="number" class="form-control" id="stock_quantity" name="stock_quantity" min="0" placeholder="Nhập số lượng...">
               </div>
             </div>
           </div>
@@ -215,6 +215,88 @@ function previewImage(event) {
     };
     reader.readAsDataURL(event.target.files[0]);
 }
+
+document.getElementById('addProductForm').addEventListener('submit', function(e) {
+    let isValid = true;
+    let firstErrorElement = null; 
+    
+    document.querySelectorAll('.is-invalid').forEach(function(el) {
+        el.classList.remove('is-invalid');
+    });
+    document.querySelectorAll('.custom-error-text').forEach(function(el) {
+        el.remove();
+    });
+
+    function showError(inputId, message) {
+        let inputEl = document.getElementById(inputId);
+        inputEl.classList.add('is-invalid');
+        
+        let errorSpan = document.createElement('div');
+        errorSpan.className = 'invalid-feedback custom-error-text';
+        errorSpan.style.display = 'block';
+        errorSpan.innerText = message;
+        
+        inputEl.parentNode.appendChild(errorSpan);
+        isValid = false;
+
+        if (!firstErrorElement) {
+            firstErrorElement = inputEl;
+        }
+    }
+
+    let nameVal = document.getElementById('name').value.trim();
+    if (nameVal === '') {
+        showError('name', 'Vui lòng nhập tên sản phẩm.');
+    } else if (nameVal.length < 3) {
+        showError('name', 'Tên sản phẩm phải có ít nhất 3 ký tự.');
+    }
+    let categoryVal = document.getElementById('category_id').value;
+    if (categoryVal === '') {
+        showError('category_id', 'Vui lòng chọn một danh mục cho sản phẩm.');
+    }
+
+    let imgInput = document.getElementById('img');
+    if (imgInput.files.length > 0) {
+        let file = imgInput.files[0];
+        let fileSizeMB = file.size / (1024 * 1024);
+        let validExtensions = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        
+        if (!validExtensions.includes(file.type)) {
+            showError('img', 'Định dạng ảnh không hợp lệ. Chỉ chấp nhận JPG, PNG, GIF, WEBP.');
+        } else if (fileSizeMB > 2) {
+            showError('img', 'Kích thước ảnh vượt quá dung lượng cho phép (Tối đa 2MB).');
+        }
+    } 
+    else { 
+      showError('img', 'Vui lòng chọn hình ảnh cho sản phẩm.'); 
+    }
+
+    let unitVal = document.getElementById('unit').value.trim();
+    if (unitVal === '') {
+        showError('unit', 'Vui lòng nhập đơn vị tính (vd: hộp, chai...).');
+    }
+
+    let priceVal = document.getElementById('selling_price').value;
+    if (priceVal === '' || isNaN(priceVal) || parseFloat(priceVal) <= 0) {
+        showError('selling_price', 'Giá bán phải là số và lớn hơn 0.');
+    }
+
+    let stockVal = document.getElementById('stock_quantity').value;
+    if (stockVal === '' || isNaN(stockVal) || parseInt(stockVal) < 0) {
+        showError('stock_quantity', 'Vui lòng nhập số lượng tồn kho (>= 0).');
+    }
+
+    let statusVal = document.getElementById('status').value;
+    if (statusVal === '') {
+        showError('status', 'Vui lòng chọn trạng thái sản phẩm.');
+    }
+    if (!isValid) {
+        e.preventDefault();
+        if (firstErrorElement) {
+            firstErrorElement.focus();
+        }
+    }
+});
 </script>
 
 <?php include 'layout/footer.php'; ?>

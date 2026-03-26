@@ -20,11 +20,15 @@ $sql_order = "
     SELECT o.*, 
            m.full_name, m.phone, m.address as member_address,
            u.email, 
-           a.full_address, a.district, a.city 
+           a.full_address, a.district, a.city,
+           default_addr.full_address AS default_full_address,
+           default_addr.district AS default_district,
+           default_addr.city AS default_city
     FROM orders o
     JOIN members m ON o.member_id = m.id
     JOIN users u ON m.users_id = u.id
     LEFT JOIN addresses a ON o.address_id = a.id
+    LEFT JOIN addresses default_addr ON default_addr.member_id = o.member_id AND default_addr.is_default = 1
     WHERE o.id = ? AND u.id = ?
 ";
 $stmt = $conn->prepare($sql_order);
@@ -39,9 +43,9 @@ if ($res_order->num_rows === 0) {
 $order = $res_order->fetch_assoc();
 $stmt->close();
 
-$display_address = $order['full_address'] ?? $order['member_address'] ?? 'Chưa cập nhật';
-$display_district = $order['district'] ?? '';
-$display_city = $order['city'] ?? '';
+$display_address = $order['full_address'] ?? $order['default_full_address'] ?? $order['member_address'] ?? 'Chưa cập nhật';
+$display_district = $order['district'] ?? $order['default_district'] ?? '';
+$display_city = $order['city'] ?? $order['default_city'] ?? '';
 
 $sql_items = "SELECT item_name, price, quantity FROM order_items WHERE order_id = ?";
 $stmt_items = $conn->prepare($sql_items);

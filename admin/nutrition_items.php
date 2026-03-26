@@ -165,20 +165,20 @@ include 'layout/sidebar.php';
   <div class="modal fade" id="addModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
-        <form method="POST" action="nutrition_items.php">
+        <form method="POST" action="nutrition_items.php" novalidate>
           <input type="hidden" name="action" value="add">
           <div class="modal-header"><h5 class="modal-title">Thêm item</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
-            <div class="form-group"><label>Tên</label><input class="form-control" name="name" required></div>
-            <div class="form-group"><label>Định lượng</label><input class="form-control" name="serving_desc"></div>
-            <div class="form-group"><label>Calories</label><input type="number" class="form-control" name="calories" min="0"></div>
+            <div class="form-group"><label>Tên</label><input class="form-control" name="name" data-field="name"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+            <div class="form-group"><label>Định lượng</label><input class="form-control" name="serving_desc" data-field="serving_desc"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+            <div class="form-group"><label>Calories</label><input type="number" class="form-control" name="calories" min="0" data-field="calories"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-row">
-              <div class="form-group col-md-4"><label>Protein</label><input class="form-control" name="protein" type="number" step="0.01"></div>
-              <div class="form-group col-md-4"><label>Carbs</label><input class="form-control" name="carbs" type="number" step="0.01"></div>
-              <div class="form-group col-md-4"><label>Fat</label><input class="form-control" name="fat" type="number" step="0.01"></div>
+              <div class="form-group col-md-4"><label>Protein</label><input class="form-control" name="protein" type="number" step="0.01" data-field="protein"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Carbs</label><input class="form-control" name="carbs" type="number" step="0.01" data-field="carbs"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Fat</label><input class="form-control" name="fat" type="number" step="0.01" data-field="fat"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             </div>
-            <div class="form-group"><label>Ghi chú</label><textarea class="form-control" name="notes"></textarea></div>
-            <div class="form-group"><label>Trạng thái</label><select class="form-control" name="status"><option value="hoạt động">Hoạt động</option><option value="không hoạt động">Không hoạt động</option></select></div>
+            <div class="form-group"><label>Ghi chú</label><textarea class="form-control" name="notes" data-field="notes"></textarea><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+            <div class="form-group"><label>Trạng thái</label><select class="form-control" name="status" data-field="status"><option value="hoạt động">Hoạt động</option><option value="không hoạt động">Không hoạt động</option></select><small class="text-danger d-block mt-2" style="display:none;"></small></div>
           </div>
           <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button><button class="btn btn-primary">Lưu</button></div>
         </form>
@@ -190,21 +190,21 @@ include 'layout/sidebar.php';
   <div class="modal fade" id="editModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
-        <form method="POST" action="nutrition_items.php">
+        <form method="POST" action="nutrition_items.php" novalidate>
           <input type="hidden" name="action" value="edit">
           <input type="hidden" name="id" id="edit-id">
           <div class="modal-header"><h5 class="modal-title">Sửa item</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
-            <div class="form-group"><label>Tên</label><input class="form-control" name="name" id="edit-name" required></div>
-            <div class="form-group"><label>Định lượng</label><input class="form-control" name="serving_desc" id="edit-serving"></div>
-            <div class="form-group"><label>Calories</label><input type="number" class="form-control" name="calories" id="edit-calories" min="0"></div>
+            <div class="form-group"><label>Tên</label><input class="form-control" name="name" id="edit-name" data-field="name"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+            <div class="form-group"><label>Định lượng</label><input class="form-control" name="serving_desc" id="edit-serving" data-field="serving_desc"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+            <div class="form-group"><label>Calories</label><input type="number" class="form-control" name="calories" id="edit-calories" min="0" data-field="calories"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-row">
-              <div class="form-group col-md-4"><label>Protein</label><input class="form-control" name="protein" id="edit-protein" type="number" step="0.01"></div>
-              <div class="form-group col-md-4"><label>Carbs</label><input class="form-control" name="carbs" id="edit-carbs" type="number" step="0.01"></div>
-              <div class="form-group col-md-4"><label>Fat</label><input class="form-control" name="fat" id="edit-fat" type="number" step="0.01"></div>
+              <div class="form-group col-md-4"><label>Protein</label><input class="form-control" name="protein" id="edit-protein" type="number" step="0.01" data-field="protein"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Carbs</label><input class="form-control" name="carbs" id="edit-carbs" type="number" step="0.01" data-field="carbs"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Fat</label><input class="form-control" name="fat" id="edit-fat" type="number" step="0.01" data-field="fat"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             </div>
-            <div class="form-group"><label>Ghi chú</label><textarea class="form-control" name="notes" id="edit-notes"></textarea></div>
-            <div class="form-group"><label>Trạng thái</label><select class="form-control" name="status" id="edit-status"><option value="hoạt động">Hoạt động</option><option value="không hoạt động">Không hoạt động</option></select></div>
+            <div class="form-group"><label>Ghi chú</label><textarea class="form-control" name="notes" id="edit-notes" data-field="notes"></textarea><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+            <div class="form-group"><label>Trạng thái</label><select class="form-control" name="status" id="edit-status" data-field="status"><option value="hoạt động">Hoạt động</option><option value="không hoạt động">Không hoạt động</option></select><small class="text-danger d-block mt-2" style="display:none;"></small></div>
           </div>
           <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button><button class="btn btn-primary">Cập nhật</button></div>
         </form>
@@ -249,4 +249,34 @@ $(function(){
     $('#delete-name').text($(this).data('name'));
   });
 });
+
+(function() {
+  function label(field) {
+    if (field === 'name') return 'Vui lòng nhập tên món';
+    if (field === 'serving_desc') return 'Vui lòng nhập định lượng';
+    if (field === 'calories') return 'Vui lòng nhập calories hợp lệ';
+    if (field === 'protein') return 'Vui lòng nhập protein hợp lệ';
+    if (field === 'carbs') return 'Vui lòng nhập carbs hợp lệ';
+    if (field === 'fat') return 'Vui lòng nhập fat hợp lệ';
+    if (field === 'notes') return 'Vui lòng nhập ghi chú';
+    if (field === 'status') return 'Vui lòng chọn trạng thái';
+    return 'Vui lòng nhập dữ liệu hợp lệ';
+  }
+  function box(input) { return input.closest('.form-group')?.querySelector('small.text-danger') || null; }
+  function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
+  function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
+  function validate(input) {
+    const field = input.getAttribute('data-field');
+    const value = String(input.value || '').trim();
+    clear(input);
+    if (!field) return true;
+    if (['calories','protein','carbs','fat'].includes(field)) { if (!value || Number(value) < 0 || Number.isNaN(Number(value))) { show(input, label(field)); return false; } return true; }
+    if (!value) { show(input, label(field)); return false; }
+    return true;
+  }
+  document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
+  document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('submit', function(e){ if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return; let ok = true; e.target.querySelectorAll('[data-field]').forEach(function(field){ if (!validate(field)) ok = false; }); if (!ok) e.preventDefault(); }, true);
+})();
 </script>

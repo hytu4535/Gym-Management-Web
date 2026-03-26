@@ -248,7 +248,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="addScheduleModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="training-schedules.php">
+          <form method="POST" action="training-schedules.php" novalidate>
             <input type="hidden" name="action" value="add">
             <div class="modal-header bg-primary">
               <h5 class="modal-title"><i class="fas fa-calendar-plus"></i> Thêm lịch tập mới</h5>
@@ -257,7 +257,7 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control select2" name="member_id" required style="width: 100%;">
+                <select class="form-control select2" name="member_id" data-field="member_id" style="width: 100%;">
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -265,13 +265,14 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
                 <?php if (empty($members)): ?>
                   <small class="text-danger">Chưa có hội viên nào. Vui lòng thêm hội viên trước.</small>
                 <?php endif; ?>
               </div>
               <div class="form-group">
                 <label>HLV (PT)</label>
-                <select class="form-control select2" name="trainer_id" style="width: 100%;">
+                <select class="form-control select2" name="trainer_id" data-field="trainer_id" style="width: 100%;">
                   <option value="">-- Không gán HLV --</option>
                   <?php foreach ($trainers as $trainer): ?>
                     <option value="<?= $trainer['id'] ?>">
@@ -279,6 +280,7 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
                 <?php if (empty($trainers)): ?>
                   <small class="text-warning">Chưa có HLV đang hoạt động.</small>
                 <?php endif; ?>
@@ -287,19 +289,22 @@ include 'layout/sidebar.php';
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày tập <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="training_date" required value="<?= date('Y-m-d') ?>">
+                    <input type="date" class="form-control" name="training_date" data-field="training_date" value="<?= date('Y-m-d') ?>">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Giờ tập <span class="text-danger">*</span></label>
-                    <input type="time" class="form-control" name="training_time" required value="08:00">
+                    <input type="time" class="form-control" name="training_time" data-field="training_time" value="08:00">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
               </div>
               <div class="form-group">
                 <label>Ghi chú</label>
-                <textarea class="form-control" name="note" rows="3" placeholder="Ghi chú về buổi tập..."></textarea>
+                <textarea class="form-control" name="note" rows="3" placeholder="Ghi chú về buổi tập..." data-field="note"></textarea>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -315,7 +320,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="editScheduleModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="training-schedules.php">
+          <form method="POST" action="training-schedules.php" novalidate>
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
             <div class="modal-header bg-warning">
@@ -325,7 +330,7 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control" name="member_id" id="edit-member_id" required>
+                <select class="form-control" name="member_id" id="edit-member_id" data-field="member_id">
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -333,10 +338,11 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>HLV (PT)</label>
-                <select class="form-control" name="trainer_id" id="edit-trainer_id">
+                <select class="form-control" name="trainer_id" id="edit-trainer_id" data-field="trainer_id">
                   <option value="">-- Không gán HLV --</option>
                   <?php foreach ($trainers as $trainer): ?>
                     <option value="<?= $trainer['id'] ?>">
@@ -344,24 +350,28 @@ include 'layout/sidebar.php';
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="row">
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Ngày tập <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="training_date" id="edit-date" required>
+                    <input type="date" class="form-control" name="training_date" id="edit-date" data-field="training_date">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="form-group">
                     <label>Giờ tập <span class="text-danger">*</span></label>
-                    <input type="time" class="form-control" name="training_time" id="edit-time" required>
+                    <input type="time" class="form-control" name="training_time" id="edit-time" data-field="training_time">
+                    <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
               </div>
               <div class="form-group">
                 <label>Ghi chú</label>
-                <textarea class="form-control" name="note" id="edit-note" rows="3"></textarea>
+                <textarea class="form-control" name="note" id="edit-note" rows="3" data-field="note"></textarea>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
             </div>
             <div class="modal-footer">
@@ -430,4 +440,23 @@ $(function() {
     $('#delete-date').text($(this).data('date'));
   });
 });
+
+(function() {
+  function label(field) {
+    if (field === 'member_id') return 'Vui lòng chọn hội viên';
+    if (field === 'training_date') return 'Vui lòng chọn ngày tập';
+    if (field === 'training_time') return 'Vui lòng chọn giờ tập';
+    if (field === 'trainer_id') return 'Vui lòng chọn HLV';
+    if (field === 'note') return 'Vui lòng nhập ghi chú';
+    return 'Vui lòng nhập dữ liệu hợp lệ';
+  }
+  function box(input) { return input.closest('.form-group')?.querySelector('small.text-danger') || null; }
+  function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
+  function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
+  function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); clear(input); if (!field) return true; if (!value) { show(input, label(field)); return false; } return true; }
+  document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
+  document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
+  document.addEventListener('submit', function(e){ if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return; let ok = true; e.target.querySelectorAll('[data-field]').forEach(function(field){ if (!validate(field)) ok = false; }); if (!ok) e.preventDefault(); }, true);
+})();
 </script>

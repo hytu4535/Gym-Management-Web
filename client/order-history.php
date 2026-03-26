@@ -65,118 +65,6 @@ $orders_result = $stmt_orders->get_result();
 include 'layout/header.php'; 
 ?>
 
-<style>
-    /* Banner Breadcrumb */
-    .breadcrumb-text h2 { 
-        color: #ffffff !important; 
-        text-shadow: 2px 2px 5px rgba(0,0,0,0.8); 
-    }
-    .breadcrumb-text .bt-option a, 
-    .breadcrumb-text .bt-option span { 
-        color: #ffffff !important; 
-        font-weight: bold; 
-        text-shadow: 1px 1px 4px rgba(0,0,0,0.9); 
-    }
-
-    /* Nền tổng thể */
-    .order-history-section {
-        background-color: #f7f9fc;
-        padding-top: 50px;
-        padding-bottom: 60px;
-    }
-
-    /* Sidebar Profile */
-    .profile-sidebar { 
-        background: #ffffff; 
-        border-radius: 12px; 
-        padding: 30px 20px; 
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-        border: none;
-    }
-    .profile-avatar img {
-        border: 3px solid #e7ab3c !important;
-        padding: 3px;
-        box-shadow: 0 4px 10px rgba(231, 171, 60, 0.2);
-    }
-    .profile-menu li a {
-        display: block;
-        padding: 10px 15px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        font-weight: 500;
-    }
-    .profile-menu li a:hover, .profile-menu li a.active {
-        background: #fff8eb;
-        color: #e7ab3c !important;
-        text-decoration: none;
-        padding-left: 20px;
-    }
-
-    /* Filter Form */
-    .order-filter {
-        background: #ffffff !important;
-        border-radius: 12px !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-        border: none !important;
-    }
-    .order-filter .form-control {
-        border: 1px solid #e1e5eb;
-        border-radius: 6px;
-        height: 45px;
-    }
-
-    /* Order Item Cards */
-    .order-item { 
-        background: #ffffff; 
-        border-radius: 12px; 
-        overflow: hidden; 
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-        border: 1px solid #f0f2f5;
-        transition: transform 0.3s ease, box-shadow 0.3s ease; 
-        margin-bottom: 25px !important;
-    }
-    .order-item:hover { 
-        transform: translateY(-3px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08); 
-        border-color: #e7ab3c;
-    }
-    .order-header { 
-        background: #fafbfc !important; 
-        border-bottom: 1px solid #f0f2f5 !important; 
-        padding: 15px 20px !important;
-    }
-    .order-body {
-        padding: 20px !important;
-    }
-
-    /* Badges Status */
-    .badge { 
-        font-weight: 600; 
-        padding: 8px 15px; 
-        border-radius: 6px; 
-        font-size: 13px;
-    }
-    .badge-warning { background: #fff8eb; color: #e7ab3c; border: 1px solid #ffe9c2; }
-    .badge-primary { background: #eef5ff; color: #2196f3; border: 1px solid #cbe4ff; }
-    .badge-success { background: #eafaf1; color: #28a745; border: 1px solid #c3f0d3; }
-    .badge-danger  { background: #ffeeee; color: #dc3545; border: 1px solid #ffd4d4; }
-
-    /* Buttons */
-    .btn-sm-custom { 
-        padding: 8px 20px; 
-        font-size: 13px; 
-        border-radius: 6px;
-        font-weight: bold;
-        text-transform: uppercase;
-        border: none;
-        transition: all 0.3s ease;
-    }
-    .btn-invoice { background: #333333; color: #ffffff; }
-    .btn-invoice:hover { background: #555555; color: #ffffff; }
-    .btn-cancel { background: #fff; color: #dc3545; border: 1px solid #dc3545; }
-    .btn-cancel:hover { background: #dc3545; color: #ffffff; }
-</style>
-
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
     <div class="container">
         <div class="row">
@@ -193,51 +81,76 @@ include 'layout/header.php';
     </div>
 </section>
 
+<style>
+.sidebar-item { display:block; padding:10px 15px; color:#333; border-radius:5px; margin-bottom:5px; text-decoration:none; }
+.sidebar-item:hover, .sidebar-item.active { background:#f36100; color:#fff; text-decoration:none; }
+.sidebar-item i { margin-right:8px; width:16px; }
+.profile-sidebar { background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.08); position:sticky; top:20px; }
+.user-avatar { color:#f36100; margin-bottom:15px; }
+</style>
+
 <section class="order-history-section spad">
     <div class="container">
         <div class="row">
-            <div class="col-lg-3 mb-4">
+                        <div class="col-lg-3">
                 <div class="profile-sidebar">
-                    <div class="profile-avatar text-center mb-3">
-                        <i class="fa fa-user-circle fa-5x" style="color:#f36100;"></i>
+                    <div class="user-info text-center">
+                        <div class="user-avatar">
+                            <i class="fa fa-user-circle fa-5x" style="color:#f36100;"></i>
+                        </div>
+                        <h5 class="mt-3"><?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Hội viên'); ?></h5>
+                        <p style="color:#888;font-size:13px;"><?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?></p>
                     </div>
-                    <h4 class="text-center mb-4" style="color: #333; font-weight: 700;"><?php echo htmlspecialchars($member['full_name']); ?></h4>
-                    <ul class="profile-menu" style="list-style: none; padding: 0; margin: 0;">
-                        <li style="margin-bottom: 8px;"><a href="profile.php" style="color: #555;"><i class="fa fa-user mr-2"></i> Thông tin cá nhân</a></li>
-                        <li style="margin-bottom: 8px;"><a href="order-history.php" class="active"><i class="fa fa-shopping-bag mr-2"></i> Lịch sử mua hàng</a></li>
-                        <li style="margin-bottom: 8px;"><a href="addresses.php" style="color: #555;"><i class="fa fa-map-marker mr-2"></i> Địa chỉ giao hàng</a></li>
-                        <li style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #eee;"><a href="logout.php" style="color: #dc3545;"><i class="fa fa-sign-out mr-2"></i> Đăng xuất</a></li>
-                    </ul>
+                    <hr>
+                    <div class="sidebar-menu">
+                        <a href="profile.php" class="sidebar-item">
+                            <i class="fa fa-user"></i> Thông tin cá nhân
+                        </a>
+                        <a href="my-membership.php" class="sidebar-item">
+                            <i class="fa fa-star"></i> Thông tin hội viên
+                        </a>
+                        <a href="my-packages.php" class="sidebar-item">
+                            <i class="fa fa-ticket"></i> Gói tập của tôi
+                        </a>
+                        <a href="my-schedules.php" class="sidebar-item">
+                            <i class="fa fa-calendar"></i> Lịch tập của tôi
+                        </a>
+                        <a href="order-history.php" class="sidebar-item" active>
+                            <i class="fa fa-shopping-bag"></i> Lịch sử mua hàng
+                        </a>
+                        <a href="addresses.php" class="sidebar-item">
+                            <i class="fa fa-map-marker"></i> Địa chỉ
+                        </a>
+                        <a href="logout.php" class="sidebar-item text-danger">
+                            <i class="fa fa-sign-out"></i> Đăng xuất
+                        </a>
+                    </div>
                 </div>
             </div>
-
             <div class="col-lg-9">
                 <div class="order-history-content">
-                    <h4 class="mb-4" style="font-weight: 700; color: #111;">Danh sách đơn hàng của bạn</h4>
+                    <h4 class="mb-4">Danh sách đơn hàng</h4>
                     
-                    <div class="order-filter p-4 mb-4">
+                    <div class="order-filter mb-4 p-3" style="background: #f8f9fa; border-radius: 5px;">
                         <form action="order-history.php" method="GET">
-                            <div class="row align-items-end">
-                                <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
-                                    <label style="font-size: 13px; color: #777; font-weight: bold;">Trạng thái</label>
+                            <div class="row">
+                                <div class="col-lg-3 mb-2">
                                     <select class="form-control" name="status">
                                         <option value="">Tất cả trạng thái</option>
                                         <option value="pending" <?php echo $filter_status == 'pending' ? 'selected' : ''; ?>>Chờ xác nhận</option>
-                                        <option value="confirmed" <?php echo $filter_status == 'confirmed' ? 'selected' : ''; ?>>Đang giao</option>
-                                        <option value="delivered" <?php echo $filter_status == 'delivered' ? 'selected' : ''; ?>>Thành công</option>
+                                        <option value="confirmed" <?php echo $filter_status == 'confirmed' ? 'selected' : ''; ?>>Đã xác nhận</option>
+                                        <option value="delivered" <?php echo $filter_status == 'delivered' ? 'selected' : ''; ?>>Đã giao</option>
                                         <option value="cancelled" <?php echo $filter_status == 'cancelled' ? 'selected' : ''; ?>>Đã hủy</option>
                                     </select>
                                 </div>
-                                <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
-                                    <label style="font-size: 13px; color: #777; font-weight: bold;">Từ ngày</label>
+                                <div class="col-lg-3 mb-2">
                                     <input type="date" class="form-control" name="from_date" value="<?php echo htmlspecialchars($filter_from); ?>">
                                 </div>
-                                <div class="col-lg-3 col-md-6 mb-3 mb-lg-0">
-                                    <label style="font-size: 13px; color: #777; font-weight: bold;">Đến ngày</label>
+                                <div class="col-lg-3 mb-2">
                                     <input type="date" class="form-control" name="to_date" value="<?php echo htmlspecialchars($filter_to); ?>">
                                 </div>
-                                <div class="col-lg-3 col-md-6">
-                                    <button type="submit" class="site-btn w-100" style="height: 45px; border-radius: 6px;">LỌC ĐƠN</button>
+                                <div class="col-lg-3 mb-2">
+                                    <button type="submit" class="site-btn w-100" style="padding: 10px;">Lọc đơn</button>
                                 </div>
                             </div>
                         </form>
@@ -246,46 +159,36 @@ include 'layout/header.php';
                     <div class="order-list">
                         <?php if ($orders_result->num_rows > 0): ?>
                             <?php while ($order = $orders_result->fetch_assoc()): ?>
-                                <div class="order-item">
-                                    <div class="order-header">
+                                <div class="order-item mb-4">
+                                    <div class="order-header p-3" style="background: #fdfdfd;">
                                         <div class="row align-items-center">
-                                            <div class="col-md-4 mb-2 mb-md-0">
-                                                <span style="color: #777; font-size: 14px;">Mã đơn:</span> 
-                                                <strong style="color: #111; font-size: 16px;">#<?php echo str_pad($order['id'], 5, '0', STR_PAD_LEFT); ?></strong>
+                                            <div class="col-md-4">
+                                                <strong>Mã đơn:</strong> <span style="color: #e7ab3c;">#<?php echo str_pad($order['id'], 5, '0', STR_PAD_LEFT); ?></span>
                                             </div>
-                                            <div class="col-md-4 text-md-center mb-2 mb-md-0">
-                                                <span style="color: #666; font-size: 14px;"><i class="fa fa-calendar-o mr-1"></i> <?php echo date('d/m/Y - H:i', strtotime($order['order_date'])); ?></span>
+                                            <div class="col-md-4 text-md-center">
+                                                <small class="text-muted"><i class="fa fa-calendar"></i> <?php echo date('d/m/Y H:i', strtotime($order['order_date'])); ?></small>
                                             </div>
                                             <div class="col-md-4 text-md-right">
                                                 <?php 
-                                                    if ($order['status'] === 'pending') echo '<span class="badge badge-warning"><i class="fa fa-clock-o mr-1"></i> Chờ xác nhận</span>';
-                                                    elseif ($order['status'] === 'confirmed') echo '<span class="badge badge-primary"><i class="fa fa-truck mr-1"></i> Đang giao</span>';
-                                                    elseif ($order['status'] === 'delivered') echo '<span class="badge badge-success"><i class="fa fa-check-circle mr-1"></i> Thành công</span>';
-                                                    elseif ($order['status'] === 'cancelled') echo '<span class="badge badge-danger"><i class="fa fa-times-circle mr-1"></i> Đã hủy</span>';
+                                                    if ($order['status'] === 'pending') echo '<span class="badge badge-warning">Chờ xác nhận</span>';
+                                                    elseif ($order['status'] === 'confirmed') echo '<span class="badge badge-primary">Đang giao</span>';
+                                                    elseif ($order['status'] === 'delivered') echo '<span class="badge badge-success">Thành công</span>';
+                                                    elseif ($order['status'] === 'cancelled') echo '<span class="badge badge-danger">Đã hủy</span>';
                                                 ?>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="order-body">
+                                    <div class="order-body p-3">
                                         <div class="row align-items-center">
-                                            <div class="col-md-7 mb-3 mb-md-0">
-                                                <div style="display: flex; align-items: center; gap: 20px;">
-                                                    <div>
-                                                        <span style="color: #777; font-size: 14px; display: block;">Số lượng món</span>
-                                                        <strong style="font-size: 16px; color: #333;"><?php echo $order['total_items']; ?></strong>
-                                                    </div>
-                                                    <div style="border-left: 1px solid #eee; height: 30px;"></div>
-                                                    <div>
-                                                        <span style="color: #777; font-size: 14px; display: block;">Tổng thanh toán</span>
-                                                        <strong style="color: #e7ab3c; font-size: 20px;"><?php echo number_format($order['total_amount'], 0, ',', '.'); ?> VNĐ</strong>
-                                                    </div>
-                                                </div>
+                                            <div class="col-md-7">
+                                                <p class="mb-1">Số lượng: <strong><?php echo $order['total_items']; ?></strong> món</p>
+                                                <p class="mb-0">Tổng tiền: <strong style="color: #e7ab3c; font-size: 1.1rem;"><?php echo number_format($order['total_amount'], 0, ',', '.'); ?>đ</strong></p>
                                             </div>
-                                            <div class="col-md-5 text-md-right d-flex justify-content-md-end justify-content-start gap-2">
-                                                <a href="invoice.php?order_id=<?php echo $order['id']; ?>" class="btn-sm-custom btn-invoice mr-2 text-decoration-none">Xem Hóa Đơn</a>
+                                            <div class="col-md-5 text-md-right mt-3 mt-md-0">
+                                                <a href="invoice.php?order_id=<?php echo $order['id']; ?>" class="site-btn btn-sm" style="background: #333;">Hóa đơn</a>
                                                 
                                                 <?php if ($order['status'] === 'pending'): ?>
-                                                    <button onclick="cancelOrder(<?php echo $order['id']; ?>)" class="btn-sm-custom btn-cancel">Hủy Đơn</button>
+                                                    <button onclick="cancelOrder(<?php echo $order['id']; ?>)" class="site-btn btn-sm btn-danger-custom ml-1">Hủy đơn</button>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
@@ -293,11 +196,10 @@ include 'layout/header.php';
                                 </div>
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <div class="text-center py-5" style="background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.04);">
-                                <img src="https://cdn-icons-png.flaticon.com/512/11329/11329074.png" alt="Empty" style="width: 120px; opacity: 0.5; margin-bottom: 20px;">
-                                <h5 style="color: #555;">Chưa có đơn hàng nào</h5>
-                                <p style="color: #888; margin-bottom: 20px;">Bạn chưa thực hiện giao dịch nào hoặc không có đơn hàng phù hợp với bộ lọc.</p>
-                                <a href="products.php" class="site-btn">MUA SẮM NGAY</a>
+                            <div class="text-center py-5">
+                                <i class="fa fa-file-text-o mb-3" style="font-size: 50px; color: #ddd;"></i>
+                                <p>Không tìm thấy đơn hàng nào.</p>
+                                <a href="products.php" class="site-btn mt-2">Mua sắm ngay</a>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -306,6 +208,17 @@ include 'layout/header.php';
         </div>
     </div>
 </section>
+
+<style>
+.profile-sidebar { border: 1px solid #ebebeb; padding: 25px; border-radius: 8px; background: #fff; }
+.order-item { border: 1px solid #ebebeb; border-radius: 8px; overflow: hidden; background: #fff; transition: 0.3s; }
+.order-item:hover { border-color: #e7ab3c; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+.order-header { border-bottom: 1px solid #f2f2f2; }
+.btn-sm { padding: 8px 15px; font-size: 12px; }
+.btn-danger-custom { background: #dc3545; border: none; }
+.btn-danger-custom:hover { background: #a71d2a; }
+.badge { font-weight: 500; padding: 6px 12px; border-radius: 20px; }
+</style>
 
 <script>
 function cancelOrder(orderId) {

@@ -105,27 +105,27 @@ $result = $conn->query($sql);
 <div class="modal fade" id="addCategoryModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <form action="process/category_add.php" method="POST">
+            <form id="addCategoryForm" action="process/category_add.php" method="POST" novalidate>
                 <div class="modal-header">
                     <h5 class="modal-title">Thêm danh mục mới</h5>
                     <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                 </div>
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label>Tên danh mục</label>
-                        <input type="text" name="name" class="form-control" required placeholder="VD: Thực phẩm bổ sung">
-                    </div>
-                    <div class="form-group">
-                        <label>Mô tả</label>
-                        <textarea name="description" class="form-control" rows="3"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Trạng thái</label>
-                        <select name="status" class="form-control">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
+                  <div class="form-group">
+                      <label for="name">Tên danh mục <span class="text-danger">*</span></label>
+                      <input type="text" id="name" name="name" class="form-control" required placeholder="VD: Thực phẩm bổ sung">
+                  </div>
+                  <div class="form-group">
+                      <label for="description">Mô tả</label>
+                      <textarea id="description" name="description" class="form-control" rows="3"></textarea>
+                  </div>
+                  <div class="form-group">
+                      <label for="status">Trạng thái <span class="text-danger">*</span></label>
+                      <select id="status" name="status" class="form-control">
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                      </select>
+                  </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
@@ -135,6 +135,62 @@ $result = $conn->query($sql);
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('addCategoryForm').addEventListener('submit', function(e) {
+    let isValid = true;
+    let firstErrorElement = null; 
+    document.querySelectorAll('.is-invalid').forEach(function(el) {
+        el.classList.remove('is-invalid');
+    });
+    document.querySelectorAll('.custom-error-text').forEach(function(el) {
+        el.remove();
+    });
+
+    function showError(inputId, message) {
+        let inputEl = document.getElementById(inputId);
+        inputEl.classList.add('is-invalid');
+        
+        let errorSpan = document.createElement('div');
+        errorSpan.className = 'invalid-feedback custom-error-text';
+        errorSpan.style.display = 'block';
+        errorSpan.innerText = message;
+        
+        inputEl.parentNode.appendChild(errorSpan);
+        isValid = false;
+
+        if (!firstErrorElement) {
+            firstErrorElement = inputEl;
+        }
+    }
+
+    let nameVal = document.getElementById('name').value.trim();
+    if (nameVal === '') {
+        showError('name', 'Vui lòng nhập tên danh mục.');
+    } else if (nameVal.length < 2) {
+        showError('name', 'Tên danh mục phải có ít nhất 2 ký tự.');
+    }
+
+    let descriptionVal = document.getElementById('description').value.trim();
+    if (descriptionVal === '') {
+      showError('description', 'Vui lòng nhập mô tả');
+    } else if (descriptionVal.length < 10) {
+      showError('description', 'Mô tả phải có ít nhất 10 ký tự');
+    }
+
+    let statusVal = document.getElementById('status').value;
+    if (statusVal === '') {
+        showError('status', 'Vui lòng chọn trạng thái.');
+    }
+
+    if (!isValid) {
+        e.preventDefault();
+        if (firstErrorElement) {
+            firstErrorElement.focus();
+        }
+    }
+});
+</script>
 
 
 <?php include 'layout/footer.php'; ?>

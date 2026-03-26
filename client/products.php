@@ -294,9 +294,15 @@ include 'layout/header.php';
                     <?php 
                     if ($products_result && $products_result->num_rows > 0) {
                         while($product = $products_result->fetch_assoc()) {
-                            $imageFile = $product['img'] ?? null;
-                            $imgPath = $imageFile ? "../assets/uploads/products/{$imageFile}" : "../assets/uploads/products/default-product.jpg";
-                            
+                            $imageFile = $product['img'] ?? '';
+                            // Kiểm tra xem tên file có rỗng hoặc file không tồn tại thực tế trên ổ cứng hay không
+                            $physicalPath = __DIR__ . "/../assets/uploads/products/" . $imageFile;
+
+                            if ($imageFile !== '' && file_exists($physicalPath) && is_file($physicalPath)) {
+                                $imgPath = "../assets/uploads/products/" . $imageFile;
+                            } else {
+                                $imgPath = "../assets/uploads/products/default-product.jpg";
+                            }
                             // Tính giá sau giảm theo tier
                             $price_info = calculateDiscountedPrice($product['selling_price'], $user_id, $conn);
                     ?>

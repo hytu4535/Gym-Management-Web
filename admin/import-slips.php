@@ -3,17 +3,36 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
+function importStatusLabelByIndex($statusIndex) {
+  switch ((int) $statusIndex) {
+    case 1:
+      return 'Đã nhập';
+    case 2:
+      return 'Đang chờ duyệt';
+    case 3:
+      return 'Đã hủy';
+    default:
+      return 'Không xác định';
+  }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_id'])) {
   $importSlipId = intval($_POST['update_import_status_id']);
-  $newStatus = sanitize($_POST['new_status']);
+  $newStatusAction = sanitize($_POST['new_status_action'] ?? '');
+  $newStatusIndex = null;
 
-  $allowedStatus = ['Đã nhập', 'Đã hủy'];
-  if (!in_array($newStatus, $allowedStatus, true)) {
+  if ($newStatusAction === 'approve') {
+    $newStatusIndex = 1;
+  } elseif ($newStatusAction === 'cancel') {
+    $newStatusIndex = 3;
+  }
+
+  if ($newStatusIndex === null) {
     echo "<script>alert('Trạng thái cập nhật không hợp lệ!');window.location='import-slips.php';</script>";
     exit;
   }
 
-  $statusCheckStmt = $db->prepare("SELECT status FROM import_slips WHERE id = ?");
+  $statusCheckStmt = $db->prepare("SELECT status + 0 FROM import_slips WHERE id = ?");
   $statusCheckStmt->execute([$importSlipId]);
   $currentStatus = $statusCheckStmt->fetchColumn();
 
@@ -22,15 +41,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_
     exit;
   }
 
-  if ($currentStatus !== 'Đang chờ duyệt') {
+  if ((int) $currentStatus !== 2) {
     echo "<script>alert('Chỉ phiếu đang chờ duyệt mới được cập nhật trạng thái!');window.location='import-slips.php';</script>";
     exit;
   }
 
-  $updateStatusStmt = $db->prepare("UPDATE import_slips SET status = ? WHERE id = ?");
-  if ($updateStatusStmt->execute([$newStatus, $importSlipId])) {
+  try {
+    $db->beginTransaction();
+
+    if ($newStatusIndex === 1) {
+      $detailStmt = $db->prepare("SELECT equipment_id, product_id, quantity FROM import_details WHERE import_id = ?");
+      $detailStmt->execute([$importSlipId]);
+      $detailRows = $detailStmt->fetchAll(PDO::FETCH_ASSOC);
+
+      $updateProductStockStmt = $db->prepare("UPDATE products SET stock_quantity = COALESCE(stock_quantity, 0) + ? WHERE id = ?");
+      $updateEquipmentStockStmt = $db->prepare("UPDATE equipment SET quantity = COALESCE(quantity, 0) + ? WHERE id = ?");
+
+      foreach ($detailRows as $detail) {
+        $quantity = (int) ($detail['quantity'] ?? 0);
+        if ($quantity <= 0) {
+          continue;
+        }
+
+        $productId = (int) ($detail['product_id'] ?? 0);
+        $equipmentId = (int) ($detail['equipment_id'] ?? 0);
+
+        if ($productId > 0) {
+          $updateProductStockStmt->execute([$quantity, $productId]);
+          if ($updateProductStockStmt->rowCount() === 0) {
+            throw new Exception('Không cập nhật được tồn kho sản phẩm.');
+          }
+        } elseif ($equipmentId > 0) {
+          $updateEquipmentStockStmt->execute([$quantity, $equipmentId]);
+          if ($updateEquipmentStockStmt->rowCount() === 0) {
+            throw new Exception('Không cập nhật được số lượng thiết bị.');
+          }
+        }
+      }
+    }
+
+    $updateStatusStmt = $db->prepare("UPDATE import_slips SET status = ? WHERE id = ?");
+    if (!$updateStatusStmt->execute([$newStatusIndex, $importSlipId])) {
+      throw new Exception('Không thể cập nhật trạng thái phiếu nhập.');
+    }
+
+    $db->commit();
     echo "<script>alert('Cập nhật trạng thái phiếu nhập thành công!');window.location='import-slips.php';</script>";
-  } else {
+  } catch (Exception $e) {
+    if ($db->inTransaction()) {
+      $db->rollBack();
+    }
+
     echo "<script>alert('Lỗi khi cập nhật trạng thái phiếu nhập!');window.location='import-slips.php';</script>";
   }
   exit;
@@ -41,16 +102,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
   $staffId = intval($_POST['staff_id']);
   $importDateInput = sanitize($_POST['import_date']);
   $note = sanitize($_POST['note']);
-  $status = sanitize($_POST['status']);
   $detailTypes = $_POST['detail_type'] ?? [];
   $detailItemIds = $_POST['detail_item_id'] ?? [];
   $detailQuantities = $_POST['detail_quantity'] ?? [];
   $detailImportPrices = $_POST['detail_import_price'] ?? [];
-
-  $allowedStatus = ['Đã nhập', 'Đang chờ duyệt', 'Đã hủy'];
-  if (!in_array($status, $allowedStatus, true)) {
-    $status = 'Đang chờ duyệt';
-  }
 
   $supplierCheckStmt = $db->prepare("SELECT COUNT(*) FROM suppliers WHERE id = ?");
   $supplierCheckStmt->execute([$supplierId]);
@@ -122,8 +177,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
   try {
     $db->beginTransaction();
 
-    $insertStmt = $db->prepare("INSERT INTO import_slips (staff_id, supplier_id, total_amount, import_date, note, status) VALUES (?, ?, ?, ?, ?, ?)");
-    $result = $insertStmt->execute([$staffId, $supplierId, $totalAmount, $importDate, $note, $status]);
+    // Let DB default set initial status to pending.
+    $insertStmt = $db->prepare("INSERT INTO import_slips (staff_id, supplier_id, total_amount, import_date, note) VALUES (?, ?, ?, ?, ?)");
+    $result = $insertStmt->execute([$staffId, $supplierId, $totalAmount, $importDate, $note]);
 
     if (!$result) {
       throw new Exception('Không thể tạo phiếu nhập.');
@@ -169,7 +225,7 @@ $products = $productsStmt->fetchAll();
 $equipmentStmt = $db->query("SELECT id, name FROM equipment ORDER BY name ASC");
 $equipmentList = $equipmentStmt->fetchAll();
 
-$importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.note, i.status, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
+$importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.note, i.status, (i.status + 0) AS status_idx, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
 $importSlips = $importSlipsStmt->fetchAll();
 
 $importSlipDetailsMap = [];
@@ -214,6 +270,7 @@ if (!empty($importSlips)) {
 $importSlipsForJs = [];
 foreach ($importSlips as $importSlip) {
   $importId = (int) $importSlip['id'];
+  $statusLabel = importStatusLabelByIndex($importSlip['status_idx'] ?? 0);
   $details = $importSlipDetailsMap[$importId] ?? [];
 
   $importSlipsForJs[$importId] = [
@@ -223,7 +280,7 @@ foreach ($importSlips as $importSlip) {
     'staff_name' => $importSlip['staff_name'],
     'total_amount' => (float) $importSlip['total_amount'],
     'import_date_display' => date('d/m/Y H:i', strtotime($importSlip['import_date'])),
-    'status' => $importSlip['status'],
+    'status' => $statusLabel,
     'note' => $importSlip['note'] ?? '',
     'details' => $details,
   ];
@@ -289,12 +346,15 @@ include 'layout/sidebar.php';
                     <td><?= number_format((float) $importSlip['total_amount'], 0, ',', '.') ?> VNĐ</td>
                     <td><?= date('d/m/Y', strtotime($importSlip['import_date'])) ?></td>
                     <td>
-                      <?php if ($importSlip['status'] === 'Đã nhập'): ?>
+                      <?php $displayStatus = importStatusLabelByIndex($importSlip['status_idx'] ?? 0); ?>
+                      <?php if ($displayStatus === 'Đã nhập'): ?>
                         <span class="badge badge-success">Đã nhập</span>
-                      <?php elseif ($importSlip['status'] === 'Đang chờ duyệt'): ?>
+                      <?php elseif ($displayStatus === 'Đang chờ duyệt'): ?>
                         <span class="badge badge-warning">Đang chờ duyệt</span>
-                      <?php else: ?>
+                      <?php elseif ($displayStatus === 'Đã hủy'): ?>
                         <span class="badge badge-danger">Đã hủy</span>
+                      <?php else: ?>
+                        <span class="badge badge-secondary">Không xác định</span>
                       <?php endif; ?>
                     </td>
                     <td>
@@ -304,15 +364,15 @@ include 'layout/sidebar.php';
                       <button type="button" class="btn btn-primary btn-sm print-import-btn" data-id="<?= (int) $importSlip['id'] ?>" title="In phiếu nhập">
                         <i class="fas fa-print"></i>
                       </button>
-                      <?php if ($importSlip['status'] === 'Đang chờ duyệt'): ?>
+                      <?php if ($displayStatus === 'Đang chờ duyệt'): ?>
                         <form method="POST" action="import-slips.php" style="display:inline-block;">
                           <input type="hidden" name="update_import_status_id" value="<?= $importSlip['id'] ?>">
-                          <input type="hidden" name="new_status" value="Đã nhập">
+                          <input type="hidden" name="new_status_action" value="approve">
                           <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-check"></i> Duyệt</button>
                         </form>
                         <form method="POST" action="import-slips.php" style="display:inline-block;">
                           <input type="hidden" name="update_import_status_id" value="<?= $importSlip['id'] ?>">
-                          <input type="hidden" name="new_status" value="Đã hủy">
+                          <input type="hidden" name="new_status_action" value="cancel">
                           <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-times"></i> Hủy</button>
                         </form>
                       <?php endif; ?>
@@ -407,12 +467,9 @@ include 'layout/sidebar.php';
           </div>
 
           <div class="form-group">
-            <label for="status">Trạng Thái</label>
-            <select class="form-control" id="status" name="status" required>
-              <option value="Đang chờ duyệt" selected>Đang chờ duyệt</option>
-              <option value="Đã nhập">Đã nhập</option>
-              <option value="Đã hủy">Đã hủy</option>
-            </select>
+            <label>Trạng Thái</label>
+            <input type="text" class="form-control" value="Đang chờ duyệt" readonly>
+            <input type="hidden" name="status" value="Đang chờ duyệt">
           </div>
 
           <div class="form-group">
@@ -513,7 +570,10 @@ include 'layout/sidebar.php';
       if (status === 'Đang chờ duyệt') {
         return '<span class="badge badge-warning">Đang chờ duyệt</span>';
       }
-      return '<span class="badge badge-danger">Đã hủy</span>';
+      if (status === 'Đã hủy') {
+        return '<span class="badge badge-danger">Đã hủy</span>';
+      }
+      return '<span class="badge badge-secondary">Không xác định</span>';
     }
 
     function getItemOptionsByType(type) {
@@ -565,7 +625,7 @@ include 'layout/sidebar.php';
           <input type="number" class="form-control form-control-sm detail-quantity" name="detail_quantity[]" min="1" step="1" required>\
         </td>\
         <td>\
-          <input type="number" class="form-control form-control-sm detail-price" name="detail_import_price[]" min="1" step="1000" required>\
+          <input type="number" class="form-control form-control-sm detail-price" name="detail_import_price[]" min="1" step="any" required>\
         </td>\
         <td class="text-right align-middle detail-line-total">0 VNĐ</td>\
         <td class="text-center">\

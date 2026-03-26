@@ -16,7 +16,7 @@ $product = $conn->query($sql)->fetch_assoc();
                 <div class="card-header">
                     <h3 class="card-title">Chỉnh sửa sản phẩm: <?php echo $product['name']; ?></h3>
                 </div>
-                <form action="process/product_edit_process.php" method="POST" enctype="multipart/form-data">
+                <form id="editProductForm" action="process/product_edit_process.php" method="POST" enctype="multipart/form-data" novalidate>
                     <input type="hidden" name="id" value="<?php echo $product['id']; ?>">
                     <input type="hidden" name="old_img" value="<?php echo $product['img']; ?>">
                     <div class="card-body">
@@ -24,11 +24,11 @@ $product = $conn->query($sql)->fetch_assoc();
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Tên Sản Phẩm</label>
-                                    <input type="text" name="name" class="form-control" value="<?php echo $product['name']; ?>" required>
+                                    <input id="name" type="text" name="name" class="form-control" value="<?php echo $product['name']; ?>" required>
                                 </div>
                                 <div class="form-group">
                                     <label>Danh Mục</label>
-                                    <select name="category_id" class="form-control">
+                                    <select id="category_id" name="category_id" class="form-control">
                                         <option value="">-- Chưa phân loại --</option>
                                         <?php
                                         $cats = $conn->query("SELECT * FROM categories");
@@ -54,28 +54,28 @@ $product = $conn->query($sql)->fetch_assoc();
                                 
                                 <div class="form-group">
                                     <label>Thay Đổi Hình Ảnh</label>
-                                    <input type="file" class="form-control-file" name="img" accept="image/*" onchange="previewEditImage(event)">
+                                    <input id="img" type="file" class="form-control-file" name="img" accept="image/*" onchange="previewEditImage(event)">
                                     <small class="form-text text-muted">Để trống nếu không muốn thay đổi hình ảnh</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Đơn Vị Tính</label>
-                                    <input type="text" name="unit" class="form-control" value="<?php echo $product['unit']; ?>">
+                                    <input id="unit" type="text" name="unit" class="form-control" value="<?php echo $product['unit']; ?>">
                                 </div>
                                 
                                 <div class="form-group">
                                     <label>Giá Bán (VNĐ)</label>
-                                    <input type="number" name="selling_price" class="form-control" value="<?php echo $product['selling_price']; ?>" required>
+                                    <input id="selling_price" type="number" name="selling_price" class="form-control" value="<?php echo $product['selling_price']; ?>" required>
                                 </div>
                                 <div class="form-group">
                                     <label>Tồn kho</label>
-                                    <input type="number" name="stock_quantity" class="form-control" value="<?php echo $product['stock_quantity']; ?>">
+                                    <input id="stock_quantity" type="number" name="stock_quantity" class="form-control" value="<?php echo $product['stock_quantity']; ?>">
                                 </div>
                                 
                                 <div class="form-group">
                                     <label>Trạng Thái</label>
-                                    <select name="status" class="form-control">
+                                    <select id="status" name="status" class="form-control">
                                         <option value="active" <?php echo ($product['status'] == 'active') ? 'selected' : ''; ?>>Active (Kích hoạt)</option>
                                         <option value="inactive" <?php echo ($product['status'] == 'inactive') ? 'selected' : ''; ?>>Inactive (Ẩn)</option>
                                     </select>
@@ -103,6 +103,84 @@ function previewEditImage(event) {
     };
     reader.readAsDataURL(event.target.files[0]);
 }
+document.getElementById('editProductForm').addEventListener('submit', function(e) {
+    let isValid = true;
+    let firstErrorElement = null; 
+    
+    // 1. Xóa thông báo lỗi cũ
+    document.querySelectorAll('.is-invalid').forEach(function(el) {
+        el.classList.remove('is-invalid');
+    });
+    document.querySelectorAll('.custom-error-text').forEach(function(el) {
+        el.remove();
+    });
+
+    function showError(inputId, message) {
+        let inputEl = document.getElementById(inputId);
+        if(!inputEl) return; // Bỏ qua nếu không tìm thấy thẻ
+        
+        inputEl.classList.add('is-invalid');
+        
+        let errorSpan = document.createElement('div');
+        errorSpan.className = 'invalid-feedback custom-error-text';
+        errorSpan.style.display = 'block';
+        errorSpan.innerText = message;
+        
+        inputEl.parentNode.appendChild(errorSpan);
+        isValid = false;
+
+        if (!firstErrorElement) {
+            firstErrorElement = inputEl;
+        }
+    }
+
+    let nameVal = document.getElementById('name').value.trim();
+    if (nameVal === '') {
+        showError('name', 'Vui lòng nhập tên sản phẩm.');
+    } else if (nameVal.length < 3) {
+        showError('name', 'Tên sản phẩm phải có ít nhất 3 ký tự.');
+    }
+    let categoryVal = document.getElementById('category_id').value;
+    if (categoryVal === '') {
+        showError('category_id', 'Vui lòng chọn một danh mục cho sản phẩm.');
+    }
+    let imgInput = document.getElementById('img');
+    if (imgInput && imgInput.files.length > 0) {
+        let file = imgInput.files[0];
+        let fileSizeMB = file.size / (1024 * 1024);
+        let validExtensions = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        
+        if (!validExtensions.includes(file.type)) {
+            showError('img', 'Định dạng ảnh không hợp lệ. Chỉ chấp nhận JPG, PNG, GIF, WEBP.');
+        } else if (fileSizeMB > 2) {
+            showError('img', 'Kích thước ảnh vượt quá dung lượng cho phép (Tối đa 2MB).');
+        }
+    }
+    let unitVal = document.getElementById('unit').value.trim();
+    if (unitVal === '') {
+        showError('unit', 'Vui lòng nhập đơn vị tính (vd: hộp, chai...).');
+    }
+    let priceVal = document.getElementById('selling_price').value;
+    if (priceVal === '' || isNaN(priceVal) || parseFloat(priceVal) <= 0) {
+        showError('selling_price', 'Giá bán phải là số và lớn hơn 0.');
+    }
+    let stockVal = document.getElementById('stock_quantity').value;
+    if (stockVal === '' || isNaN(stockVal) || parseInt(stockVal) < 0) {
+        showError('stock_quantity', 'Vui lòng nhập số lượng tồn kho (>= 0).');
+    }
+
+    let statusVal = document.getElementById('status').value;
+    if (statusVal === '') {
+        showError('status', 'Vui lòng chọn trạng thái sản phẩm.');
+    }
+
+    if (!isValid) {
+        e.preventDefault();
+        if (firstErrorElement) {
+            firstErrorElement.focus();
+        }
+    }
+});
 </script>
 
 <?php include 'layout/footer.php'; ?>

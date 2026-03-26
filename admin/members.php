@@ -40,15 +40,41 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 
 // Xử lý thêm/sửa
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $users_id = $_POST['users_id'];
-    $full_name = $_POST['full_name'];
-    $phone = $_POST['phone'];
-    $address = $_POST['address'];
-    $height = $_POST['height'];
-    $weight = $_POST['weight'];
-    $status = $_POST['status'];
+  $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
+  $memberId = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+  $full_name = trim((string) ($_POST['full_name'] ?? ''));
+  $phone = '';
+  $height = $_POST['height'];
+  $weight = $_POST['weight'];
+  $status = $_POST['status'];
     
     try {
+        // Chặn trùng tài khoản/email giữa các hội viên
+        if ($users_id <= 0) {
+          throw new Exception("Vui lòng chọn tài khoản hợp lệ.");
+        }
+
+        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE users_id = ? AND id <> ?");
+        $duplicateStmt->execute([$users_id, $memberId]);
+        if ((int) $duplicateStmt->fetchColumn() > 0) {
+          throw new Exception("Email/tài khoản này đã được hội viên khác sử dụng.");
+        }
+
+        $userStmt = $db->prepare("SELECT phone FROM users WHERE id = ?");
+        $userStmt->execute([$users_id]);
+        $userPhone = $userStmt->fetchColumn();
+        $phone = trim((string) $userPhone);
+        if ($phone === '') {
+          throw new Exception("Tài khoản đã chọn chưa có số điện thoại. Vui lòng cập nhật số điện thoại trong Quản lý tài khoản.");
+        }
+
+        $normalizedName = preg_replace('/\s+/u', ' ', $full_name);
+        $nameNoSpace = preg_replace('/\s+/u', '', $full_name);
+        if ($normalizedName === '' || mb_strlen($nameNoSpace, 'UTF-8') < 2) {
+          throw new Exception("Họ tên phải có ít nhất 2 ký tự và không được chỉ chứa khoảng trắng.");
+        }
+        $full_name = $normalizedName;
+
         if (isset($_POST['id']) && !empty($_POST['id'])) {
             // Cập nhật - Lấy total_spent hiện tại và tính tier
             $stmt = $db->prepare("SELECT total_spent FROM members WHERE id = ?");
@@ -56,25 +82,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $total_spent = $stmt->fetchColumn() ?: 0;
             $tier_id = getTierByTotalSpent($db, $total_spent);
             
-            $stmt = $db->prepare("UPDATE members SET users_id=?, full_name=?, phone=?, address=?, height=?, weight=?, status=?, tier_id=? WHERE id=?");
-            $stmt->execute([$users_id, $full_name, $phone, $address, $height, $weight, $status, $tier_id, $_POST['id']]);
+          $stmt = $db->prepare("UPDATE members SET users_id=?, full_name=?, phone=?, address=?, height=?, weight=?, status=?, tier_id=? WHERE id=?");
+          $stmt->execute([$users_id, $full_name, $phone, null, $height, $weight, $status, $tier_id, $_POST['id']]);
             $message = "Cập nhật hội viên thành công!";
         } else {
             // Thêm mới - Mặc định tier 1 (Đồng) vì total_spent = 0
             $tier_id = 1;
             $stmt = $db->prepare("INSERT INTO members (users_id, full_name, phone, address, height, weight, status, tier_id, join_date, total_spent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 0)");
-            $stmt->execute([$users_id, $full_name, $phone, $address, $height, $weight, $status, $tier_id]);
+          $stmt->execute([$users_id, $full_name, $phone, null, $height, $weight, $status, $tier_id]);
             $message = "Thêm hội viên thành công!";
         }
         $messageType = "success";
-    } catch (PDOException $e) {
+      } catch (Exception $e) {
         $message = "Lỗi: " . $e->getMessage();
         $messageType = "danger";
     }
 }
 
 // Lấy danh sách hội viên
-$stmt = $db->query("SELECT m.*, u.email, t.name as tier_name, t.level as tier_level 
+$stmt = $db->query("SELECT m.*, u.email, u.phone AS user_phone, t.name as tier_name, t.level as tier_level 
                     FROM members m 
                     LEFT JOIN users u ON m.users_id = u.id 
                     LEFT JOIN member_tiers t ON m.tier_id = t.id 
@@ -82,7 +108,7 @@ $stmt = $db->query("SELECT m.*, u.email, t.name as tier_name, t.level as tier_le
 $members = $stmt->fetchAll();
 
 // Lấy danh sách users cho form
-$users = $db->query("SELECT id, email FROM users")->fetchAll();
+$users = $db->query("SELECT id, email, phone FROM users ORDER BY email ASC")->fetchAll();
 
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
@@ -150,7 +176,7 @@ include 'layout/sidebar.php';
                     <td><?php echo $member['id']; ?></td>
                     <td><?php echo htmlspecialchars($member['full_name']); ?></td>
                     <td><?php echo htmlspecialchars($member['email']); ?></td>
-                    <td><?php echo htmlspecialchars($member['phone']); ?></td>
+                    <td><?php echo htmlspecialchars($member['user_phone'] ?: $member['phone']); ?></td>
                     <td>
                       <?php 
                       $badgeClass = ['Đồng' => 'secondary', 'Bạc' => 'light', 'Vàng' => 'warning', 'Bạch Kim' => 'primary', 'Kim Cương' => 'info'];
@@ -193,7 +219,7 @@ include 'layout/sidebar.php';
         <h4 class="modal-title" id="modalTitle">Thêm Hội Viên</h4>
         <button type="button" class="close" data-dismiss="modal">&times;</button>
       </div>
-      <form method="POST">
+      <form method="POST" id="memberForm" novalidate>
         <div class="modal-body">
           <input type="hidden" name="id" id="member_id">
           <div class="form-group">
@@ -201,21 +227,19 @@ include 'layout/sidebar.php';
             <select name="users_id" id="users_id" class="form-control" required>
               <option value="">--- Chọn tài khoản ---</option>
               <?php foreach ($users as $user): ?>
-              <option value="<?php echo $user['id']; ?>"><?php echo $user['email']; ?></option>
+              <option value="<?php echo $user['id']; ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>"><?php echo $user['email']; ?></option>
               <?php endforeach; ?>
             </select>
           </div>
           <div class="form-group">
             <label>Họ tên</label>
-            <input type="text" name="full_name" id="full_name" class="form-control" required>
+            <input type="text" name="full_name" id="full_name" class="form-control" required minlength="2" title="Họ tên tối thiểu 2 ký tự, không chỉ gồm khoảng trắng">
+            <small id="full_name_error" class="text-danger d-none">Họ tên phải có ít nhất 2 ký tự và không được chỉ chứa khoảng trắng.</small>
           </div>
           <div class="form-group">
             <label>Số điện thoại</label>
-            <input type="text" name="phone" id="phone" class="form-control">
-          </div>
-          <div class="form-group">
-            <label>Địa chỉ</label>
-            <textarea name="address" id="address" class="form-control" rows="3"></textarea>
+            <input type="text" id="phone_display" class="form-control" readonly>
+            <small id="phone_info" class="text-muted">Số điện thoại được tự động lấy theo tài khoản đã chọn.</small>
           </div>
           <div class="row">
             <div class="col-md-6">
@@ -261,12 +285,12 @@ function resetForm() {
   document.getElementById('member_id').value = '';
   document.getElementById('users_id').value = '';
   document.getElementById('full_name').value = '';
-  document.getElementById('phone').value = '';
-  document.getElementById('address').value = '';
+  document.getElementById('phone_display').value = '';
   document.getElementById('height').value = '';
   document.getElementById('weight').value = '';
   document.getElementById('status').value = 'active';
   document.getElementById('tier_info_group').style.display = 'none';
+  clearFullNameValidation();
 }
 
 function editMember(member) {
@@ -274,11 +298,11 @@ function editMember(member) {
   document.getElementById('member_id').value = member.id;
   document.getElementById('users_id').value = member.users_id;
   document.getElementById('full_name').value = member.full_name;
-  document.getElementById('phone').value = member.phone || '';
-  document.getElementById('address').value = member.address || '';
+  document.getElementById('phone_display').value = member.user_phone || member.phone || '';
   document.getElementById('height').value = member.height || '';
   document.getElementById('weight').value = member.weight || '';
   document.getElementById('status').value = member.status;
+  clearFullNameValidation();
   
   // Hiển thị thông tin tier tự động
   document.getElementById('tier_info_group').style.display = 'block';
@@ -289,6 +313,57 @@ function editMember(member) {
   tierBadge += ' - Tổng chi: ' + new Intl.NumberFormat('vi-VN').format(member.total_spent) + ' VNĐ';
   document.getElementById('tier_display').innerHTML = tierBadge;
 }
+
+function syncPhoneFromSelectedUser() {
+  var userSelect = document.getElementById('users_id');
+  var phoneDisplay = document.getElementById('phone_display');
+  var selectedOption = userSelect.options[userSelect.selectedIndex];
+  phoneDisplay.value = selectedOption ? (selectedOption.getAttribute('data-phone') || '') : '';
+}
+
+function validateFullNameField() {
+  var fullNameInput = document.getElementById('full_name');
+  var fullNameError = document.getElementById('full_name_error');
+  var fullNameValue = (fullNameInput.value || '');
+  var nameNoSpace = fullNameValue.replace(/\s+/g, '');
+
+  if (nameNoSpace.length >= 2) {
+    fullNameInput.classList.remove('is-invalid');
+    fullNameError.classList.add('d-none');
+    return true;
+  }
+
+  fullNameInput.classList.add('is-invalid');
+  fullNameError.classList.remove('d-none');
+  return false;
+}
+
+function clearFullNameValidation() {
+  var fullNameInput = document.getElementById('full_name');
+  var fullNameError = document.getElementById('full_name_error');
+  fullNameInput.classList.remove('is-invalid');
+  fullNameError.classList.add('d-none');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var userSelect = document.getElementById('users_id');
+  var fullNameInput = document.getElementById('full_name');
+  var memberForm = document.getElementById('memberForm');
+
+  userSelect.addEventListener('change', syncPhoneFromSelectedUser);
+  fullNameInput.addEventListener('input', validateFullNameField);
+  fullNameInput.addEventListener('blur', validateFullNameField);
+
+  memberForm.addEventListener('submit', function(event) {
+    var isFullNameValid = validateFullNameField();
+
+    if (!isFullNameValid) {
+      event.preventDefault();
+      event.stopPropagation();
+      fullNameInput.focus();
+    }
+  });
+});
 </script>
 
 <?php include 'layout/footer.php'; ?>

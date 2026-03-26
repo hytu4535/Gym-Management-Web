@@ -3,7 +3,7 @@
     <!-- Brand Logo -->
     <a href="index.php" class="brand-link">
       <i class="fas fa-dumbbell brand-image"></i>
-      <span class="brand-text font-weight-light">Gym</span>
+      <span class="brand-text font-weight-light">Trung Kiên Gym</span>
     </a>
 
     <!-- Sidebar -->
@@ -306,8 +306,8 @@
           </li>
 
           <!-- Phản hồi & Thông báo -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['feedback.php', 'notifications.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['feedback.php', 'notifications.php'])) ? 'active' : ''; ?>">
+          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['feedback.php', 'notifications.php', 'contact.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['feedback.php', 'notifications.php', 'contact.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-comments"></i>
               <p>
                 Phản hồi & Thông báo
@@ -325,6 +325,12 @@
                 <a href="notifications.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'notifications.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Thông báo</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="contact.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'contact.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Tiếp nhận liên hệ</p>
                 </a>
               </li>
             </ul>

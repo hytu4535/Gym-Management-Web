@@ -142,7 +142,7 @@ include 'layout/header.php';
                 </div>
                 <div class="col-lg-4">
                     <div class="input-group portal-search">
-                        <input type="text" id="globalSearch" class="form-control" placeholder="Tìm dinh dưỡng, ưu đãi...">
+                        <input type="text" id="globalSearch" class="form-control" placeholder="Tìm ưu đãi...">
                         <div class="input-group-append">
                             <button class="btn btn-warning" id="searchBtn" type="button"><i class="fa fa-search"></i></button>
                         </div>
@@ -158,32 +158,13 @@ include 'layout/header.php';
             </div>
 
             <ul class="nav nav-tabs portal-tabs mt-4" id="memberTabs" role="tablist">
-                <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-nutrition" role="tab">Dinh dưỡng</a></li>
-                <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-promotions" role="tab">Ưu đãi</a></li>
+                <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-promotions" role="tab">Ưu đãi</a></li>
                 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-feedback" role="tab">Feedback</a></li>
                 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-notifications" role="tab">Thông báo</a></li>
             </ul>
 
             <div class="tab-content">
-                <div class="tab-pane fade show active" id="tab-nutrition" role="tabpanel">
-                    <h5 class="text-white mb-3">Kế hoạch dinh dưỡng</h5>
-                    <div class="table-responsive">
-                        <table class="table portal-table table-bordered table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Tên kế hoạch</th>
-                                    <th>Loại</th>
-                                    <th>Calo</th>
-                                    <th>BMI phù hợp</th>
-                                    <th>Mô tả</th>
-                                </tr>
-                            </thead>
-                            <tbody id="nutritionTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="tab-pane fade" id="tab-promotions" role="tabpanel">
+                <div class="tab-pane fade show active" id="tab-promotions" role="tabpanel">
                     <h5 class="text-white mb-3">Ưu đãi theo hạng thành viên</h5>
                     <div class="table-responsive">
                         <table class="table portal-table table-bordered table-sm">
@@ -268,8 +249,34 @@ include 'layout/header.php';
 </section>
 <!-- Profile Section End -->
 
+<div class="modal fade" id="viewNotificationModal" tabindex="-1" role="dialog" aria-labelledby="viewNotificationModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content" style="background:#151515;border:1px solid #2a2a2a;color:#fff;">
+            <div class="modal-header" style="border-bottom:1px solid #2a2a2a;">
+                <h5 class="modal-title" id="viewNotificationModalLabel">Chi tiết thông báo</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2"><strong>Tiêu đề:</strong> <span id="viewNotificationTitle">-</span></div>
+                <div class="mb-2"><strong>Thời gian:</strong> <span id="viewNotificationTime">-</span></div>
+                <div class="mb-3"><strong>Trạng thái:</strong> <span id="viewNotificationStatus">-</span></div>
+                <div>
+                    <strong>Nội dung:</strong>
+                    <div id="viewNotificationContent" class="mt-2 p-2" style="background:#1f1f1f;border:1px solid #2f2f2f;border-radius:6px;white-space:pre-wrap;">-</div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #2a2a2a;">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const currentMemberId = <?php echo $currentMember ? (int) $currentMember['id'] : 0; ?>;
+let notificationStore = {};
 
 window.addEventListener('load', function() {
     if (typeof window.jQuery === 'undefined') {
@@ -293,6 +300,15 @@ function escapeHtml(value) {
 
 function money(value) {
     return new Intl.NumberFormat('vi-VN').format(value || 0) + ' VNĐ';
+}
+
+function truncateText(value, maxLength = 15) {
+    const text = String(value ?? '');
+    if (text.length <= maxLength) {
+        return text;
+    }
+
+    return text.slice(0, maxLength) + '...';
 }
 
 function emptyRow(colspan, title, hint = '') {
@@ -329,17 +345,12 @@ function promoValueText(item) {
 }
 
 function renderDashboard(data) {
-    const hasAnyData = ['nutrition_plans', 'promotions', 'feedbacks', 'notifications']
+    const hasAnyData = ['promotions', 'feedbacks', 'notifications']
         .some(key => Array.isArray(data[key]) && data[key].length > 0);
 
     if (!hasAnyData) {
-        showAlert('info', 'Hiện chưa có dữ liệu cho hội viên này. Vui lòng thêm dịch vụ, kế hoạch dinh dưỡng hoặc thông báo trong hệ thống để hiển thị tại đây.');
+        showAlert('info', 'Hiện chưa có dữ liệu cho hội viên này. Vui lòng thêm ưu đãi hoặc thông báo trong hệ thống để hiển thị tại đây.');
     }
-
-    const nutritionRows = (data.nutrition_plans || []).map(item => `<tr>
-        <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.calories || '-')}</td><td>${escapeHtml(item.bmi_range || '-')}</td><td>${escapeHtml(item.description || '')}</td>
-    </tr>`).join('');
-    $('#nutritionTableBody').html(nutritionRows || emptyRow(5, 'Chưa có kế hoạch dinh dưỡng', 'Kế hoạch sẽ hiển thị khi được tạo và kích hoạt trong hệ thống.'));
 
     const promoRows = (data.promotions || []).map(item => `<tr>
         <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.discount_type)}</td><td>${promoValueText(item)}</td><td>${formatDate(item.start_date)} - ${formatDate(item.end_date)}</td><td>${item.usage_limit || 'Không giới hạn'}</td>
@@ -351,15 +362,35 @@ function renderDashboard(data) {
     </tr>`).join('');
     $('#feedbackTableBody').html(feedbackRows || emptyRow(4, 'Bạn chưa gửi feedback nào', 'Hãy gửi đánh giá để bộ phận chăm sóc hội viên hỗ trợ tốt hơn.'));
 
+    notificationStore = {};
+    (data.notifications || []).forEach(item => {
+        notificationStore[String(item.id)] = item;
+    });
+
     const notiRows = (data.notifications || []).map(item => `<tr>
-        <td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.content)}</td><td>${escapeHtml(item.created_at)}</td>
+        <td>${escapeHtml(truncateText(item.title, 15))}</td><td>${escapeHtml(truncateText(item.content, 15))}</td><td>${escapeHtml(item.created_at)}</td>
         <td>${item.is_read == 1 ? '<span class="badge badge-success">Đã đọc</span>' : '<span class="badge badge-warning">Chưa đọc</span>'}</td>
         <td>
-            ${item.is_read == 1 ? '' : `<button class="btn btn-info btn-sm mark-read-btn" data-id="${item.id}"><i class="fa fa-eye"></i> Đã đọc</button>`}
+            <button class="btn btn-primary btn-sm view-noti-btn" data-id="${item.id}"><i class="fa fa-eye"></i> Xem</button>
+            ${item.is_read == 1 ? '' : `<button class="btn btn-info btn-sm mark-read-btn" data-id="${item.id}"><i class="fa fa-check"></i> Đánh dấu đã đọc</button>`}
             ${item.is_read == 1 ? `<button class="btn btn-danger btn-sm delete-noti-btn" data-id="${item.id}"><i class="fa fa-trash"></i> Xoá</button>` : ''}
         </td>
     </tr>`).join('');
     $('#notificationTableBody').html(notiRows || emptyRow(5, 'Chưa có thông báo nào', 'Thông báo mới sẽ xuất hiện tại đây khi hệ thống gửi đến tài khoản của bạn.'));
+}
+
+function openNotificationModal(notification) {
+    if (!notification) {
+        return;
+    }
+
+    $('#viewNotificationTitle').text(notification.title || '-');
+    $('#viewNotificationTime').text(notification.created_at || '-');
+    $('#viewNotificationStatus').html(notification.is_read == 1
+        ? '<span class="badge badge-success">Đã đọc</span>'
+        : '<span class="badge badge-warning">Chưa đọc</span>');
+    $('#viewNotificationContent').text(notification.content || '-');
+    $('#viewNotificationModal').modal('show');
 }
 
 function loadDashboard() {
@@ -392,7 +423,6 @@ function performSearch() {
         const data = response.data || {};
         let html = '';
         const blocks = [
-            { key: 'nutrition_plans', label: 'Dinh dưỡng' },
             { key: 'promotions', label: 'Ưu đãi cá nhân' }
         ];
 
@@ -426,6 +456,28 @@ $(document).on('click', '.mark-read-btn', function() {
     }, 'json').fail(function() {
         showAlert('danger', 'Lỗi kết nối khi cập nhật thông báo');
     });
+});
+
+$(document).on('click', '.view-noti-btn', function() {
+    const notificationId = String($(this).data('id'));
+    const notification = notificationStore[notificationId];
+
+    if (!notification) {
+        showAlert('warning', 'Không tìm thấy thông báo để hiển thị');
+        return;
+    }
+
+    openNotificationModal(notification);
+
+    if (Number(notification.is_read) !== 1) {
+        $.post('api.php', { action: 'mark_notification_read', member_id: currentMemberId, notification_id: notificationId }, function(response) {
+            if (response.success) {
+                notification.is_read = 1;
+                $('#viewNotificationStatus').html('<span class="badge badge-success">Đã đọc</span>');
+                loadDashboard();
+            }
+        }, 'json');
+    }
 });
 
 $(document).on('click', '.delete-noti-btn', function() {

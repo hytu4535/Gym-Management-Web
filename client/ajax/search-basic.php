@@ -3,6 +3,7 @@
 header('Content-Type: application/json');
 require_once '../../config/db.php';
 
+
 $keyword = trim($_REQUEST['keyword'] ?? '');
 
 // Trả về rỗng nếu không có từ khóa

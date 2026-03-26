@@ -1,30 +1,45 @@
 <?php 
 session_start();
-// TODO: Kiểm tra đăng nhập, nếu chưa đăng nhập thì redirect về login.php
-    if (!isset($_SESSION['user_id'])) {
-        header('Location: login.php');
-        exit();
-    }
 
-// TODO: Lấy thông tin user từ database
-    require_once __DIR__ . '/../config/db.php';
+// 1. Kiểm tra đăng nhập
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit();
+}
 
+require_once __DIR__ . '/../config/db.php';
 
-    $user_id = $_SESSION['user_id'];
-    $sql = "SELECT u.email, m.full_name, m.phone, m.address
-            FROM members m
-            JOIN users u ON m.users_id = u.id
-            WHERE u.id = ?";
-    $stmt = $conn->prepare($sql);
-    if (!$stmt){
-        die("SQL error: ". $conn->error);
-    }
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $user = $stmt->get_result()->fetch_assoc();
+$user_id = $_SESSION['user_id'];
+
+// 2. Lấy thông tin từ bảng users
+$sql_user = "SELECT id, username, email, status FROM users WHERE id = ?";
+$stmt_user = $conn->prepare($sql_user);
+if (!$stmt_user) {
+    die("SQL error (users): " . $conn->error);
+}
+$stmt_user->bind_param("i", $user_id);
+$stmt_user->execute();
+$user_data = $stmt_user->get_result()->fetch_assoc();
+$stmt_user->close();
+
+// 3. Lấy thông tin từ bảng members
+$sql_member = "SELECT full_name, phone, height, weight 
+               FROM members WHERE users_id = ?";
+$stmt_member = $conn->prepare($sql_member);
+if (!$stmt_member) {
+    die("SQL error (members): " . $conn->error);
+}
+$stmt_member->bind_param("i", $user_id);
+$stmt_member->execute();
+$member_data = $stmt_member->get_result()->fetch_assoc();
+$stmt_member->close();
+
+// 4. Gom dữ liệu lại thành một mảng chung để dễ dùng trong giao diện
+$user = array_merge($user_data ?? [], $member_data ?? []);
 
 include 'layout/header.php'; 
 ?>
+
 
 <!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
@@ -93,9 +108,11 @@ include 'layout/header.php';
             </div>
             <div class="col-lg-9">
                 <div class="profile-content" style="background-color: aliceblue; padding: 30px">
-                    <h4>Thông tin tài khoản</h4>
+                    <h4>Thông tin tài khoản & cá nhân</h4>
+                    <div id="message-container"></div>
                     <form id="profile-form">
                         <div class="row">
+                            <!-- Họ tên -->
                             <div class="col-lg-6">
                                 <div class="form-group">
                                     <label>Họ và tên</label>
@@ -104,6 +121,16 @@ include 'layout/header.php';
                                         class="form-control">
                                 </div>
                             </div>
+                            <!-- Tên tài khoản -->
+                            <div class="col-lg-6">
+                                <div class="form-group">
+                                    <label>Tên tài khoản</label>
+                                    <input type="text" name="username" 
+                                        value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" 
+                                        class="form-control">
+                                </div>
+                            </div>
+                            <!-- Email -->
                             <div class="col-lg-6">
                                 <div class="form-group">
                                     <label>Email</label>
@@ -112,6 +139,7 @@ include 'layout/header.php';
                                         class="form-control">
                                 </div>
                             </div>
+                            <!-- Số điện thoại -->
                             <div class="col-lg-6">
                                 <div class="form-group">
                                     <label>Số điện thoại</label>
@@ -120,36 +148,28 @@ include 'layout/header.php';
                                         class="form-control">
                                 </div>
                             </div>
+                            <!-- Chiều cao -->
                             <div class="col-lg-6">
                                 <div class="form-group">
-                                    <label>Ngày sinh</label>
-                                    <input type="date" name="birth_date" 
-                                        value="<?php echo htmlspecialchars($user['birthdate'] ?? ''); ?>" 
+                                    <label>Chiều cao (cm)</label>
+                                    <input type="text" name="height" 
+                                        value="<?php echo htmlspecialchars($user['height'] ?? ''); ?>" 
                                         class="form-control">
                                 </div>
                             </div>
+                            <!-- Cân nặng -->
                             <div class="col-lg-6">
                                 <div class="form-group">
-                                    <label>Giới tính</label>
-                                    <select name="gender" class="form-control">
-                                        <option value="Male" <?php if(($user['gender'] ?? '')=='Male') echo 'selected'; ?>>Nam</option>
-                                        <option value="Female" <?php if(($user['gender'] ?? '')=='Female') echo 'selected'; ?>>Nữ</option>
-                                        <option value="Other" <?php if(($user['gender'] ?? '')=='Other') echo 'selected'; ?>>Khác</option>
-                                    </select>
+                                    <label>Cân nặng (kg)</label>
+                                    <input type="text" name="weight" 
+                                        value="<?php echo htmlspecialchars($user['weight'] ?? ''); ?>" 
+                                        class="form-control">
                                 </div>
-                            </div>
-                            <div class="col-lg-12">
-                                <div class="form-group">
-                                    <label>Địa chỉ</label>
-                                    <textarea name="address" rows="3" class="form-control"><?php echo htmlspecialchars($user['address'] ?? ''); ?></textarea>
-                                </div>
-                            </div>
-                            <div class="col-lg-12">
-                                <button type="submit" class="site-btn">Cập nhật</button>
                             </div>
                         </div>
+                        <!-- Nút duy nhất -->
+                        <button type="submit" class="site-btn">Cập nhật</button>
                     </form>
-
 
                     <hr class="my-5">
 
@@ -188,64 +208,73 @@ include 'layout/header.php';
 <!-- Profile Section End -->
 
 <script>
-// TODO: Load thông tin người dùng từ database
-    document.addEventListener('DOMContentLoaded', function() {
-        fetch('ajax/get-profile.php')
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                const u = data.data;
-                document.querySelector('[name="full_name"]').value = u.full_name;
-                document.querySelector('[name="email"]').value = u.email;
-                document.querySelector('[name="phone"]').value = u.phone;
-                document.querySelector('[name="address"]').value = u.address;
+// Hàm hiển thị thông báo
+function showMessage(message, type) {
+    var container = document.getElementById('message-container');
+    container.innerHTML = '<div class="alert alert-' + (type === 'success' ? 'success' : 'danger') + '">' + message + '</div>';
+
+    // Tự động ẩn sau 3 giây
+    setTimeout(function() {
+        container.innerHTML = '';
+    }, 3000);
+}
+
+// Load thông tin người dùng từ database
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('ajax/get-profile.php')
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const u = data.data;
+            document.querySelector('[name="full_name"]').value = u.full_name;
+            document.querySelector('[name="email"]').value = u.email;
+            document.querySelector('[name="phone"]').value = u.phone;
+            if (document.querySelector('[name="height"]')) {
+                document.querySelector('[name="height"]').value = u.height;
             }
-        });
-    });
-
-// TODO: Implement cập nhật thông tin
-    document.getElementById('profile-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        var formData = new FormData(this);
-        fetch('ajax/update-profile.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(res => res.text())
-        .then(txt => {
-            console.log(txt); // xem nội dung thực tế
-            try {
-                const data = JSON.parse(txt);
-                alert(data.message);
-                if (data.success) location.reload();
-            } catch (e) {
-                alert("Server không trả về JSON: " + txt);
+            if (document.querySelector('[name="weight"]')) {
+                document.querySelector('[name="weight"]').value = u.weight;
             }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Có lỗi xảy ra khi cập nhật!');
-        });
-
+        }
     });
-// TODO: Implement đổi mật khẩu
-    document.getElementById('change-password-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        var formData = new FormData(this);
-        fetch('ajax/change-password.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-            alert(data.message);
-        })
-        .catch(err => {
-            alert('Có lỗi xảy ra!');
-            console.error(err);
-        });
-    });
+});
 
+// Cập nhật thông tin (tài khoản + cá nhân)
+document.getElementById('profile-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var formData = new FormData(this);
+    fetch('ajax/update-profile.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        showMessage(data.message, data.success ? 'success' : 'error');
+    })
+    .catch(err => {
+        console.error(err);
+        showMessage('Có lỗi xảy ra khi cập nhật!', 'error');
+    });
+});
+
+// Đổi mật khẩu
+document.getElementById('change-password-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var formData = new FormData(this);
+    fetch('ajax/change-password.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        showMessage(data.message, data.success ? 'success' : 'error');
+    })
+    .catch(err => {
+        console.error(err);
+        showMessage('Có lỗi xảy ra khi đổi mật khẩu!', 'error');
+    });
+});
 </script>
+
 
 <?php include 'layout/footer.php'; ?>

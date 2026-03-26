@@ -99,6 +99,32 @@
   });
 
   /*------------------
+        Equipment Slider
+    --------------------*/
+  $(".equipment-slider").owlCarousel({
+    loop: true,
+    margin: 24,
+    items: 3,
+    dots: true,
+    nav: false,
+    smartSpeed: 900,
+    autoHeight: false,
+    autoplay: true,
+    autoplayTimeout: 3200,
+    responsive: {
+      320: {
+        items: 1,
+      },
+      768: {
+        items: 2,
+      },
+      992: {
+        items: 3,
+      },
+    },
+  });
+
+  /*------------------
         Testimonial Slider
     --------------------*/
   $(".ts_slider").owlCarousel({

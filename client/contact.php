@@ -1,4 +1,93 @@
-<?php include 'layout/header.php'; ?>
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once '../config/db.php';
+
+// Bảng lưu tiếp nhận liên hệ từ client.
+$conn->query("CREATE TABLE IF NOT EXISTS contact_messages (
+    id INT NOT NULL AUTO_INCREMENT,
+    user_id INT DEFAULT NULL,
+    member_id INT DEFAULT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(120) NOT NULL,
+    phone VARCHAR(20) DEFAULT NULL,
+    message TEXT NOT NULL,
+    status ENUM('new','read','closed') DEFAULT 'new',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_contact_user (user_id),
+    KEY idx_contact_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+$isLoggedIn = isset($_SESSION['user_id']);
+$profile = null;
+$submitMessage = '';
+$submitType = 'success';
+
+if ($isLoggedIn) {
+    $profileStmt = $conn->prepare(
+        "SELECT
+            u.id AS user_id,
+            u.email,
+            u.username,
+            m.id AS member_id,
+            m.full_name,
+            m.phone
+         FROM users u
+         LEFT JOIN members m ON m.users_id = u.id
+         WHERE u.id = ?
+         LIMIT 1"
+    );
+    $profileStmt->bind_param("i", $_SESSION['user_id']);
+    $profileStmt->execute();
+    $profile = $profileStmt->get_result()->fetch_assoc();
+    $profileStmt->close();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$isLoggedIn || !$profile) {
+        $submitMessage = 'Vui lòng đăng nhập để gửi liên hệ.';
+        $submitType = 'danger';
+    } else {
+        $message = trim($_POST['message'] ?? '');
+
+        if ($message === '') {
+            $submitMessage = 'Vui lòng nhập nội dung liên hệ.';
+            $submitType = 'danger';
+        } else {
+            $fullName = trim($profile['full_name'] ?? '');
+            if ($fullName === '') {
+                $fullName = trim($_SESSION['full_name'] ?? ($profile['username'] ?? 'Thành viên'));
+            }
+
+            $email = trim($profile['email'] ?? '');
+            $phone = trim($profile['phone'] ?? '');
+            $userId = (int) $profile['user_id'];
+            $memberId = !empty($profile['member_id']) ? (int) $profile['member_id'] : null;
+
+            $insertStmt = $conn->prepare(
+                "INSERT INTO contact_messages (user_id, member_id, full_name, email, phone, message)
+                 VALUES (?, ?, ?, ?, ?, ?)"
+            );
+            $insertStmt->bind_param("iissss", $userId, $memberId, $fullName, $email, $phone, $message);
+
+            if ($insertStmt->execute()) {
+                $submitMessage = 'Gửi tin nhắn thành công! Chúng tôi sẽ phản hồi bạn sớm nhất.';
+                $submitType = 'success';
+            } else {
+                $submitMessage = 'Không thể gửi liên hệ lúc này. Vui lòng thử lại.';
+                $submitType = 'danger';
+            }
+
+            $insertStmt->close();
+        }
+    }
+}
+
+include 'layout/header.php';
+?>
 
 <!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
@@ -21,6 +110,18 @@
 <!-- Contact Section Begin -->
 <section class="contact-section spad">
     <div class="container">
+        <?php if ($submitMessage !== ''): ?>
+            <div class="alert alert-<?= $submitType ?> text-center">
+                <?= htmlspecialchars($submitMessage) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!$isLoggedIn): ?>
+            <div class="alert alert-warning text-center">
+                Bạn cần đăng nhập để gửi liên hệ. <a href="login.php?redirect=contact.php">Đăng nhập ngay</a>
+            </div>
+        <?php endif; ?>
+
         <div class="row">
             <div class="col-lg-6">
                 <div class="section-title contact-title">
@@ -47,12 +148,27 @@
             </div>
             <div class="col-lg-6">
                 <div class="leave-comment">
-                    <form action="#" method="POST">
-                        <input type="text" name="name" placeholder="Tên của bạn" required>
-                        <input type="email" name="email" placeholder="Email" required>
-                        <input type="text" name="phone" placeholder="Số điện thoại" required>
+                    <form action="contact.php" method="POST">
+                        <input type="text"
+                               name="name"
+                               placeholder="Tên của bạn"
+                               value="<?= htmlspecialchars($profile['full_name'] ?? ($_SESSION['full_name'] ?? '')) ?>"
+                               readonly
+                               required>
+                        <input type="email"
+                               name="email"
+                               placeholder="Email"
+                               value="<?= htmlspecialchars($profile['email'] ?? ($_SESSION['email'] ?? '')) ?>"
+                               readonly
+                               required>
+                        <input type="text"
+                               name="phone"
+                               placeholder="Số điện thoại"
+                               value="<?= htmlspecialchars($profile['phone'] ?? '') ?>"
+                               readonly
+                               required>
                         <textarea name="message" placeholder="Nội dung" required></textarea>
-                        <button type="submit" class="primary-btn">Gửi tin nhắn</button>
+                        <button type="submit" class="primary-btn" <?= !$isLoggedIn ? 'disabled' : '' ?>>Gửi tin nhắn</button>
                     </form>
                 </div>
             </div>

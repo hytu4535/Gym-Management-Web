@@ -91,7 +91,41 @@ try {
 
         echo json_encode(['success'=>true,'message'=>'Xóa địa chỉ thành công!']); exit();
     }
+    
+    // Lấy danh sách địa chỉ (phân trang AJAX)
+    if (isset($_POST['action']) && $_POST['action'] === 'fetch_addresses') {
+        $limit = intval($_POST['limit'] ?? 5);
+        $page = intval($_POST['page'] ?? 1);
+        $offset = ($page - 1) * $limit;
 
+        // Tổng số địa chỉ
+        $stmt = $conn->prepare("SELECT COUNT(*) as total FROM addresses WHERE member_id=?");
+        $stmt->bind_param("i", $member_id);
+        $stmt->execute();
+        $total_result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $total_addresses = $total_result['total'];
+        $total_pages = ceil($total_addresses / $limit);
+
+        // Lấy danh sách theo trang
+        $sql = "SELECT * FROM addresses WHERE member_id=? ORDER BY is_default DESC, id DESC LIMIT ? OFFSET ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("iii", $member_id, $limit, $offset);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $addresses = $result->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        echo json_encode([
+            'success' => true,
+            'addresses' => $addresses,
+            'total' => $total_addresses,
+            'page' => $page,
+            'limit' => $limit,
+            'total_pages' => $total_pages
+        ]);
+        exit();
+    }
 
     echo json_encode(['success'=>false,'message'=>'Không có hành động nào được thực hiện!']);
 } catch (Exception $e) {

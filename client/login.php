@@ -39,11 +39,11 @@ include 'layout/header.php';
                     <form id="login-form">
                         <div class="form-group">
                             <label>Tên đăng nhập hoặc Email <span>*</span></label>
-                            <input type="text" id="username" name="username" class="form-control" required>
+                            <input type="text" id="username" name="username" class="form-control" >
                         </div>
                         <div class="form-group">
                             <label>Mật khẩu <span>*</span></label>
-                            <input type="password" id="password" name="password" class="form-control" required>
+                            <input type="password" id="password" name="password" class="form-control" >
                         </div>
                         <div style = "padding: left;">
                             <label class="switch">

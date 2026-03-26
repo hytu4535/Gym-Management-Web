@@ -10,10 +10,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $remember_me = isset($_POST['remember_me']);
     
-    if (empty($username) || empty($password)) {
+    if (empty($username) && empty($password)) {
         echo json_encode([
             'success' => false,
-            'message' => 'Vui lòng nhập tên đăng nhập và mật khẩu!'
+            'message' => 'Vui lòng nhập đẩy đủ tên đăng nhập và mật khẩu!'
+        ]);
+        exit();
+    }
+
+    if (empty($username)){
+        echo json_encode([
+            'success' => false,
+            'message' => 'Vui lòng nhập tên đăng nhập hoặc Email!'
+        ]);
+        exit();
+    }
+
+    if (empty($password)){
+        echo json_encode([
+            'success' => false,
+            'message' => 'Vui lòng nhập mật khẩu!'
         ]);
         exit();
     }

@@ -12,14 +12,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $address = $_POST['address'] ?? '';
 
     // 1. Validate dữ liệu bắt buộc
-    if (empty($full_name) || empty($email) || empty($username) || empty($password)) {
+    if (empty($full_name) && empty($email) && empty($phone) && empty($username) && empty($password)) {
         echo json_encode(['success' => false, 'message' => 'Vui lòng điền đầy đủ thông tin bắt buộc!']);
         exit();
     }
+    if (empty($full_name)) {
+        echo json_encode(['success' => false, 'message' => 'Vui lòng điền Họ tên!']);
+        exit();
+    }
+    if (empty($email)) {
+        echo json_encode(['success' => false, 'message' => 'Email hông được để trống!']);
+        exit();
+    }
+    if (empty($phone)) {
+        echo json_encode(['success' => false, 'message' => 'Cho xin SĐT đi người đẹp!']);
+        exit();
+    }
+    if (empty($username)) {
+        echo json_encode(['success' => false, 'message' => 'Hông được để trống Tên đăng nhập!']);
+        exit();
+    }
+    if (empty($password)) {
+        echo json_encode(['success' => false, 'message' => 'Bạn thật sự muốn để Mật khẩu là không gì cả ư? (Hông cho đâu~)']);
+        exit();
+    }
+
 
     // 2. Validate email
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['success' => false, 'message' => 'Email không hợp lệ!']);
+        echo json_encode(['success' => false, 'message' => 'Email không hợp lệ, vui lòng nhập đúng định dạng email!']);
         exit();
     }
 

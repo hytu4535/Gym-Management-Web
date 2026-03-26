@@ -30,7 +30,6 @@ $users = $stmt->fetchAll();
 $roles = $db->query("SELECT id, name FROM roles WHERE status='active'")->fetchAll();
 ?>
 
-
 <div class="content-wrapper">
   <div class="content-header">
     <div class="container-fluid">
@@ -50,7 +49,8 @@ $roles = $db->query("SELECT id, name FROM roles WHERE status='active'")->fetchAl
           </div>
         </div>
         <div class="card-body">
-          <table class="table table-bordered table-striped">
+          <!-- Bảng có class data-table -->
+          <table class="table table-bordered table-striped data-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -70,7 +70,7 @@ $roles = $db->query("SELECT id, name FROM roles WHERE status='active'")->fetchAl
                 <td><?= $u['email'] ?></td>
                 <td><span class="badge badge-info"><?= $u['role'] ?></span></td>
                 <td>
-                  <?php if($u['status']=='active'): ?>
+                  <?php if(strtolower($u['status'])=='active'): ?>
                     <span class="badge badge-success">Active</span>
                   <?php else: ?>
                     <span class="badge badge-danger">Inactive</span>
@@ -127,8 +127,8 @@ $roles = $db->query("SELECT id, name FROM roles WHERE status='active'")->fetchAl
                         <div class="form-group">
                           <label>Trạng thái</label>
                           <select class="form-control" name="status" required>
-                            <option value="active" <?= $u['status']=='active'?'selected':'' ?>>Active</option>
-                            <option value="inactive" <?= $u['status']=='inactive'?'selected':'' ?>>Inactive</option>
+                            <option value="active" <?= strtolower($u['status'])=='active'?'selected':'' ?>>Active</option>
+                            <option value="inactive" <?= strtolower($u['status'])=='inactive'?'selected':'' ?>>Inactive</option>
                           </select>
                         </div>
                       </div>
@@ -198,3 +198,21 @@ $roles = $db->query("SELECT id, name FROM roles WHERE status='active'")->fetchAl
 </div>
 
 <?php include 'layout/footer.php'; ?>
+
+<!-- Khởi tạo DataTables -->
+<script>
+  $(document).ready(function() {
+    if ($.fn.DataTable.isDataTable('.data-table')) {
+      $('.data-table').DataTable().destroy();
+    }
+    $('.data-table').DataTable({
+      paging: true,
+      lengthChange: true,
+      searching: true,
+      ordering: true,
+      info: true,
+      autoWidth: false,
+      responsive: true
+    });
+  });
+</script>

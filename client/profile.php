@@ -127,16 +127,16 @@ include 'layout/header.php';
                                     <label>Tên tài khoản</label>
                                     <input type="text" name="username" 
                                         value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" 
-                                        class="form-control">
+                                        class="form-control" disabled>
                                 </div>
                             </div>
                             <!-- Email -->
                             <div class="col-lg-6">
                                 <div class="form-group">
                                     <label>Email</label>
-                                    <input type="email" name="email" 
+                                    <input name="email" 
                                         value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" 
-                                        class="form-control">
+                                        class="form-control" disabled>
                                 </div>
                             </div>
                             <!-- Số điện thoại -->

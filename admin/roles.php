@@ -44,7 +44,8 @@ $roles = $stmt->fetchAll();
           </div>
         </div>
         <div class="card-body">
-          <table class="table table-bordered table-striped">
+          <!-- Bảng có class data-table -->
+          <table class="table table-bordered table-striped data-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -61,10 +62,10 @@ $roles = $stmt->fetchAll();
                 <td><?= $r['name'] ?></td>
                 <td><?= $r['description'] ?></td>
                 <td>
-                  <?php if($r['status']=='active'): ?>
-                    <span class="badge badge-success">Active</span>
+                  <?php if(strtolower($r['status'])=='active'): ?>
+                    <span class="badge badge-success"><i class="fas fa-check-circle"></i> Active</span>
                   <?php else: ?>
-                    <span class="badge badge-danger">Inactive</span>
+                    <span class="badge badge-danger"><i class="fas fa-times-circle"></i> Inactive</span>
                   <?php endif; ?>
                 </td>
                 <td>
@@ -103,8 +104,8 @@ $roles = $stmt->fetchAll();
                         <div class="form-group">
                           <label>Trạng thái</label>
                           <select class="form-control" name="status" required>
-                            <option value="active" <?= $r['status']=='active'?'selected':'' ?>>Active</option>
-                            <option value="inactive" <?= $r['status']=='inactive'?'selected':'' ?>>Inactive</option>
+                            <option value="active" <?= strtolower($r['status'])=='active'?'selected':'' ?>>Active</option>
+                            <option value="inactive" <?= strtolower($r['status'])=='inactive'?'selected':'' ?>>Inactive</option>
                           </select>
                         </div>
                       </div>
@@ -162,3 +163,21 @@ $roles = $stmt->fetchAll();
 </div>
 
 <?php include 'layout/footer.php'; ?>
+
+<!-- Khởi tạo DataTables -->
+<script>
+  $(document).ready(function() {
+    if ($.fn.DataTable.isDataTable('.data-table')) {
+      $('.data-table').DataTable().destroy();
+    }
+    $('.data-table').DataTable({
+      paging: true,
+      lengthChange: true,
+      searching: true,
+      ordering: true,
+      info: true,
+      autoWidth: false,
+      responsive: true
+    });
+  });
+</script>

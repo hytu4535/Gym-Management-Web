@@ -25,27 +25,27 @@
                     <form id="register-form">
                         <div class="form-group">
                             <label>Họ và tên <span>*</span></label>
-                            <input type="text" id="full_name" name="full_name" required>
+                            <input type="text" id="full_name" name="full_name" >
                         </div>
                         <div class="form-group">
                             <label>Email <span>*</span></label>
-                            <input type="email" id="email" name="email" required>
+                            <input id="email" name="email" >
                         </div>
                         <div class="form-group">
                             <label>Số điện thoại <span>*</span></label>
-                            <input type="text" id="phone" name="phone" required>
+                            <input type="text" id="phone" name="phone" >
                         </div>
                         <div class="form-group">
                             <label>Tên đăng nhập <span>*</span></label>
-                            <input type="text" id="username" name="username" required>
+                            <input type="text" id="username" name="username" >
                         </div>
                         <div class="form-group">
                             <label>Mật khẩu <span>*</span></label>
-                            <input type="password" id="password" name="password" required>
+                            <input type="password" id="password" name="password" >
                         </div>
                         <div class="form-group">
                             <label>Xác nhận mật khẩu <span>*</span></label>
-                            <input type="password" id="confirm_password" name="confirm_password" required>
+                            <input type="password" id="confirm_password" name="confirm_password" >
                         </div>
                         <div id="message-container"></div>
                         <button type="submit" class="site-btn">Đăng ký</button>
@@ -71,14 +71,6 @@ document.getElementById('register-form').addEventListener('submit', function(e) 
     var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     var phoneRegex = /^[0-9]{10}$/;
 
-    if (!emailRegex.test(email)) {
-        showMessage('Email không đúng định dạng!', 'error');
-        return;
-    }
-    if (!phoneRegex.test(phone)) {
-        showMessage('Số điện thoại phải có 10 chữ số!', 'error');
-        return;
-    }
     if (password !== confirmPassword) {
         showMessage('Mật khẩu không khớp!', 'error');
         return;

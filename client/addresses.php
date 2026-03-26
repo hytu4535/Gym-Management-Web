@@ -23,6 +23,29 @@ $member_id = $member['id'];
 $sql = "SELECT * FROM addresses WHERE member_id=? ORDER BY is_default DESC, id DESC";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $member_id);
+
+// Số mục mỗi trang (có thể lấy từ dropdown người dùng chọn)
+$limit = isset($_GET['limit']) ? intval($_GET['limit']) : 5;
+
+// Trang hiện tại
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$offset = ($page - 1) * $limit;
+
+// Tổng số địa chỉ
+$stmt = $conn->prepare("SELECT COUNT(*) as total FROM addresses WHERE member_id=?");
+$stmt->bind_param("i", $member_id);
+$stmt->execute();
+$total_result = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+$total_addresses = $total_result['total'];
+
+// Tính tổng số trang
+$total_pages = ceil($total_addresses / $limit);
+
+// Lấy danh sách địa chỉ theo trang
+$sql = "SELECT * FROM addresses WHERE member_id=? ORDER BY is_default DESC, id DESC LIMIT ? OFFSET ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("iii", $member_id, $limit, $offset);
 $stmt->execute();
 $result = $stmt->get_result();
 $addresses = $result->fetch_all(MYSQLI_ASSOC);
@@ -105,45 +128,28 @@ $stmt->close();
 
                 <div id="message-container"></div>
 
-                <!-- Danh sách địa chỉ -->
-                <h4 style ="margin-bottom: 20px;">Danh sách địa chỉ</h4>
+                <h4>Danh sách địa chỉ</h4>
+
+                <!-- Dropdown chọn số mục mỗi trang -->
+                 <hr>
+
                 <?php if (empty($addresses)): ?>
                     <p>Chưa có địa chỉ nào được lưu.</p>
                 <?php else: ?>
-                    <ul class="list-group">
-                        <?php foreach ($addresses as $addr): ?>
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span >
-                                    <strong style="margin-right: 10px;">#<?php echo $addr['id']; ?> | </strong> 
-                                    <?php echo htmlspecialchars($addr['full_address']); ?>,
-                                    <?php echo htmlspecialchars($addr['district']); ?>,
-                                    <?php echo htmlspecialchars($addr['city']); ?>
-                                </span>
-                                <?php if ($addr['is_default']): ?>
-                                    <span class="badge bg-success">Mặc định</span>
-                                <?php endif; ?>
-                               <div>
-                                    <button class="btn btn-sm btn-primary edit-btn"
-                                            data-id="<?php echo $addr['id']; ?>"
-                                            data-full="<?php echo htmlspecialchars($addr['full_address']); ?>"
-                                            data-district="<?php echo htmlspecialchars($addr['district']); ?>"
-                                            data-city="<?php echo htmlspecialchars($addr['city']); ?>">
-                                        Sửa
-                                    </button>
-                                    <button class="btn btn-sm btn-warning default-btn"
-                                            data-id="<?php echo $addr['id']; ?>">
-                                        Đặt mặc định
-                                    </button>
-                                    <button class="btn btn-sm btn-danger delete-btn"
-                                            data-id="<?php echo $addr['id']; ?>">
-                                        Xóa
-                                    </button>
-                                </div>
-                            </li>
-
-                        <?php endforeach; ?>
-                    </ul>
+                    <form class="mb-2">
+                        <label>Xem 
+                            <select onchange="loadAddresses(1, this.value)">
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                            </select> mục
+                        </label>
+                    </form>
+                    
+                    <ul class="list-group" id="address-list"></ul>
+                    <div id="pagination"></div>
                 <?php endif; ?>
+
             </div>
         </div>
     </div>
@@ -242,6 +248,63 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
             }
           });
     });
+});
+
+function loadAddresses(page = 1, limit = 5) {
+    let formData = new FormData();
+    formData.append('action', 'fetch_addresses');
+    formData.append('page', page);
+    formData.append('limit', limit);
+
+    fetch('ajax/address-actions.php', {
+        method: 'POST',
+        body: formData
+    }).then(res => res.json())
+      .then(data => {
+        if (data.success) {
+            renderAddressList(data);
+        }
+      });
+}
+
+function renderAddressList(data) {
+    let listHtml = '';
+    data.addresses.forEach(addr => {
+        listHtml += `
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>
+                <strong>#${addr.id} | </strong>
+                ${addr.full_address}, ${addr.district}, ${addr.city}
+            </span>
+            ${addr.is_default ? '<span class="badge bg-success">Mặc định</span>' : ''}
+            <div>
+                <button class="btn btn-sm btn-primary edit-btn" data-id="${addr.id}">Sửa</button>
+                <button class="btn btn-sm btn-warning default-btn" data-id="${addr.id}">Đặt mặc định</button>
+                <button class="btn btn-sm btn-danger delete-btn" data-id="${addr.id}">Xóa</button>
+            </div>
+        </li>`;
+    });
+
+    document.querySelector('#address-list').innerHTML = listHtml;
+
+    // Render phân trang
+    let paginationHtml = `
+        <p>Đang xem ${(data.page-1)*data.limit+1} đến ${Math.min(data.page*data.limit, data.total)} trong tổng số ${data.total} mục</p>
+        <ul class="pagination">
+            <li class="page-item ${data.page<=1?'disabled':''}">
+                <a class="page-link" href="#" onclick="loadAddresses(${data.page-1}, ${data.limit})">Trước</a>
+            </li>
+            <li class="page-item active"><span class="page-link">${data.page}</span></li>
+            <li class="page-item ${data.page>=data.total_pages?'disabled':''}">
+                <a class="page-link" href="#" onclick="loadAddresses(${data.page+1}, ${data.limit})">Sau</a>
+            </li>
+        </ul>`;
+    document.querySelector('#pagination').innerHTML = paginationHtml;
+}
+
+// Gọi lần đầu khi load trang
+document.addEventListener('DOMContentLoaded', () => {
+    loadAddresses(1, 5);
 });
 
 

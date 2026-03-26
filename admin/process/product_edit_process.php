@@ -5,6 +5,8 @@ if (isset($_POST['btn_edit_product'])) {
     $id = $_POST['id'];
     $name = $_POST['name'];
     $category_id = !empty($_POST['category_id']) ? $_POST['category_id'] : 'NULL';
+    $short_description = $conn->real_escape_string(trim($_POST['short_description'] ?? ''));
+    $description = $conn->real_escape_string(trim($_POST['description'] ?? ''));
     $unit = $_POST['unit'];
     $selling_price = $_POST['selling_price'];
     $stock_quantity = $_POST['stock_quantity'];
@@ -42,15 +44,33 @@ if (isset($_POST['btn_edit_product'])) {
         }
     }
 
-    $sql = "UPDATE products SET 
-            name = '$name', 
-            category_id = $category_id, 
-            img = '$img_name',
-            unit = '$unit',
-            selling_price = $selling_price, 
-            stock_quantity = $stock_quantity,
-            status = '$status'
-            WHERE id = $id";
+    $checkDescriptionColumn = $conn->query("SHOW COLUMNS FROM products LIKE 'description'");
+    $hasDescriptionColumn = $checkDescriptionColumn && $checkDescriptionColumn->num_rows > 0;
+
+    if ($hasDescriptionColumn) {
+        $sql = "UPDATE products SET 
+                name = '$name', 
+                category_id = $category_id, 
+                short_description = '$short_description',
+                description = '$description',
+                img = '$img_name',
+                unit = '$unit',
+                selling_price = $selling_price, 
+                stock_quantity = $stock_quantity,
+                status = '$status'
+                WHERE id = $id";
+    } else {
+        $sql = "UPDATE products SET 
+                name = '$name', 
+                category_id = $category_id, 
+                short_description = '$short_description',
+                img = '$img_name',
+                unit = '$unit',
+                selling_price = $selling_price, 
+                stock_quantity = $stock_quantity,
+                status = '$status'
+                WHERE id = $id";
+    }
 
     if ($conn->query($sql) === TRUE) {
         echo "<script>alert('Cập nhật thành công!'); window.location.href='../products.php';</script>";

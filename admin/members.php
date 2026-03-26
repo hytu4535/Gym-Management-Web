@@ -42,7 +42,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
   $memberId = isset($_POST['id']) ? (int) $_POST['id'] : 0;
-  $full_name = trim((string) ($_POST['full_name'] ?? ''));
   $phone = '';
   $height = $_POST['height'];
   $weight = $_POST['weight'];
@@ -60,20 +59,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           throw new Exception("Email/tài khoản này đã được hội viên khác sử dụng.");
         }
 
-        $userStmt = $db->prepare("SELECT phone FROM users WHERE id = ?");
+        $userStmt = $db->prepare("SELECT full_name, phone FROM users WHERE id = ?");
         $userStmt->execute([$users_id]);
-        $userPhone = $userStmt->fetchColumn();
-        $phone = trim((string) $userPhone);
+        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user) {
+          throw new Exception("Không tìm thấy tài khoản đã chọn.");
+        }
+
+        $full_name = trim((string) ($user['full_name'] ?? ''));
+        $phone = trim((string) ($user['phone'] ?? ''));
+        if ($full_name === '') {
+          throw new Exception("Tài khoản đã chọn chưa có thông tin Họ tên.");
+        }
         if ($phone === '') {
           throw new Exception("Tài khoản đã chọn chưa có số điện thoại. Vui lòng cập nhật số điện thoại trong Quản lý tài khoản.");
         }
-
-        $normalizedName = preg_replace('/\s+/u', ' ', $full_name);
-        $nameNoSpace = preg_replace('/\s+/u', '', $full_name);
-        if ($normalizedName === '' || mb_strlen($nameNoSpace, 'UTF-8') < 2) {
-          throw new Exception("Họ tên phải có ít nhất 2 ký tự và không được chỉ chứa khoảng trắng.");
-        }
-        $full_name = $normalizedName;
 
         if (isset($_POST['id']) && !empty($_POST['id'])) {
             // Cập nhật - Lấy total_spent hiện tại và tính tier
@@ -106,9 +106,10 @@ $stmt = $db->query("SELECT m.*, u.email, u.phone AS user_phone, t.name as tier_n
                     LEFT JOIN member_tiers t ON m.tier_id = t.id 
                     ORDER BY m.id DESC");
 $members = $stmt->fetchAll();
+$usedUserIds = array_map('intval', array_column($members, 'users_id'));
 
 // Lấy danh sách users cho form
-$users = $db->query("SELECT id, email, phone FROM users ORDER BY email ASC")->fetchAll();
+$users = $db->query("SELECT id, username, full_name, email, phone FROM users ORDER BY email ASC")->fetchAll();
 
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
@@ -222,19 +223,23 @@ include 'layout/sidebar.php';
       <form method="POST" id="memberForm" novalidate>
         <div class="modal-body">
           <input type="hidden" name="id" id="member_id">
+          <input type="hidden" name="users_id" id="users_id_hidden">
           <div class="form-group">
-            <label>Tài khoản</label>
-            <select name="users_id" id="users_id" class="form-control" required>
+            <label>Tài khoản / Email</label>
+            <select name="users_id" id="users_id" class="form-control select2bs4" required style="width: 100%;">
               <option value="">--- Chọn tài khoản ---</option>
               <?php foreach ($users as $user): ?>
-              <option value="<?php echo $user['id']; ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>"><?php echo $user['email']; ?></option>
+              <?php $userLabel = trim((string) ($user['username'] ?? '')) . ' / ' . trim((string) ($user['email'] ?? '')); ?>
+              <option value="<?php echo $user['id']; ?>" data-used="<?php echo in_array((int) $user['id'], $usedUserIds, true) ? '1' : '0'; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>"><?php echo htmlspecialchars($userLabel); ?></option>
               <?php endforeach; ?>
             </select>
+            <small id="users_id_error" class="text-danger d-none">Email/tài khoản này đã được hội viên khác sử dụng.</small>
           </div>
           <div class="form-group">
             <label>Họ tên</label>
-            <input type="text" name="full_name" id="full_name" class="form-control" required minlength="2" title="Họ tên tối thiểu 2 ký tự, không chỉ gồm khoảng trắng">
-            <small id="full_name_error" class="text-danger d-none">Họ tên phải có ít nhất 2 ký tự và không được chỉ chứa khoảng trắng.</small>
+            <input type="text" name="full_name" id="full_name" class="form-control" readonly required>
+            <small class="text-muted d-block">Họ tên được tự động lấy theo tài khoản đã chọn.</small>
+            <small id="full_name_error" class="text-danger d-none">Vui lòng chọn tài khoản để tự động lấy Họ tên.</small>
           </div>
           <div class="form-group">
             <label>Số điện thoại</label>
@@ -283,22 +288,26 @@ include 'layout/sidebar.php';
 function resetForm() {
   document.getElementById('modalTitle').innerText = 'Thêm Hội Viên';
   document.getElementById('member_id').value = '';
-  document.getElementById('users_id').value = '';
+  document.getElementById('users_id_hidden').value = '';
+  $('#users_id').prop('disabled', false);
+  $('#users_id').val(null).trigger('change');
   document.getElementById('full_name').value = '';
   document.getElementById('phone_display').value = '';
   document.getElementById('height').value = '';
   document.getElementById('weight').value = '';
   document.getElementById('status').value = 'active';
   document.getElementById('tier_info_group').style.display = 'none';
+  clearUserValidation();
   clearFullNameValidation();
 }
 
 function editMember(member) {
   document.getElementById('modalTitle').innerText = 'Sửa Hội Viên';
   document.getElementById('member_id').value = member.id;
-  document.getElementById('users_id').value = member.users_id;
-  document.getElementById('full_name').value = member.full_name;
-  document.getElementById('phone_display').value = member.user_phone || member.phone || '';
+  document.getElementById('users_id_hidden').value = member.users_id || '';
+  $('#users_id').prop('disabled', true);
+  $('#users_id').val(String(member.users_id || '')).trigger('change');
+  syncFieldsFromSelectedUser();
   document.getElementById('height').value = member.height || '';
   document.getElementById('weight').value = member.weight || '';
   document.getElementById('status').value = member.status;
@@ -314,20 +323,53 @@ function editMember(member) {
   document.getElementById('tier_display').innerHTML = tierBadge;
 }
 
-function syncPhoneFromSelectedUser() {
+function syncFieldsFromSelectedUser() {
   var userSelect = document.getElementById('users_id');
   var phoneDisplay = document.getElementById('phone_display');
+  var fullNameInput = document.getElementById('full_name');
+  var hiddenUserId = document.getElementById('users_id_hidden');
+  var userError = document.getElementById('users_id_error');
   var selectedOption = userSelect.options[userSelect.selectedIndex];
-  phoneDisplay.value = selectedOption ? (selectedOption.getAttribute('data-phone') || '') : '';
+  var phoneValue = selectedOption ? (selectedOption.getAttribute('data-phone') || '') : '';
+  var fullNameValue = selectedOption ? (selectedOption.getAttribute('data-name') || '') : '';
+  var isUsed = selectedOption && selectedOption.getAttribute('data-used') === '1';
+
+  if (hiddenUserId) {
+    hiddenUserId.value = userSelect.value || hiddenUserId.value || '';
+  }
+  phoneDisplay.value = phoneValue;
+  fullNameInput.value = fullNameValue;
+
+  if (userError) {
+    if (isUsed && userSelect.value) {
+      userError.classList.remove('d-none');
+      userSelect.classList.add('is-invalid');
+    } else {
+      userError.classList.add('d-none');
+      userSelect.classList.remove('is-invalid');
+    }
+  }
+
+  validateFullNameField();
+}
+
+function clearUserValidation() {
+  var userSelect = document.getElementById('users_id');
+  var userError = document.getElementById('users_id_error');
+  if (userSelect) {
+    userSelect.classList.remove('is-invalid');
+  }
+  if (userError) {
+    userError.classList.add('d-none');
+  }
 }
 
 function validateFullNameField() {
   var fullNameInput = document.getElementById('full_name');
   var fullNameError = document.getElementById('full_name_error');
-  var fullNameValue = (fullNameInput.value || '');
-  var nameNoSpace = fullNameValue.replace(/\s+/g, '');
+  var fullNameValue = (fullNameInput.value || '').trim();
 
-  if (nameNoSpace.length >= 2) {
+  if (fullNameValue.length > 0) {
     fullNameInput.classList.remove('is-invalid');
     fullNameError.classList.add('d-none');
     return true;
@@ -350,12 +392,30 @@ document.addEventListener('DOMContentLoaded', function() {
   var fullNameInput = document.getElementById('full_name');
   var memberForm = document.getElementById('memberForm');
 
-  userSelect.addEventListener('change', syncPhoneFromSelectedUser);
+  userSelect.addEventListener('change', syncFieldsFromSelectedUser);
   fullNameInput.addEventListener('input', validateFullNameField);
   fullNameInput.addEventListener('blur', validateFullNameField);
 
+  syncFieldsFromSelectedUser();
+
+  if ($.fn.select2) {
+    $('#users_id').on('select2:select select2:clear', function() {
+      syncFieldsFromSelectedUser();
+    });
+  }
+
   memberForm.addEventListener('submit', function(event) {
+    var userSelect = document.getElementById('users_id');
+    var selectedOption = userSelect.options[userSelect.selectedIndex];
+    var isUsed = selectedOption && selectedOption.getAttribute('data-used') === '1';
     var isFullNameValid = validateFullNameField();
+
+    if (isUsed) {
+      event.preventDefault();
+      event.stopPropagation();
+      userSelect.focus();
+      return;
+    }
 
     if (!isFullNameValid) {
       event.preventDefault();

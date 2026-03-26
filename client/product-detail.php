@@ -30,6 +30,36 @@ $imgPath = $imageFile ? "../assets/uploads/products/{$imageFile}" : "../assets/u
 
 $unit = $product['unit'] ?? 'Sản phẩm';
 $stock = $product['stock_quantity'] ?? 0;
+$short_description = $product['short_description'] ?? '';
+$detail_description = trim($product['description'] ?? '');
+$display_description = $short_description !== '' ? $short_description : $detail_description;
+$review_count = 0;
+$review_avg = 0.0;
+$rating = isset($product['rating']) ? (float) $product['rating'] : 0.0;
+$review_items = [];
+
+$stmt_review_stats = $conn->prepare("SELECT COUNT(*) AS review_count, ROUND(AVG(rating), 1) AS avg_rating FROM product_reviews WHERE product_id = ? AND status = 'approved'");
+$stmt_review_stats->bind_param('i', $product_id);
+$stmt_review_stats->execute();
+$review_stats_result = $stmt_review_stats->get_result();
+if ($review_stats_result && ($review_stats = $review_stats_result->fetch_assoc())) {
+    $review_count = (int) ($review_stats['review_count'] ?? 0);
+    $review_avg = (float) ($review_stats['avg_rating'] ?? 0);
+}
+$stmt_review_stats->close();
+
+$stmt_review_items = $conn->prepare("SELECT pr.rating, pr.content, pr.created_at, m.full_name FROM product_reviews pr JOIN members m ON m.id = pr.member_id WHERE pr.product_id = ? AND pr.status = 'approved' ORDER BY pr.created_at DESC LIMIT 6");
+$stmt_review_items->bind_param('i', $product_id);
+$stmt_review_items->execute();
+$review_items_result = $stmt_review_items->get_result();
+while ($review_row = $review_items_result->fetch_assoc()) {
+    $review_items[] = $review_row;
+}
+$stmt_review_items->close();
+
+if ($review_count > 0) {
+    $rating = $review_avg;
+}
 
 // Tính giá sau giảm theo tier
 $price_info = calculateDiscountedPrice($product['selling_price'], $user_id, $conn);
@@ -67,6 +97,64 @@ include 'layout/header.php';
         font-weight: bold; 
         text-transform: uppercase; 
         letter-spacing: 1px; 
+    }
+    .product-rating-summary {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 10px 0 18px;
+        flex-wrap: wrap;
+    }
+    .product-rating-score {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #f36100;
+        font-weight: 700;
+    }
+    .product-rating-score .stars {
+        letter-spacing: 2px;
+        font-size: 18px;
+    }
+    .review-summary-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: #fff4e8;
+        color: #9a4b00;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .review-list {
+        display: grid;
+        gap: 14px;
+        margin-top: 18px;
+    }
+    .review-item {
+        background: #fff;
+        border: 1px solid #e8e8e8;
+        border-radius: 10px;
+        padding: 16px 18px;
+    }
+    .review-item-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+    .reviewer-name { font-weight: 700; color: #111; }
+    .review-stars { color: #f36100; letter-spacing: 1px; font-size: 14px; }
+    .review-date { color: #888; font-size: 12px; }
+    .review-empty {
+        background: #f8f9fb;
+        border: 1px dashed #d7dce3;
+        border-radius: 10px;
+        padding: 24px;
+        text-align: center;
+        color: #666;
     }
     .product-details .pd-desc p { 
         color: #444444; 
@@ -160,6 +248,13 @@ include 'layout/header.php';
                         <span><?php echo $product['category_name'] ?? 'Chưa phân loại'; ?></span>
                         <h3><?php echo $product['name']; ?></h3>
                     </div>
+                    <div class="product-rating-summary">
+                        <div class="product-rating-score">
+                            <span class="stars"><?php echo str_repeat('★', (int) round($rating)); ?><?php echo str_repeat('☆', max(0, 5 - (int) round($rating))); ?></span>
+                            <span><?php echo number_format($rating, 1); ?>/5</span>
+                        </div>
+                        <span class="review-summary-pill"><i class="fa fa-comment-o"></i> <?php echo $review_count; ?> lượt đánh giá</span>
+                    </div>
                     <?php if ($price_info['has_discount']): ?>
                     <div class="alert alert-info" style="background: #e7f3ff; border-left: 4px solid #2196F3; padding: 10px 15px; margin-bottom: 20px; color: #0c5460;">
                         <i class="fa fa-gift"></i> <strong>Hạng <?php echo $price_info['tier_name']; ?></strong> - 
@@ -168,6 +263,9 @@ include 'layout/header.php';
                     </div>
                     <?php endif; ?>
                     <div class="pd-desc">
+                        <?php if (!empty($short_description)): ?>
+                            <p><strong>Mô tả ngắn:</strong> <?php echo htmlspecialchars($short_description); ?></p>
+                        <?php endif; ?>
                         <?php if ($price_info['has_discount']): ?>
                             <h4 style="text-decoration: line-through; color: #999; font-size: 20px; margin-bottom: 5px;">
                                 <?php echo number_format($price_info['original_price'], 0, ',', '.'); ?> VNĐ
@@ -205,26 +303,55 @@ include 'layout/header.php';
                     <a class="nav-link active" data-toggle="tab" href="#tabs-1" role="tab">Mô tả chi tiết</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-toggle="tab" href="#tabs-2" role="tab">Thông số kỹ thuật</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-toggle="tab" href="#tabs-3" role="tab">Đánh giá (5)</a>
+                    <a class="nav-link" data-toggle="tab" href="#tabs-3" role="tab">Đánh giá (<?php echo $review_count; ?>)</a>
                 </li>
             </ul>
             <div class="tab-content" style="background: #fff; padding: 20px; border: 1px solid #dee2e6; border-top: none;">
                 <div class="tab-pane active" id="tabs-1" role="tabpanel">
                     <div class="product-content">
-                        <p><?php echo nl2br(htmlspecialchars($product['description'] ?? 'Chưa có mô tả cho sản phẩm này.')); ?></p>
-                    </div>
-                </div>
-                <div class="tab-pane" id="tabs-2" role="tabpanel">
-                    <div class="product-content">
-                        <p>Đang cập nhật...</p>
+                        <?php if ($display_description !== ''): ?>
+                            <p><strong>Mô tả ngắn:</strong> <?php echo nl2br(htmlspecialchars($display_description)); ?></p>
+                        <?php endif; ?>
+                        <?php if ($detail_description !== '' && $detail_description !== $display_description): ?>
+                            <div style="margin-top: 16px;">
+                                <h5 style="font-weight:700; color:#111; margin-bottom: 10px;">Mô tả chi tiết</h5>
+                                <p><?php echo nl2br(htmlspecialchars($detail_description)); ?></p>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($display_description === '' && $detail_description === ''): ?>
+                            <p>Chưa có mô tả cho sản phẩm này.</p>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="tab-pane" id="tabs-3" role="tabpanel">
                     <div class="product-content">
-                        <p>Đang cập nhật...</p>
+                        <div class="mb-3" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <h5 style="margin:0; font-weight:700; color:#111;">Đánh giá từ hội viên</h5>
+                            <span class="review-summary-pill"><i class="fa fa-star"></i> <?php echo number_format($rating, 1); ?>/5</span>
+                            <span class="review-summary-pill"><i class="fa fa-comment-o"></i> <?php echo $review_count; ?> lượt</span>
+                        </div>
+                        <?php if (!empty($review_items)): ?>
+                            <div class="review-list">
+                                <?php foreach ($review_items as $review_item): ?>
+                                    <div class="review-item">
+                                        <div class="review-item-head">
+                                            <div>
+                                                <div class="reviewer-name"><?php echo htmlspecialchars($review_item['full_name']); ?></div>
+                                                <div class="review-date"><?php echo !empty($review_item['created_at']) ? date('d/m/Y H:i', strtotime($review_item['created_at'])) : ''; ?></div>
+                                            </div>
+                                            <div class="review-stars"><?php echo str_repeat('★', (int) $review_item['rating']); ?><?php echo str_repeat('☆', max(0, 5 - (int) $review_item['rating'])); ?></div>
+                                        </div>
+                                        <div style="color:#444; line-height:1.7;">
+                                            <?php echo nl2br(htmlspecialchars($review_item['content'])); ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="review-empty">
+                                Chưa có đánh giá nào cho sản phẩm này.
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>

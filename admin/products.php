@@ -19,10 +19,31 @@ include 'layout/sidebar.php';
 
 require_once '../config/db.php';
 
-$sql = "SELECT p.id, p.name, p.img, p.unit, p.stock_quantity, p.selling_price, p.status, c.name AS category_name 
-        FROM products p 
-        LEFT JOIN categories c ON p.category_id = c.id 
-        ORDER BY p.id DESC";
+// Kiểm tra bảng product_reviews có tồn tại không
+$checkReviewTable = $conn->query("SHOW TABLES LIKE 'product_reviews'");
+$hasReviewTable = $checkReviewTable && $checkReviewTable->num_rows > 0;
+
+if ($hasReviewTable) {
+    $sql = "SELECT p.id, p.name, p.short_description, p.img, p.unit, p.stock_quantity, p.selling_price, p.status, c.name AS category_name,
+             COALESCE(rs.review_count, 0) AS review_count,
+             COALESCE(rs.avg_rating, 0) AS avg_rating
+            FROM products p 
+            LEFT JOIN categories c ON p.category_id = c.id 
+            LEFT JOIN (
+                SELECT product_id, COUNT(*) AS review_count, ROUND(AVG(rating), 1) AS avg_rating
+                FROM product_reviews
+                WHERE status = 'approved'
+                GROUP BY product_id
+            ) rs ON rs.product_id = p.id
+            ORDER BY p.id DESC";
+} else {
+    $sql = "SELECT p.id, p.name, p.short_description, p.img, p.unit, p.stock_quantity, p.selling_price, p.status, c.name AS category_name,
+             0 AS review_count,
+             0 AS avg_rating
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            ORDER BY p.id DESC";
+}
 
 $result = $conn->query($sql);
 ?>
@@ -67,6 +88,8 @@ $result = $conn->query($sql);
                     <th>ID</th>
                     <th>Hình ảnh</th>
                     <th>Tên Sản Phẩm</th>
+                    <th>Mô tả ngắn</th>
+                    <th>Đánh giá</th>
                     <th>Danh Mục</th>
                     <th>Đơn Vị</th>
                     <th>Tồn Kho</th>
@@ -93,6 +116,14 @@ $result = $conn->query($sql);
                             echo "  <td>{$row['id']}</td>";
                             echo "  <td><img src='{$imgPath}' alt='{$row['name']}' style='width: 60px; height: 60px; object-fit: cover; border-radius: 5px;'></td>";
                             echo "  <td>{$row['name']}</td>";
+                            echo "  <td>" . htmlspecialchars($row['short_description'] ?? '') . "</td>";
+                            $reviewCount = (int)($row['review_count'] ?? 0);
+                            $avgRating = (float)($row['avg_rating'] ?? 0);
+                            if ($reviewCount > 0) {
+                              echo "  <td>" . number_format($avgRating, 1) . "/5 <small class='text-muted'>({$reviewCount})</small></td>";
+                            } else {
+                              echo "  <td><span class='text-muted'>Chưa có đánh giá</span></td>";
+                            }
                             echo "  <td><span class='badge badge-info'>" . ($row['category_name'] ?? 'Chưa phân loại') . "</span></td>";
                             echo "  <td>{$row['unit']}</td>";
                             echo "  <td>{$row['stock_quantity']}</td>"; 
@@ -112,7 +143,7 @@ $result = $conn->query($sql);
                             echo "</tr>";
                         }
                       } else {
-                          echo "<tr><td colspan='9' class='text-center'>Hiện chưa có sản phẩm nào.</td></tr>";
+                          echo "<tr><td colspan='11' class='text-center'>Hiện chưa có sản phẩm nào.</td></tr>";
                         }
                   ?>
 
@@ -142,6 +173,16 @@ $result = $conn->query($sql);
                 <input type="text" class="form-control" id="name" name="name" placeholder="Nhập tên sản phẩm...">
               </div>
               
+<div class="form-group">
+                <label for="short_description">Mô tả ngắn</label>
+                <textarea class="form-control" id="short_description" name="short_description" rows="3" placeholder="Mô tả ngắn về sản phẩm..."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="description">Mô tả chi tiết</label>
+                <textarea class="form-control" id="description" name="description" rows="6" placeholder="Mô tả chi tiết về sản phẩm..." style="min-height: 140px;"></textarea>
+              </div>
+
               <div class="form-group">
                 <label for="category_id">Danh Mục</label>
                 <select class="form-control" id="category_id" name="category_id">

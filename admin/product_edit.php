@@ -26,6 +26,15 @@ $product = $conn->query($sql)->fetch_assoc();
                                     <label>Tên Sản Phẩm</label>
                                     <input id="name" type="text" name="name" class="form-control" value="<?php echo $product['name']; ?>" required>
                                 </div>
+                                 <div class="form-group">
+                                    <label>Mô tả ngắn</label>
+                                    <textarea name="short_description" class="form-control" rows="3" placeholder="Mô tả ngắn sản phẩm..."><?php echo htmlspecialchars($product['short_description'] ?? ''); ?></textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Mô tả chi tiết</label>
+                                    <textarea name="description" class="form-control" rows="6" placeholder="Mô tả chi tiết sản phẩm..." style="min-height: 140px;"><?php echo htmlspecialchars($product['description'] ?? ''); ?></textarea>
+                                </div>
                                 <div class="form-group">
                                     <label>Danh Mục</label>
                                     <select id="category_id" name="category_id" class="form-control">

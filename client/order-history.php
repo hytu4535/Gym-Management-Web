@@ -4,6 +4,10 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once '../config/db.php';
 
+// Kiểm tra bảng đánh giá có tồn tại không để tránh lỗi khi DB chưa có feature này
+$checkReviewTable = $conn->query("SHOW TABLES LIKE 'product_reviews'");
+$hasReviewTable = $checkReviewTable && $checkReviewTable->num_rows > 0;
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
@@ -24,17 +28,134 @@ $member = $res_user->fetch_assoc();
 $member_id = $member['id'];
 $stmt_user->close();
 
-
 $filter_status = $_GET['status'] ?? '';
 $filter_from = $_GET['from_date'] ?? '';
 $filter_to = $_GET['to_date'] ?? '';
 
+$review_notice = '';
+if (isset($_GET['review_success'])) {
+    $review_notice = 'Đánh giá đã được lưu.';
+} elseif (isset($_GET['review_error'])) {
+    $review_notice = 'Không thể lưu đánh giá lúc này.';
+}
+
+$current_query = [];
+if (!empty($filter_status)) {
+    $current_query['status'] = $filter_status;
+}
+if (!empty($filter_from)) {
+    $current_query['from_date'] = $filter_from;
+}
+if (!empty($filter_to)) {
+    $current_query['to_date'] = $filter_to;
+}
+$review_redirect_base = 'order-history.php' . (!empty($current_query) ? '?' . http_build_query($current_query) : '');
+
+function buildReviewRedirectUrl($baseUrl, $extraParams = []) {
+    $separator = (strpos($baseUrl, '?') === false) ? '?' : '&';
+    return $baseUrl . (!empty($extraParams) ? $separator . http_build_query($extraParams) : '');
+}
+
+$review_posted = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review']));
+if ($review_posted && $hasReviewTable) {
+    $order_id = isset($_POST['order_id']) ? (int) $_POST['order_id'] : 0;
+    $review_target = trim($_POST['review_target'] ?? '');
+    $review_content = trim($_POST['review_content'] ?? '');
+    $review_rating = isset($_POST['review_rating']) ? (int) $_POST['review_rating'] : 0;
+
+    if ($order_id <= 0 || $review_target === '' || $review_content === '' || $review_rating < 1 || $review_rating > 5) {
+        header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
+        exit;
+    }
+
+    $stmt_order_check = $conn->prepare("SELECT id FROM orders WHERE id = ? AND member_id = ? AND status = 'delivered' LIMIT 1");
+    $stmt_order_check->bind_param('ii', $order_id, $member_id);
+    $stmt_order_check->execute();
+    $order_check_result = $stmt_order_check->get_result();
+
+    if ($order_check_result->num_rows === 0) {
+        $stmt_order_check->close();
+        header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
+        exit;
+    }
+    $stmt_order_check->close();
+
+    $stmt_products = $conn->prepare("SELECT DISTINCT p.id, p.name FROM order_items oi JOIN products p ON p.id = oi.item_id WHERE oi.order_id = ? AND oi.item_type = 'product' ORDER BY p.name ASC");
+    $stmt_products->bind_param('i', $order_id);
+    $stmt_products->execute();
+    $products_result = $stmt_products->get_result();
+    $order_products = [];
+    while ($row = $products_result->fetch_assoc()) {
+        $order_products[] = $row;
+    }
+    $stmt_products->close();
+
+    if (empty($order_products)) {
+        header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
+        exit;
+    }
+
+    $target_product_ids = [];
+    if ($review_target === 'all') {
+        foreach ($order_products as $product_row) {
+            $target_product_ids[] = (int) $product_row['id'];
+        }
+    } else {
+        $target_product_id = (int) $review_target;
+        $allowed_product_ids = array_map(function ($product_row) {
+            return (int) $product_row['id'];
+        }, $order_products);
+        if (!in_array($target_product_id, $allowed_product_ids, true)) {
+            header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
+            exit;
+        }
+        $target_product_ids[] = $target_product_id;
+    }
+
+    $conn->begin_transaction();
+    try {
+        foreach ($target_product_ids as $target_product_id) {
+            $stmt_existing_review = $conn->prepare('SELECT id FROM product_reviews WHERE product_id = ? AND member_id = ? LIMIT 1 FOR UPDATE');
+            $stmt_existing_review->bind_param('ii', $target_product_id, $member_id);
+            $stmt_existing_review->execute();
+            $existing_review_result = $stmt_existing_review->get_result();
+
+            if ($existing_review_result->num_rows > 0) {
+                $existing_review = $existing_review_result->fetch_assoc();
+                $review_id = (int) $existing_review['id'];
+                $stmt_update_review = $conn->prepare('UPDATE product_reviews SET rating = ?, content = ?, status = "approved", created_at = NOW() WHERE id = ?');
+                $stmt_update_review->bind_param('isi', $review_rating, $review_content, $review_id);
+                $stmt_update_review->execute();
+                $stmt_update_review->close();
+            } else {
+                $stmt_insert_review = $conn->prepare('INSERT INTO product_reviews (product_id, member_id, rating, content, status, created_at) VALUES (?, ?, ?, ?, "approved", NOW())');
+                $stmt_insert_review->bind_param('iiis', $target_product_id, $member_id, $review_rating, $review_content);
+                $stmt_insert_review->execute();
+                $stmt_insert_review->close();
+            }
+
+            $stmt_existing_review->close();
+        }
+
+        $conn->commit();
+        header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_success' => 1]));
+        exit;
+    } catch (Exception $e) {
+        $conn->rollback();
+        header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
+        exit;
+    }
+} elseif ($review_posted && !$hasReviewTable) {
+    header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
+    exit;
+}
+
 $query = "
     SELECT o.id, o.order_date, o.status, o.total_amount, 
            COALESCE(SUM(oi.quantity), 0) AS total_items,
-           COALESCE(order_addr.full_address, default_addr.full_address, m.address) AS shipping_address,
-           COALESCE(order_addr.district, default_addr.district, '') AS shipping_district,
-           COALESCE(order_addr.city, default_addr.city, '') AS shipping_city
+        COALESCE(MAX(order_addr.full_address), MAX(default_addr.full_address), MAX(m.address)) AS shipping_address,
+        COALESCE(MAX(order_addr.district), MAX(default_addr.district), '') AS shipping_district,
+        COALESCE(MAX(order_addr.city), MAX(default_addr.city), '') AS shipping_city
     FROM orders o
     JOIN members m ON o.member_id = m.id
     LEFT JOIN order_items oi ON o.id = oi.order_id
@@ -67,6 +188,82 @@ $stmt_orders = $conn->prepare($query);
 $stmt_orders->bind_param($types, ...$params);
 $stmt_orders->execute();
 $orders_result = $stmt_orders->get_result();
+$orders = [];
+if ($orders_result) {
+    while ($order_row = $orders_result->fetch_assoc()) {
+        $orders[] = $order_row;
+    }
+}
+
+$order_ids = array_map(function ($order_row) {
+    return (int) $order_row['id'];
+}, $orders);
+
+$order_products_map = [];
+$review_lookup_map = [];
+$review_stats_map = [];
+if (!empty($order_ids) && $hasReviewTable) {
+    $order_ids_list = implode(',', array_map('intval', $order_ids));
+    $review_items_sql = "
+        SELECT DISTINCT o.id AS order_id, p.id AS product_id, p.name AS product_name,
+               COALESCE(pr.rating, 0) AS review_rating,
+               COALESCE(pr.content, '') AS review_content
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.order_id AND oi.item_type = 'product'
+        JOIN products p ON p.id = oi.item_id
+        LEFT JOIN product_reviews pr ON pr.product_id = p.id AND pr.member_id = ?
+        WHERE o.member_id = ? AND o.id IN ($order_ids_list)
+        ORDER BY o.order_date DESC, p.name ASC
+    ";
+    $stmt_review_items = $conn->prepare($review_items_sql);
+    $stmt_review_items->bind_param('ii', $member_id, $member_id);
+    $stmt_review_items->execute();
+    $review_items_result = $stmt_review_items->get_result();
+
+    while ($review_item = $review_items_result->fetch_assoc()) {
+        $order_id_key = (int) $review_item['order_id'];
+        $product_id_key = (int) $review_item['product_id'];
+
+        if (!isset($order_products_map[$order_id_key])) {
+            $order_products_map[$order_id_key] = [];
+        }
+
+        $order_products_map[$order_id_key][] = [
+            'id' => $product_id_key,
+            'name' => $review_item['product_name'],
+            'rating' => (int) $review_item['review_rating'],
+            'content' => $review_item['review_content'],
+        ];
+
+        if ((int) $review_item['review_rating'] > 0 || trim($review_item['review_content']) !== '') {
+            $review_lookup_map[$order_id_key][$product_id_key] = [
+                'rating' => (int) $review_item['review_rating'],
+                'content' => $review_item['review_content'],
+            ];
+        }
+    }
+    $stmt_review_items->close();
+
+    $review_stats_sql = "
+        SELECT pr.product_id, COUNT(*) AS review_count, ROUND(AVG(pr.rating), 1) AS avg_rating
+        FROM product_reviews pr
+        WHERE pr.status = 'approved' AND pr.product_id IN (
+            SELECT DISTINCT oi.item_id
+            FROM order_items oi
+            WHERE oi.order_id IN ($order_ids_list) AND oi.item_type = 'product'
+        )
+        GROUP BY pr.product_id
+    ";
+    $review_stats_result = $conn->query($review_stats_sql);
+    if ($review_stats_result) {
+        while ($stat_row = $review_stats_result->fetch_assoc()) {
+            $review_stats_map[(int) $stat_row['product_id']] = [
+                'review_count' => (int) $stat_row['review_count'],
+                'avg_rating' => (float) $stat_row['avg_rating'],
+            ];
+        }
+    }
+}
 
 include 'layout/header.php'; 
 ?>
@@ -162,9 +359,13 @@ include 'layout/header.php';
                         </form>
                     </div>
 
+                    <?php if (!empty($review_notice)): ?>
+                        <div class="alert alert-info"><?php echo htmlspecialchars($review_notice); ?></div>
+                    <?php endif; ?>
+
                     <div class="order-list">
-                        <?php if ($orders_result->num_rows > 0): ?>
-                            <?php while ($order = $orders_result->fetch_assoc()): ?>
+                        <?php if (!empty($orders)): ?>
+                            <?php foreach ($orders as $order): ?>
                                 <div class="order-item mb-4">
                                     <div class="order-header p-3" style="background: #fdfdfd;">
                                         <div class="row align-items-center">
@@ -199,6 +400,10 @@ include 'layout/header.php';
                                             <div class="col-md-5 text-md-right mt-3 mt-md-0">
                                                 <a href="invoice.php?order_id=<?php echo $order['id']; ?>" class="site-btn btn-sm" style="background: #333;">Hóa đơn</a>
                                                 
+                                                <?php if ($order['status'] === 'delivered'): ?>
+                                                    <button type="button" class="site-btn btn-sm btn-warning ml-1" onclick="openReviewModal(<?php echo $order['id']; ?>)">Đánh giá</button>
+                                                <?php endif; ?>
+
                                                 <?php if ($order['status'] === 'pending'): ?>
                                                     <button onclick="cancelOrder(<?php echo $order['id']; ?>)" class="site-btn btn-sm btn-danger-custom ml-1">Hủy đơn</button>
                                                 <?php endif; ?>
@@ -206,7 +411,7 @@ include 'layout/header.php';
                                         </div>
                                     </div>
                                 </div>
-                            <?php endwhile; ?>
+                            <?php endforeach; ?>
                         <?php else: ?>
                             <div class="text-center py-5">
                                 <i class="fa fa-file-text-o mb-3" style="font-size: 50px; color: #ddd;"></i>
@@ -221,6 +426,53 @@ include 'layout/header.php';
     </div>
 </section>
 
+<div class="modal fade" id="reviewModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Đánh giá sản phẩm trong hóa đơn</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form method="POST" action="<?php echo htmlspecialchars($review_redirect_base); ?>">
+                <div class="modal-body">
+                    <input type="hidden" name="order_id" id="review-order-id" value="">
+                    <div class="form-group">
+                        <label>Chọn sản phẩm</label>
+                        <select class="form-control" name="review_target" id="review-target" required onchange="loadReviewTarget()">
+                            <option value="">-- Chọn sản phẩm trong hóa đơn --</option>
+                            <option value="all">Đánh giá tất cả sản phẩm trong hóa đơn</option>
+                        </select>
+                        <small class="form-text text-muted">Dropdown chỉ hiển thị các sản phẩm thuộc hóa đơn đang chọn.</small>
+                    </div>
+                    <div class="alert alert-light border mb-3" id="review-product-summary" style="display:none;"></div>
+                    <div class="form-group">
+                        <label>Nội dung</label>
+                        <textarea class="form-control" name="review_content" id="review-content" rows="4" required placeholder="Nhập nội dung đánh giá..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Đánh giá sao</label>
+                        <select class="form-control" name="review_rating" id="review-rating" required>
+                            <option value="">-- Chọn số sao --</option>
+                            <option value="5">5 - Rất tốt</option>
+                            <option value="4">4 - Tốt</option>
+                            <option value="3">3 - Ổn</option>
+                            <option value="2">2 - Chưa hài lòng</option>
+                            <option value="1">1 - Rất tệ</option>
+                        </select>
+                    </div>
+                    <div class="alert alert-secondary mb-0" id="review-edit-note" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                    <button type="submit" name="submit_review" class="btn btn-warning">Lưu đánh giá</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <style>
 .profile-sidebar { border: 1px solid #ebebeb; padding: 25px; border-radius: 8px; background: #fff; }
 .order-item { border: 1px solid #ebebeb; border-radius: 8px; overflow: hidden; background: #fff; transition: 0.3s; }
@@ -233,6 +485,98 @@ include 'layout/header.php';
 </style>
 
 <script>
+var orderReviewData = <?php echo json_encode($order_products_map, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+var reviewLookupData = <?php echo json_encode($review_lookup_map, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+var reviewStatsData = <?php echo json_encode($review_stats_map, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
+function formatReviewSummary(productId) {
+    var stat = reviewStatsData[productId] || null;
+    if (!stat || !stat.review_count) {
+        return 'Chưa có đánh giá nào từ hội viên.';
+    }
+    return 'Trung bình ' + stat.avg_rating.toFixed(1) + '/5 từ ' + stat.review_count + ' lượt đánh giá.';
+}
+
+function openReviewModal(orderId) {
+    var select = document.getElementById('review-target');
+    var orderIdField = document.getElementById('review-order-id');
+    var contentField = document.getElementById('review-content');
+    var ratingField = document.getElementById('review-rating');
+    var note = document.getElementById('review-edit-note');
+    var summary = document.getElementById('review-product-summary');
+
+    orderIdField.value = orderId;
+
+    select.innerHTML = '<option value="">-- Chọn sản phẩm trong hóa đơn --</option><option value="all">Đánh giá tất cả sản phẩm trong hóa đơn</option>';
+
+    var products = orderReviewData[orderId] || [];
+    products.forEach(function (product) {
+        var option = document.createElement('option');
+        option.value = product.id;
+        var stat = reviewStatsData[product.id] || null;
+        if (stat && stat.review_count > 0) {
+            option.textContent = product.name + ' - ' + stat.avg_rating.toFixed(1) + '/5 (' + stat.review_count + ' đánh giá)';
+        } else {
+            option.textContent = product.name + ' - Chưa có đánh giá';
+        }
+        select.appendChild(option);
+    });
+
+    contentField.value = '';
+    ratingField.value = '';
+    note.style.display = 'none';
+    note.textContent = '';
+    summary.style.display = 'none';
+    summary.textContent = '';
+
+    $('#reviewModal').modal('show');
+}
+
+function loadReviewTarget() {
+    var orderId = document.getElementById('review-order-id').value;
+    var target = document.getElementById('review-target').value;
+    var contentField = document.getElementById('review-content');
+    var ratingField = document.getElementById('review-rating');
+    var note = document.getElementById('review-edit-note');
+    var summary = document.getElementById('review-product-summary');
+
+    if (!orderId || !target) {
+        contentField.value = '';
+        ratingField.value = '';
+        note.style.display = 'none';
+        note.textContent = '';
+        summary.style.display = 'none';
+        summary.textContent = '';
+        return;
+    }
+
+    if (target === 'all') {
+        contentField.value = '';
+        ratingField.value = '';
+        note.style.display = 'block';
+        note.textContent = 'Đánh giá này sẽ được áp dụng cho tất cả sản phẩm trong hóa đơn.';
+        summary.style.display = 'none';
+        summary.textContent = '';
+        return;
+    }
+
+    summary.style.display = 'block';
+    summary.textContent = formatReviewSummary(target);
+
+    var reviewData = (reviewLookupData[orderId] || {})[target] || null;
+    if (reviewData) {
+        contentField.value = reviewData.content || '';
+        ratingField.value = reviewData.rating || '';
+        note.style.display = 'block';
+        note.textContent = 'Bạn đang chỉnh sửa đánh giá đã có cho sản phẩm này.';
+    } else {
+        contentField.value = '';
+        ratingField.value = '';
+        note.style.display = 'block';
+        note.textContent = 'Sản phẩm này chưa có đánh giá, bạn có thể nhập mới.';
+    }
+}
+
 function cancelOrder(orderId) {
     if (confirm('Bạn chắc chắn muốn hủy đơn hàng #' + orderId + '?\nHành động này không thể hoàn tác.')) {
         const formData = new FormData();

@@ -22,7 +22,7 @@ $staff_members = $staff_stmt->fetchAll();
 
 function isValidTrainerPhone($phone)
 {
-  return preg_match('/^[0-9]{10,11}$/', $phone) === 1;
+  return preg_match('/^0[0-9]{9,10}$/', $phone) === 1;
 }
 
 // Xử lý CRUD
@@ -395,10 +395,11 @@ function fillEditModal($button) {
   const $modal = $('#editTrainerModal');
   const type = $button.data('type');
   const fullName = $button.data('fullname') || '';
+  const phone = $button.attr('data-phone') || '';
 
   $modal.find('#edit-id').val($button.data('id'));
   $modal.find('#edit-type').val(type);
-  $modal.find('#edit-phone').val($button.data('phone'));
+  $modal.find('#edit-phone').val(phone);
   $modal.find('#edit-status').val($button.data('status'));
 
   $modal.find('#edit-fullname-free').val(type === 'Tự do' ? fullName : '');
@@ -455,7 +456,7 @@ $(function() {
     if (field === 'full_name_free') return 'Vui lòng nhập họ tên HLV';
     if (field === 'staff_full_name') return 'Vui lòng chọn nhân viên';
     if (field === 'type') return 'Vui lòng chọn loại HLV';
-    if (field === 'phone') return 'Vui lòng nhập 10-11 chữ số và chỉ dùng số';
+    if (field === 'phone') return 'Vui lòng nhập số điện thoại bắt đầu bằng 0 và 10-11 số';
     return 'Vui lòng nhập dữ liệu hợp lệ';
   }
 
@@ -501,7 +502,7 @@ $(function() {
     }
 
     if (field === 'phone') {
-      if (!/^[0-9]{10,11}$/.test(value)) {
+      if (!/^0[0-9]{9,10}$/.test(value)) {
         show(input, message(field));
         return false;
       }

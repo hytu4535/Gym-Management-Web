@@ -36,13 +36,13 @@ $totalPages = ceil($totalRecords / $itemsPerPage);
 
 // Lấy danh sách users
 if ($hasPhoneColumn) {
-    $sql = "SELECT u.id, u.username, u.email, u.phone, u.password, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.phone, u.password, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 } else {
-    $sql = "SELECT u.id, u.username, u.email, u.password, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.password, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             ORDER BY u.id ASC
@@ -154,6 +154,10 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 </td>
                 <td><?= $u['created_at'] ?></td>
                 <td>
+                  <!-- Nút xem chi tiết -->
+                  <button class="btn btn-info btn-sm" data-toggle="modal" data-target="#detailUserModal<?= $u['id'] ?>">
+                    <i class="fas fa-eye"></i>
+                  </button>
                   <!-- Nút sửa mở modal -->
                   <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal<?= $u['id'] ?>">
                     <i class="fas fa-edit"></i>
@@ -183,12 +187,17 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                           <input type="text" class="form-control" value="<?= $u['username'] ?>" disabled>
                         </div>
                         <div class="form-group">
+                          <label>Họ Tên</label>
+                          <input type="text" class="form-control <?= getFieldError('full_name', $validationErrors) ? 'is-invalid' : '' ?>" name="full_name" value="<?= htmlspecialchars(getFieldValue('full_name', $formData, $u['full_name'] ?? '')) ?>" data-field="full_name">
+                          <small class="text-danger d-block mt-2" style="<?= getFieldError('full_name', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('full_name', $validationErrors) ?></small>
+                        </div>
+                        <div class="form-group">
                           <label>Email (Không thể sửa)</label>
                           <input type="text" inputmode="email" class="form-control" value="<?= $u['email'] ?>" disabled>
                         </div>
                         <div class="form-group">
                           <label>Số điện thoại</label>
-                          <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData, $u['phone'] ?? '')) ?>" placeholder="Nhập 10-11 số" data-field="phone">
+                          <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData, $u['phone'] ?? '')) ?>" placeholder="Nhập số bắt đầu bằng 0 hoặc +84" data-field="phone">
                           <small class="text-danger d-block mt-2" style="<?= getFieldError('phone', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('phone', $validationErrors) ?></small>
                         </div>
                         <div class="form-group">
@@ -240,6 +249,73 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                       </div>
                     </div>
                   </form>
+                </div>
+              </div>
+
+              <!-- Modal xem chi tiết user -->
+              <div class="modal fade" id="detailUserModal<?= $u['id'] ?>" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Chi tiết User</h5>
+                      <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                      <div class="row">
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>ID</label>
+                            <input type="text" class="form-control" value="<?= $u['id'] ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Trạng thái</label>
+                            <input type="text" class="form-control" value="<?= $u['status'] == 'active' ? 'Active' : 'Inactive' ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Tên đăng nhập</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['username']) ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Họ Tên</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['full_name'] ?? '') ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Email</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['email']) ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Số điện thoại</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['phone'] ?? '') ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Vai trò</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['role']) ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Ngày tạo</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['created_at']) ?>" readonly>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <?php endforeach; ?>
@@ -332,13 +408,18 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
               <small class="text-danger d-block mt-2" style="<?= getFieldError('username', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('username', $validationErrors) ?></small>
             </div>
             <div class="form-group">
+              <label>Họ Tên</label>
+              <input type="text" class="form-control <?= getFieldError('full_name', $validationErrors) ? 'is-invalid' : '' ?>" name="full_name" value="<?= htmlspecialchars(getFieldValue('full_name', $formData)) ?>" data-field="full_name">
+              <small class="text-danger d-block mt-2" style="<?= getFieldError('full_name', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('full_name', $validationErrors) ?></small>
+            </div>
+            <div class="form-group">
               <label>Email</label>
               <input type="text" inputmode="email" class="form-control <?= getFieldError('email', $validationErrors) ? 'is-invalid' : '' ?>" name="email" value="<?= htmlspecialchars(getFieldValue('email', $formData)) ?>" data-field="email">
               <small class="text-danger d-block mt-2" style="<?= getFieldError('email', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('email', $validationErrors) ?></small>
             </div>
             <div class="form-group">
               <label>Số điện thoại</label>
-              <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData)) ?>" placeholder="Nhập 10-11 số" data-field="phone">
+              <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData)) ?>" placeholder="Nhập số bắt đầu bằng 0 hoặc +84" data-field="phone">
               <small class="text-danger d-block mt-2" style="<?= getFieldError('phone', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('phone', $validationErrors) ?></small>
             </div>
             <div class="form-group">
@@ -413,12 +494,17 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
             <input type="text" class="form-control" value="<?= $editUserData['username'] ?>" disabled>
           </div>
           <div class="form-group">
+            <label>Họ Tên</label>
+            <input type="text" class="form-control <?= getFieldError('full_name', $validationErrors) ? 'is-invalid' : '' ?>" name="full_name" value="<?= htmlspecialchars(getFieldValue('full_name', $formData, $editUserData['full_name'] ?? '')) ?>" data-field="full_name">
+            <small class="text-danger d-block mt-2" style="<?= getFieldError('full_name', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('full_name', $validationErrors) ?></small>
+          </div>
+          <div class="form-group">
             <label>Email (Không thể sửa)</label>
             <input type="text" inputmode="email" class="form-control" value="<?= $editUserData['email'] ?>" disabled>
           </div>
           <div class="form-group">
             <label>Số điện thoại</label>
-            <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData, $editUserData['phone'] ?? '')) ?>" placeholder="Nhập 10-11 số" data-field="phone">
+            <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData, $editUserData['phone'] ?? '')) ?>" placeholder="Nhập số bắt đầu bằng 0 hoặc +84" data-field="phone">
             <small class="text-danger d-block mt-2" style="<?= getFieldError('phone', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('phone', $validationErrors) ?></small>
           </div>
           <div class="form-group">
@@ -625,7 +711,7 @@ function isValidEmail(email) {
 
 function isValidPhone(phone) {
   if (!phone) return true;
-  return /^[0-9]{10,11}$/.test(phone);
+  return /^(?:\+84\d{9}|0\d{9,10})$/.test(phone);
 }
 
 function validateField(input, isAddForm = true) {
@@ -643,13 +729,18 @@ function validateField(input, isAddForm = true) {
     if (value && value.length < 3) return showError(input, 'Tên đăng nhập phải có ít nhất 3 ký tự'), false;
   }
 
+  if (fieldName === 'full_name') {
+    if (!value) return showError(input, 'Vui lòng nhập họ tên'), false;
+    if (value.length < 2) return showError(input, 'Họ tên phải có ít nhất 2 ký tự'), false;
+  }
+
   if (fieldName === 'email') {
     if (effectiveIsAddForm && !value) return showError(input, 'Vui lòng nhập email'), false;
     if (value && !isValidEmail(value)) return showError(input, 'Email không hợp lệ'), false;
   }
 
   if (fieldName === 'phone') {
-    if (!isValidPhone(value)) return showError(input, 'Vui lòng nhập 10-11 chữ số'), false;
+    if (!isValidPhone(value)) return showError(input, 'Vui lòng nhập số điện thoại bắt đầu bằng 0 hoặc +84 và phải có 10-11 số'), false;
   }
 
   if (fieldName === 'password') {

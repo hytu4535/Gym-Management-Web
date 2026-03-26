@@ -14,20 +14,79 @@ include '../includes/functions.php';
 
 $db = getDB();
 
+function isValidScheduleTime($time)
+{
+  return preg_match('/^\d{2}:\d{2}(?::\d{2})?$/', trim((string) $time)) === 1;
+}
+
+function normalizeScheduleTime($time)
+{
+  $time = trim((string) $time);
+  if ($time === '') {
+    return '';
+  }
+
+  return substr($time, 0, 5);
+}
+
+function isValidScheduleRange($startTime, $endTime)
+{
+  if (!isValidScheduleTime($startTime) || !isValidScheduleTime($endTime)) {
+    return false;
+  }
+
+  return strtotime(normalizeScheduleTime($startTime)) < strtotime(normalizeScheduleTime($endTime));
+}
+
+function supportsStructuredScheduleTime(PDO $db)
+{
+  static $supportsStructured = null;
+
+  if ($supportsStructured !== null) {
+    return $supportsStructured;
+  }
+
+  $stmt = $db->query(
+    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'class_schedules'
+       AND COLUMN_NAME IN ('schedule_start_time', 'schedule_end_time')"
+  );
+
+  $supportsStructured = ((int) $stmt->fetchColumn() === 2);
+  return $supportsStructured;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
         $class_name = sanitize($_POST['class_name'] ?? '');
         $class_type = sanitize($_POST['class_type'] ?? '');
         $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
-        $schedule_time = sanitize($_POST['schedule_time'] ?? '');
+    $schedule_start_time = sanitize($_POST['schedule_start_time'] ?? '');
+    $schedule_end_time = sanitize($_POST['schedule_end_time'] ?? '');
         $schedule_days = sanitize($_POST['schedule_days'] ?? '');
         $capacity = max(1, intval($_POST['capacity'] ?? 1));
         $room = sanitize($_POST['room'] ?? '');
         $status = ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
 
+    if (!isValidScheduleRange($schedule_start_time, $schedule_end_time)) {
+      setFlashMessage('danger', 'Vui lòng nhập giờ bắt đầu và giờ kết thúc hợp lệ, giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
+      redirect('classes.php');
+      exit;
+    }
+
+    $schedule_start_time = normalizeScheduleTime($schedule_start_time);
+    $schedule_end_time = normalizeScheduleTime($schedule_end_time);
+    $structuredScheduleTime = supportsStructuredScheduleTime($db);
+
         try {
-            $stmt = $db->prepare("INSERT INTO class_schedules (class_name, class_type, trainer_id, schedule_time, schedule_days, capacity, enrolled_count, room, status) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)");
-            $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_time, $schedule_days, $capacity, $room, $status]);
+      if ($structuredScheduleTime) {
+        $stmt = $db->prepare("INSERT INTO class_schedules (class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, capacity, enrolled_count, room, status) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)");
+        $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_start_time, $schedule_end_time, $schedule_days, $capacity, $room, $status]);
+      } else {
+        $stmt = $db->prepare("INSERT INTO class_schedules (class_name, class_type, trainer_id, schedule_days, capacity, enrolled_count, room, status) VALUES (?, ?, ?, ?, ?, 0, ?, ?)");
+        $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_days, $capacity, $room, $status]);
+      }
             setFlashMessage('success', 'Thêm lớp tập thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
@@ -42,11 +101,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $class_name = sanitize($_POST['class_name'] ?? '');
         $class_type = sanitize($_POST['class_type'] ?? '');
         $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
-        $schedule_time = sanitize($_POST['schedule_time'] ?? '');
+      $schedule_start_time = sanitize($_POST['schedule_start_time'] ?? '');
+      $schedule_end_time = sanitize($_POST['schedule_end_time'] ?? '');
         $schedule_days = sanitize($_POST['schedule_days'] ?? '');
         $capacity = max(1, intval($_POST['capacity'] ?? 1));
         $room = sanitize($_POST['room'] ?? '');
         $status = ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
+
+      if (!isValidScheduleRange($schedule_start_time, $schedule_end_time)) {
+        setFlashMessage('danger', 'Vui lòng nhập giờ bắt đầu và giờ kết thúc hợp lệ, giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
+        redirect('classes.php');
+        exit;
+      }
+
+      $schedule_start_time = normalizeScheduleTime($schedule_start_time);
+      $schedule_end_time = normalizeScheduleTime($schedule_end_time);
+    $structuredScheduleTime = supportsStructuredScheduleTime($db);
 
         try {
             $checkStmt = $db->prepare("SELECT enrolled_count FROM class_schedules WHERE id = ?");
@@ -61,8 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 throw new Exception('Sức chứa mới không được nhỏ hơn số hội viên đã đăng ký (' . (int) $currentClass['enrolled_count'] . ').');
             }
 
-            $stmt = $db->prepare("UPDATE class_schedules SET class_name = ?, class_type = ?, trainer_id = ?, schedule_time = ?, schedule_days = ?, capacity = ?, room = ?, status = ? WHERE id = ?");
-            $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_time, $schedule_days, $capacity, $room, $status, $id]);
+            if ($structuredScheduleTime) {
+              $stmt = $db->prepare("UPDATE class_schedules SET class_name = ?, class_type = ?, trainer_id = ?, schedule_start_time = ?, schedule_end_time = ?, schedule_days = ?, capacity = ?, room = ?, status = ? WHERE id = ?");
+              $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_start_time, $schedule_end_time, $schedule_days, $capacity, $room, $status, $id]);
+            } else {
+              $stmt = $db->prepare("UPDATE class_schedules SET class_name = ?, class_type = ?, trainer_id = ?, schedule_days = ?, capacity = ?, room = ?, status = ? WHERE id = ?");
+              $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_days, $capacity, $room, $status, $id]);
+            }
             setFlashMessage('success', 'Cập nhật lớp tập thành công!');
         } catch (Exception $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
@@ -215,7 +290,7 @@ include 'layout/sidebar.php';
                     <td><?= htmlspecialchars($class['trainer_name'] ?? 'Chưa gán') ?></td>
                     <td>
                       <div><strong>Ngày:</strong> <?= htmlspecialchars($class['schedule_days'] ?? '') ?></div>
-                      <div><strong>Giờ:</strong> <?= htmlspecialchars($class['schedule_time'] ?? '') ?></div>
+                      <div><strong>Giờ:</strong> <?= htmlspecialchars(trim((string) ($class['schedule_start_time'] ?? '') . ' - ' . (string) ($class['schedule_end_time'] ?? ''))) ?></div>
                     </td>
                     <td>
                       <span class="badge badge-light"><?= (int) $class['enrolled_count'] ?>/<?= (int) $class['capacity'] ?></span>
@@ -234,7 +309,8 @@ include 'layout/sidebar.php';
                         data-class_name="<?= htmlspecialchars($class['class_name'], ENT_QUOTES, 'UTF-8') ?>"
                         data-class_type="<?= htmlspecialchars($class['class_type'], ENT_QUOTES, 'UTF-8') ?>"
                         data-trainer_id="<?= $class['trainer_id'] ?? '' ?>"
-                        data-schedule_time="<?= htmlspecialchars($class['schedule_time'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                        data-schedule_start_time="<?= htmlspecialchars($class['schedule_start_time'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                        data-schedule_end_time="<?= htmlspecialchars($class['schedule_end_time'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                         data-schedule_days="<?= htmlspecialchars($class['schedule_days'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                         data-capacity="<?= (int) $class['capacity'] ?>"
                         data-enrolled_count="<?= (int) $class['enrolled_count'] ?>"
@@ -292,8 +368,13 @@ include 'layout/sidebar.php';
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
-              <label>Khung giờ</label>
-              <input type="text" class="form-control" name="schedule_time" placeholder="VD: 06:00 - 07:30" data-field="schedule_time">
+              <label>Giờ bắt đầu</label>
+              <input type="time" class="form-control" name="schedule_start_time" data-field="schedule_start_time">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
+            </div>
+            <div class="form-group">
+              <label>Giờ kết thúc</label>
+              <input type="time" class="form-control" name="schedule_end_time" data-field="schedule_end_time">
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
@@ -361,8 +442,13 @@ include 'layout/sidebar.php';
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
-              <label>Khung giờ</label>
-              <input type="text" class="form-control" name="schedule_time" id="edit-schedule_time" data-field="schedule_time">
+              <label>Giờ bắt đầu</label>
+              <input type="time" class="form-control" name="schedule_start_time" id="edit-schedule_start_time" data-field="schedule_start_time">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
+            </div>
+            <div class="form-group">
+              <label>Giờ kết thúc</label>
+              <input type="time" class="form-control" name="schedule_end_time" id="edit-schedule_end_time" data-field="schedule_end_time">
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
@@ -428,11 +514,15 @@ include 'layout/sidebar.php';
 <script>
 $(function() {
   $('.btn-edit').on('click', function() {
+    let startTime = String($(this).data('schedule_start_time') || '');
+    let endTime = String($(this).data('schedule_end_time') || '');
+
     $('#edit-id').val($(this).data('id'));
     $('#edit-class_name').val($(this).data('class_name'));
     $('#edit-class_type').val($(this).data('class_type'));
     $('#edit-trainer_id').val($(this).data('trainer_id'));
-    $('#edit-schedule_time').val($(this).data('schedule_time'));
+    $('#edit-schedule_start_time').val(startTime);
+    $('#edit-schedule_end_time').val(endTime);
     $('#edit-schedule_days').val($(this).data('schedule_days'));
     $('#edit-capacity').val($(this).data('capacity'));
     $('#edit-enrolled_count').text($(this).data('enrolled_count'));
@@ -452,7 +542,8 @@ $(function() {
     if (field === 'class_type') return 'Vui lòng nhập loại lớp';
     if (field === 'capacity') return 'Vui lòng nhập sức chứa hợp lệ';
     if (field === 'trainer_id') return 'Vui lòng chọn huấn luyện viên';
-    if (field === 'schedule_time') return 'Vui lòng nhập khung giờ';
+    if (field === 'schedule_start_time') return 'Vui lòng nhập giờ bắt đầu';
+    if (field === 'schedule_end_time') return 'Vui lòng nhập giờ kết thúc';
     if (field === 'schedule_days') return 'Vui lòng nhập lịch ngày';
     if (field === 'room') return 'Vui lòng nhập phòng tập';
     if (field === 'status') return 'Vui lòng chọn trạng thái';
@@ -482,6 +573,10 @@ $(function() {
     if (!field) return true;
     if (field === 'capacity') {
       if (!value || Number(value) < 1) { show(input, getMsg(field)); return false; }
+      return true;
+    }
+    if (field === 'schedule_start_time' || field === 'schedule_end_time') {
+      if (!/^\d{2}:\d{2}$/.test(value)) { show(input, getMsg(field)); return false; }
       return true;
     }
     if (!value) { show(input, getMsg(field)); return false; }

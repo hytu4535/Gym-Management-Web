@@ -29,6 +29,8 @@
 <script src="../assets/plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
 <script src="../assets/plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
 <script src="../assets/plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
+<!-- Select2 -->
+<script src="../assets/plugins/select2/js/select2.full.min.js"></script>
 <!-- AdminLTE App -->
 <script src="../assets/dist/js/adminlte.min.js"></script>
 
@@ -55,6 +57,13 @@
         }
       }
     });
+
+    if ($.fn.select2) {
+      $('.select2, .select2bs4').select2({
+        theme: 'bootstrap4',
+        width: '100%'
+      });
+    }
   });
 </script>
 

@@ -5,6 +5,36 @@ require_once '../config/db.php';
 $user_id = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null;
 $member_id = null;
 
+function supportsStructuredScheduleTime(mysqli $conn)
+{
+    static $supportsStructured = null;
+
+    if ($supportsStructured !== null) {
+        return $supportsStructured;
+    }
+
+    $databaseResult = $conn->query('SELECT DATABASE() AS db_name');
+    $databaseRow = $databaseResult ? $databaseResult->fetch_assoc() : null;
+    $databaseName = $databaseRow['db_name'] ?? '';
+
+    if ($databaseName === '') {
+        $supportsStructured = false;
+        return $supportsStructured;
+    }
+
+    $databaseNameEscaped = $conn->real_escape_string($databaseName);
+    $sql = "SELECT COUNT(*) AS column_count
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = '{$databaseNameEscaped}'
+              AND TABLE_NAME = 'class_schedules'
+              AND COLUMN_NAME IN ('schedule_start_time', 'schedule_end_time')";
+    $columnResult = $conn->query($sql);
+    $columnRow = $columnResult ? $columnResult->fetch_assoc() : null;
+
+    $supportsStructured = ((int) ($columnRow['column_count'] ?? 0) === 2);
+    return $supportsStructured;
+}
+
 if ($user_id) {
     $stmtMember = $conn->prepare("SELECT id FROM members WHERE users_id = ? LIMIT 1");
     $stmtMember->bind_param('i', $user_id);
@@ -18,21 +48,41 @@ if ($user_id) {
 }
 
 // Lấy danh sách lớp tập nhóm đang mở
-$sql = "SELECT 
-            cs.id,
-            cs.class_name,
-            cs.class_type,
-            cs.schedule_time,
-            cs.schedule_days,
-            cs.capacity,
-            cs.enrolled_count,
-            cs.room,
-            t.full_name AS trainer_name,
-            t.type      AS trainer_type
-        FROM class_schedules cs
-        LEFT JOIN trainers t ON cs.trainer_id = t.id
-        WHERE cs.status = 'active'
-        ORDER BY cs.id ASC";
+$structuredScheduleTime = supportsStructuredScheduleTime($conn);
+
+if ($structuredScheduleTime) {
+    $sql = "SELECT 
+                cs.id,
+                cs.class_name,
+                cs.class_type,
+                cs.schedule_start_time,
+                cs.schedule_end_time,
+                cs.schedule_days,
+                cs.capacity,
+                cs.enrolled_count,
+                cs.room,
+                t.full_name AS trainer_name,
+                t.type      AS trainer_type
+            FROM class_schedules cs
+            LEFT JOIN trainers t ON cs.trainer_id = t.id
+            WHERE cs.status = 'active'
+            ORDER BY cs.id ASC";
+} else {
+    $sql = "SELECT 
+                cs.id,
+                cs.class_name,
+                cs.class_type,
+                cs.schedule_days,
+                cs.capacity,
+                cs.enrolled_count,
+                cs.room,
+                t.full_name AS trainer_name,
+                t.type      AS trainer_type
+            FROM class_schedules cs
+            LEFT JOIN trainers t ON cs.trainer_id = t.id
+            WHERE cs.status = 'active'
+            ORDER BY cs.id ASC";
+}
 $classes_result = $conn->query($sql);
 
 // Lấy danh sách lớp member đã đăng ký (active)
@@ -111,10 +161,20 @@ include 'layout/header.php';
 
                         <?php if (!empty($class['schedule_days'])): ?>
                         <p><i class="fa fa-calendar"></i> <?php echo htmlspecialchars($class['schedule_days']); ?></p>
-                        <?php endif; ?>
+                                                <?php endif; ?>
 
-                        <?php if (!empty($class['schedule_time'])): ?>
-                        <p><i class="fa fa-clock-o"></i> <?php echo htmlspecialchars($class['schedule_time']); ?></p>
+                                                <?php
+                                                    $scheduleStartTime = trim((string) ($class['schedule_start_time'] ?? ''));
+                                                    $scheduleEndTime = trim((string) ($class['schedule_end_time'] ?? ''));
+                                                    $displayScheduleTime = '';
+
+                                                    if ($scheduleStartTime !== '' && $scheduleEndTime !== '') {
+                                                            $displayScheduleTime = substr($scheduleStartTime, 0, 5) . ' - ' . substr($scheduleEndTime, 0, 5);
+                                                    }
+                                                ?>
+
+                                                <?php if ($displayScheduleTime !== ''): ?>
+                                                <p><i class="fa fa-clock-o"></i> <?php echo htmlspecialchars($displayScheduleTime); ?></p>
                         <?php endif; ?>
 
                         <?php if (!empty($class['room'])): ?>

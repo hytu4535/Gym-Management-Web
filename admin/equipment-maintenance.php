@@ -170,7 +170,7 @@ $maintenances = $maintenanceStmt->fetchAll();
 <div class="modal fade" id="addMaintenanceModal" tabindex="-1" role="dialog" aria-labelledby="addMaintenanceModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <form method="POST" action="equipment-maintenance.php">
+      <form id="addMaintenanceForm" method="POST" action="equipment-maintenance.php" novalidate>
         <div class="modal-header">
           <h5 class="modal-title" id="addMaintenanceModalLabel">Thêm lịch bảo trì</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -180,20 +180,23 @@ $maintenances = $maintenanceStmt->fetchAll();
         <div class="modal-body">
           <div class="form-group">
             <label for="equipment_id">Thiết bị</label>
-            <select class="form-control" id="equipment_id" name="equipment_id" required>
+            <select class="form-control" id="equipment_id" name="equipment_id">
               <option value="">-- Chọn thiết bị --</option>
               <?php foreach ($equipments as $equipment): ?>
                 <option value="<?= $equipment['id'] ?>"><?= htmlspecialchars($equipment['name']) ?> #<?= $equipment['id'] ?></option>
               <?php endforeach; ?>
             </select>
+            <small class="text-danger d-none validation-error"></small>
           </div>
           <div class="form-group">
             <label for="maintenance_date">Ngày bảo trì</label>
-            <input type="date" class="form-control" id="maintenance_date" name="maintenance_date" required>
+            <input type="date" class="form-control" id="maintenance_date" name="maintenance_date">
+            <small class="text-danger d-none validation-error"></small>
           </div>
           <div class="form-group">
             <label for="description">Ghi chú</label>
-            <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
+            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+            <small class="text-danger d-none validation-error"></small>
           </div>
         </div>
         <div class="modal-footer">
@@ -208,7 +211,7 @@ $maintenances = $maintenanceStmt->fetchAll();
 <div class="modal fade" id="editMaintenanceModal" tabindex="-1" role="dialog" aria-labelledby="editMaintenanceModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <form method="POST" action="equipment-maintenance.php">
+      <form id="editMaintenanceForm" method="POST" action="equipment-maintenance.php" novalidate>
         <input type="hidden" name="edit_maintenance_id" id="edit_maintenance_id">
         <div class="modal-header">
           <h5 class="modal-title" id="editMaintenanceModalLabel">Chỉnh sửa lịch bảo trì</h5>
@@ -219,19 +222,22 @@ $maintenances = $maintenanceStmt->fetchAll();
         <div class="modal-body">
           <div class="form-group">
             <label for="edit_equipment_id">Thiết bị</label>
-            <select class="form-control" id="edit_equipment_id" name="edit_equipment_id" required>
+            <select class="form-control" id="edit_equipment_id" name="edit_equipment_id">
               <?php foreach ($equipments as $equipment): ?>
                 <option value="<?= $equipment['id'] ?>"><?= htmlspecialchars($equipment['name']) ?> #<?= $equipment['id'] ?></option>
               <?php endforeach; ?>
             </select>
+            <small class="text-danger d-none validation-error"></small>
           </div>
           <div class="form-group">
             <label for="edit_maintenance_date">Ngày bảo trì</label>
-            <input type="date" class="form-control" id="edit_maintenance_date" name="edit_maintenance_date" required>
+            <input type="date" class="form-control" id="edit_maintenance_date" name="edit_maintenance_date">
+            <small class="text-danger d-none validation-error"></small>
           </div>
           <div class="form-group">
             <label for="edit_description">Ghi chú</label>
-            <textarea class="form-control" id="edit_description" name="edit_description" rows="3" required></textarea>
+            <textarea class="form-control" id="edit_description" name="edit_description" rows="3"></textarea>
+            <small class="text-danger d-none validation-error"></small>
           </div>
         </div>
         <div class="modal-footer">
@@ -268,6 +274,56 @@ $maintenances = $maintenanceStmt->fetchAll();
 
 <script>
 $(document).ready(function() {
+  function setFieldError($field, message) {
+    var $error = $field.closest('.form-group').find('.validation-error');
+    $field.addClass('is-invalid');
+    $error.text(message).removeClass('d-none');
+  }
+
+  function clearFieldError($field) {
+    var $error = $field.closest('.form-group').find('.validation-error');
+    $field.removeClass('is-invalid');
+    $error.text('').addClass('d-none');
+  }
+
+  function validateMaintenanceForm($form) {
+    var isValid = true;
+    var $equipment = $form.find('select[name="equipment_id"], select[name="edit_equipment_id"]');
+    var $date = $form.find('input[name="maintenance_date"], input[name="edit_maintenance_date"]');
+    var $description = $form.find('textarea[name="description"], textarea[name="edit_description"]');
+
+    $form.find('.form-control').each(function() {
+      clearFieldError($(this));
+    });
+
+    if (!$equipment.val()) {
+      setFieldError($equipment, 'Vui lòng chọn thiết bị.');
+      isValid = false;
+    }
+
+    if (!$date.val()) {
+      setFieldError($date, 'Vui lòng chọn ngày bảo trì.');
+      isValid = false;
+    }
+
+    if (!$description.val().trim()) {
+      setFieldError($description, 'Vui lòng nhập ghi chú bảo trì.');
+      isValid = false;
+    }
+
+    return isValid;
+  }
+
+  $('#addMaintenanceForm, #editMaintenanceForm').on('submit', function(e) {
+    if (!validateMaintenanceForm($(this))) {
+      e.preventDefault();
+    }
+  });
+
+  $('#addMaintenanceForm, #editMaintenanceForm').find('.form-control').on('input change', function() {
+    clearFieldError($(this));
+  });
+
   $('.edit-maintenance-btn').on('click', function() {
     $('#edit_maintenance_id').val($(this).data('id'));
     $('#edit_equipment_id').val($(this).data('equipment-id'));
@@ -279,6 +335,12 @@ $(document).ready(function() {
   $('.delete-maintenance-btn').on('click', function() {
     $('#delete_maintenance_id').val($(this).data('id'));
     $('#deleteMaintenanceModal').modal('show');
+  });
+
+  $('#addMaintenanceModal, #editMaintenanceModal').on('hidden.bs.modal', function() {
+    $(this).find('.form-control').each(function() {
+      clearFieldError($(this));
+    });
   });
 });
 </script>

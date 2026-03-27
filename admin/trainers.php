@@ -17,39 +17,136 @@ include '../includes/functions.php';
 
 $db = getDB();
 
-$staff_stmt = $db->query("SELECT full_name, position FROM staff WHERE status = 'active' ORDER BY full_name ASC");
-$staff_members = $staff_stmt->fetchAll();
+function hasTableColumn(PDO $db, $table, $column)
+{
+  $stmt = $db->prepare("SELECT 1
+                        FROM information_schema.COLUMNS
+                        WHERE TABLE_SCHEMA = DATABASE()
+                          AND TABLE_NAME = ?
+                          AND COLUMN_NAME = ?
+                        LIMIT 1");
+  $stmt->execute([(string) $table, (string) $column]);
+  return (bool) $stmt->fetchColumn();
+}
+
+function getTrainerRoleIds(PDO $db)
+{
+  $stmt = $db->query("SELECT id, name FROM roles WHERE status = 'active'");
+  $trainerRoleIds = [];
+
+  foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $role) {
+    $roleName = trim((string) ($role['name'] ?? ''));
+    if ($roleName === '') {
+      continue;
+    }
+
+    $normalized = function_exists('mb_strtolower')
+      ? mb_strtolower($roleName, 'UTF-8')
+      : strtolower($roleName);
+
+    if (strpos($normalized, 'huấn luyện') !== false || strpos($normalized, 'huan luyen') !== false || strpos($normalized, 'trainer') !== false) {
+      $trainerRoleIds[] = (int) $role['id'];
+    }
+  }
+
+  return array_values(array_unique($trainerRoleIds));
+}
+
+function loadTrainerUsers(PDO $db, array $trainerRoleIds)
+{
+  if (empty($trainerRoleIds)) {
+    return [];
+  }
+
+  $sql = "SELECT id, username, full_name, email, phone, role_id
+      FROM users
+      WHERE status = 'active' AND full_name <> '' AND phone IS NOT NULL AND phone <> ''";
+
+  $placeholders = implode(',', array_fill(0, count($trainerRoleIds), '?'));
+  $sql .= " AND role_id IN ($placeholders)";
+
+  $sql .= " ORDER BY email ASC, username ASC";
+
+  $stmt = $db->prepare($sql);
+  $stmt->execute($trainerRoleIds);
+  return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function fetchTrainerUserById(PDO $db, $userId)
+{
+  $stmt = $db->prepare("SELECT u.id, u.username, u.full_name, u.email, u.phone, u.role_id, r.name AS role_name
+              FROM users u
+              LEFT JOIN roles r ON r.id = u.role_id
+              WHERE u.id = ?");
+  $stmt->execute([$userId]);
+
+  $user = $stmt->fetch(PDO::FETCH_ASSOC);
+  return $user ?: null;
+}
 
 function isValidTrainerPhone($phone)
 {
   return preg_match('/^0[0-9]{9,10}$/', $phone) === 1;
 }
 
+function isTrainerRoleUser(array $user, array $trainerRoleIds)
+{
+  if (empty($trainerRoleIds)) {
+    return false;
+  }
+
+  return in_array((int) ($user['role_id'] ?? 0), $trainerRoleIds, true);
+}
+
+$trainerRoleIds = getTrainerRoleIds($db);
+$trainerUsers = loadTrainerUsers($db, $trainerRoleIds);
+$trainerHasUsersIdColumn = hasTableColumn($db, 'trainers', 'users_id');
+
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
-        $type = $_POST['type'];
+    $type = sanitize($_POST['type'] ?? 'Nội bộ');
+    $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
+    $full_name = sanitize($_POST['full_name'] ?? '');
     $phone = preg_replace('/\D+/', '', (string) ($_POST['phone'] ?? ''));
-        $status = sanitize($_POST['status']);
-    $full_name = $type === 'Nội bộ'
-      ? sanitize($_POST['staff_full_name'] ?? '')
-      : sanitize($_POST['full_name_free'] ?? '');
+    $status = sanitize($_POST['status']);
+
+    if ($users_id <= 0) {
+      setFlashMessage('danger', 'Vui lòng chọn tài khoản / email HLV.');
+      redirect('trainers.php');
+      exit;
+    }
+
+    $selectedUser = fetchTrainerUserById($db, $users_id);
+    if (!$selectedUser || !isTrainerRoleUser($selectedUser, $trainerRoleIds)) {
+      setFlashMessage('danger', 'Tài khoản đã chọn không thuộc vai trò Huấn luyện viên.');
+      redirect('trainers.php');
+      exit;
+    }
+
+    $full_name = trim((string) ($selectedUser['full_name'] ?? ''));
+    $phone = preg_replace('/\D+/', '', (string) ($selectedUser['phone'] ?? ''));
 
     if ($full_name === '') {
-      setFlashMessage('danger', 'Vui lòng chọn hoặc nhập họ tên HLV.');
+      setFlashMessage('danger', 'Tài khoản đã chọn chưa có Họ tên.');
       redirect('trainers.php');
       exit;
     }
 
     if (!isValidTrainerPhone($phone)) {
-      setFlashMessage('danger', 'Số điện thoại phải gồm 10-11 chữ số và chỉ được nhập số.');
+      setFlashMessage('danger', 'Tài khoản đã chọn chưa có SĐT hợp lệ bắt đầu bằng 0.');
       redirect('trainers.php');
       exit;
     }
 
         try {
-            $stmt = $db->prepare("INSERT INTO trainers (full_name, type, phone, status) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$full_name, $type, $phone, $status]);
+      if ($trainerHasUsersIdColumn) {
+        $stmt = $db->prepare("INSERT INTO trainers (users_id, full_name, type, phone, status) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$users_id, $full_name, $type, $phone, $status]);
+      } else {
+        $stmt = $db->prepare("INSERT INTO trainers (full_name, type, phone, status) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$full_name, $type, $phone, $status]);
+      }
             setFlashMessage('success', 'Thêm HLV thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
@@ -60,28 +157,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if ($_POST['action'] === 'edit') {
         $id = intval($_POST['id']);
-        $type = $_POST['type'];
+      $type = sanitize($_POST['type'] ?? 'Nội bộ');
+      $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
+      $full_name = sanitize($_POST['full_name'] ?? '');
         $phone = preg_replace('/\D+/', '', (string) ($_POST['phone'] ?? ''));
         $status = sanitize($_POST['status']);
-        $full_name = $type === 'Nội bộ'
-            ? sanitize($_POST['staff_full_name'] ?? '')
-            : sanitize($_POST['full_name_free'] ?? '');
 
-        if ($full_name === '') {
-            setFlashMessage('danger', 'Vui lòng chọn hoặc nhập họ tên HLV.');
-            redirect('trainers.php');
-            exit;
-        }
+      if ($users_id <= 0) {
+        setFlashMessage('danger', 'Vui lòng chọn tài khoản / email HLV.');
+        redirect('trainers.php');
+        exit;
+      }
 
-        if (!isValidTrainerPhone($phone)) {
-            setFlashMessage('danger', 'Số điện thoại phải gồm 10-11 chữ số và chỉ được nhập số.');
-            redirect('trainers.php');
-            exit;
-        }
+      $selectedUser = fetchTrainerUserById($db, $users_id);
+      if (!$selectedUser || !isTrainerRoleUser($selectedUser, $trainerRoleIds)) {
+        setFlashMessage('danger', 'Tài khoản đã chọn không thuộc vai trò Huấn luyện viên.');
+        redirect('trainers.php');
+        exit;
+      }
+
+      $full_name = trim((string) ($selectedUser['full_name'] ?? ''));
+      $phone = preg_replace('/\D+/', '', (string) ($selectedUser['phone'] ?? ''));
+
+      if ($full_name === '') {
+        setFlashMessage('danger', 'Tài khoản đã chọn chưa có Họ tên.');
+        redirect('trainers.php');
+        exit;
+      }
+
+      if (!isValidTrainerPhone($phone)) {
+        setFlashMessage('danger', 'Tài khoản đã chọn chưa có SĐT hợp lệ bắt đầu bằng 0.');
+        redirect('trainers.php');
+        exit;
+      }
 
         try {
-            $stmt = $db->prepare("UPDATE trainers SET full_name = ?, type = ?, phone = ?, status = ? WHERE id = ?");
-            $stmt->execute([$full_name, $type, $phone, $status, $id]);
+        if ($trainerHasUsersIdColumn) {
+          $stmt = $db->prepare("UPDATE trainers SET users_id = ?, full_name = ?, type = ?, phone = ?, status = ? WHERE id = ?");
+          $stmt->execute([$users_id, $full_name, $type, $phone, $status, $id]);
+        } else {
+          $stmt = $db->prepare("UPDATE trainers SET full_name = ?, type = ?, phone = ?, status = ? WHERE id = ?");
+          $stmt->execute([$full_name, $type, $phone, $status, $id]);
+        }
             setFlashMessage('success', 'Cập nhật HLV thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
@@ -105,7 +222,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Lấy danh sách HLV
-$stmt = $db->query("SELECT * FROM trainers ORDER BY id DESC");
+$trainerSelectUsersIdSql = $trainerHasUsersIdColumn
+  ? "t.users_id AS trainer_users_id"
+  : "NULL AS trainer_users_id";
+
+$trainerSelectUserLabelSql = $trainerHasUsersIdColumn
+  ? "COALESCE(NULLIF(u.full_name, ''), NULLIF(u.email, ''), NULLIF(u.username, ''), '') AS trainer_user_label"
+  : "'' AS trainer_user_label";
+
+$trainerUserJoinSql = $trainerHasUsersIdColumn
+  ? "LEFT JOIN users u ON u.id = t.users_id"
+  : "";
+
+$stmt = $db->query("SELECT t.*, $trainerSelectUsersIdSql, $trainerSelectUserLabelSql
+                    FROM trainers t
+                    $trainerUserJoinSql
+                    ORDER BY t.id DESC");
 $trainers = $stmt->fetchAll();
 
 // Lấy flash message
@@ -194,6 +326,9 @@ include 'layout/sidebar.php';
                         data-id="<?= $trainer['id'] ?>"
                         data-fullname="<?= htmlspecialchars($trainer['full_name']) ?>"
                         data-type="<?= $trainer['type'] ?>"
+                        data-users-id="<?= (int) ($trainer['trainer_users_id'] ?? 0) ?>"
+                        data-user-label="<?= htmlspecialchars($trainer['trainer_user_label'] ?? '') ?>"
+                        data-user-fullname="<?= htmlspecialchars($trainer['full_name'] ?? '') ?>"
                         data-phone="<?= htmlspecialchars($trainer['phone']) ?>"
                         data-status="<?= htmlspecialchars($trainer['status'] ?? '') ?>">
                         <i class="fas fa-edit"></i>
@@ -237,20 +372,32 @@ include 'layout/sidebar.php';
               </div>
               <div class="form-group trainer-name-free-group d-none">
                 <label>Họ tên HLV <span class="text-danger">*</span></label>
-                <input type="text" class="form-control trainer-name-free" name="full_name_free" placeholder="Nhập họ tên HLV" data-field="full_name_free">
+                <input type="text" class="form-control trainer-name-free" name="full_name" placeholder="Nhập họ tên HLV" data-field="full_name">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
-              <div class="form-group trainer-name-internal-group">
-                <label>Chọn nhân viên <span class="text-danger">*</span></label>
-                <select class="form-control trainer-name-internal" name="staff_full_name" data-field="staff_full_name">
-                  <option value="">-- Chọn nhân viên --</option>
-                  <?php foreach ($staff_members as $staff): ?>
-                    <option value="<?= htmlspecialchars($staff['full_name']) ?>"><?= htmlspecialchars($staff['full_name']) ?><?= !empty($staff['position']) ? ' - ' . htmlspecialchars($staff['position']) : '' ?></option>
-                  <?php endforeach; ?>
-                </select>
-                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              <div class="trainer-name-internal-group">
+                <div class="form-group">
+                  <label>Chọn tài khoản/email <span class="text-danger">*</span></label>
+                  <select class="form-control trainer-account-select select2" name="users_id" data-field="users_id" style="width: 100%;">
+                    <option value="">-- Chọn tài khoản/email --</option>
+                    <?php foreach ($trainerUsers as $user): ?>
+                      <?php $accountLabel = !empty($user['email']) ? $user['email'] : ($user['username'] ?? ''); ?>
+                      <option
+                        value="<?= (int) $user['id'] ?>"
+                        data-full-name="<?= htmlspecialchars($user['full_name'] ?? '') ?>"
+                        data-phone="<?= htmlspecialchars($user['phone'] ?? '') ?>">
+                        <?= htmlspecialchars($accountLabel) ?><?= !empty($user['username']) && !empty($user['email']) ? ' (' . htmlspecialchars($user['username']) . ')' : '' ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <small class="text-danger d-block mt-2" style="display:none;"></small>
+                </div>
+                <div class="form-group mb-0">
+                  <label>Họ tên theo tài khoản/email</label>
+                  <input type="text" class="form-control trainer-account-fullname" value="" readonly>
+                </div>
               </div>
-              <div class="form-group">
+              <div class="form-group mt-3">
                 <label>Số điện thoại <span class="text-danger">*</span></label>
                 <input type="text" class="form-control trainer-phone-input" name="phone" placeholder="Nhập SĐT" inputmode="numeric" data-field="phone">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
@@ -294,20 +441,32 @@ include 'layout/sidebar.php';
               </div>
               <div class="form-group trainer-name-free-group d-none">
                 <label>Họ tên HLV <span class="text-danger">*</span></label>
-                <input type="text" class="form-control trainer-name-free" name="full_name_free" id="edit-fullname-free" placeholder="Nhập họ tên HLV" data-field="full_name_free">
+                <input type="text" class="form-control trainer-name-free" name="full_name" id="edit-fullname-free" placeholder="Nhập họ tên HLV" data-field="full_name">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
-              <div class="form-group trainer-name-internal-group">
-                <label>Chọn nhân viên <span class="text-danger">*</span></label>
-                <select class="form-control trainer-name-internal" name="staff_full_name" id="edit-staff-fullname" data-field="staff_full_name">
-                  <option value="">-- Chọn nhân viên --</option>
-                  <?php foreach ($staff_members as $staff): ?>
-                    <option value="<?= htmlspecialchars($staff['full_name']) ?>"><?= htmlspecialchars($staff['full_name']) ?><?= !empty($staff['position']) ? ' - ' . htmlspecialchars($staff['position']) : '' ?></option>
-                  <?php endforeach; ?>
-                </select>
-                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              <div class="trainer-name-internal-group">
+                <div class="form-group">
+                  <label>Chọn tài khoản/email <span class="text-danger">*</span></label>
+                  <select class="form-control trainer-account-select select2" name="users_id" id="edit-users-id" data-field="users_id" style="width: 100%;">
+                    <option value="">-- Chọn tài khoản/email --</option>
+                    <?php foreach ($trainerUsers as $user): ?>
+                      <?php $accountLabel = !empty($user['email']) ? $user['email'] : ($user['username'] ?? ''); ?>
+                      <option
+                        value="<?= (int) $user['id'] ?>"
+                        data-full-name="<?= htmlspecialchars($user['full_name'] ?? '') ?>"
+                        data-phone="<?= htmlspecialchars($user['phone'] ?? '') ?>">
+                        <?= htmlspecialchars($accountLabel) ?><?= !empty($user['username']) && !empty($user['email']) ? ' (' . htmlspecialchars($user['username']) . ')' : '' ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <small class="text-danger d-block mt-2" style="display:none;"></small>
+                </div>
+                <div class="form-group mb-0">
+                  <label>Họ tên theo tài khoản/email</label>
+                  <input type="text" class="form-control trainer-account-fullname" id="edit-account-fullname" value="" readonly>
+                </div>
               </div>
-              <div class="form-group">
+              <div class="form-group mt-3">
                 <label>Số điện thoại <span class="text-danger">*</span></label>
                 <input type="text" class="form-control trainer-phone-input" name="phone" id="edit-phone" inputmode="numeric" data-field="phone">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
@@ -362,32 +521,44 @@ include 'layout/sidebar.php';
 function syncTrainerNameFields($modal) {
   if (!$modal || !$modal.length) return;
 
-  const type = $modal.find('.trainer-type-select').val();
   const $freeGroup = $modal.find('.trainer-name-free-group');
   const $internalGroup = $modal.find('.trainer-name-internal-group');
   const $freeInput = $modal.find('.trainer-name-free');
-  const $internalSelect = $modal.find('.trainer-name-internal');
+  const $accountSelect = $modal.find('.trainer-account-select');
+  const $accountFullName = $modal.find('.trainer-account-fullname');
+  const $phoneInput = $modal.find('.trainer-phone-input');
 
-  if (type === 'Tự do') {
-    $internalGroup.addClass('d-none');
-    $freeGroup.removeClass('d-none');
-    $internalSelect.prop('disabled', true).val('');
-    $freeInput.prop('disabled', false);
-  } else {
-    $freeGroup.addClass('d-none');
-    $internalGroup.removeClass('d-none');
-    $freeInput.prop('disabled', true).val('');
-    $internalSelect.prop('disabled', false);
-  }
+  $freeGroup.addClass('d-none');
+  $internalGroup.removeClass('d-none');
+  $freeInput.prop('disabled', true).val('');
+  $accountSelect.prop('disabled', false);
+  $phoneInput.prop('readonly', true);
+  applyInternalAccountSelection($modal);
 }
 
-function ensureSelectOption($select, value, text) {
+function applyInternalAccountSelection($modal) {
+  const $accountSelect = $modal.find('.trainer-account-select');
+  const $selected = $accountSelect.find('option:selected');
+  const fullName = String($selected.data('full-name') || '').trim();
+  const phone = String($selected.data('phone') || '').replace(/\D+/g, '');
+
+  $modal.find('.trainer-account-fullname').val(fullName);
+  $modal.find('.trainer-phone-input').val(phone);
+}
+
+function ensureSelectOption($select, value, text, fullName, phone) {
   if (!$select.length || !value) return;
   const existing = $select.find('option').filter(function() {
     return String($(this).val()) === String(value);
   });
   if (!existing.length) {
-    $select.prepend(new Option(text, value, true, true));
+    const option = new Option(text, value, true, true);
+    $(option).attr('data-full-name', fullName || '');
+    $(option).attr('data-phone', phone || '');
+    $select.prepend(option);
+  } else {
+    existing.attr('data-full-name', fullName || '');
+    existing.attr('data-phone', phone || '');
   }
 }
 
@@ -395,16 +566,25 @@ function fillEditModal($button) {
   const $modal = $('#editTrainerModal');
   const type = $button.data('type');
   const fullName = $button.data('fullname') || '';
-  const phone = $button.attr('data-phone') || '';
+  const usersId = $button.data('users-id') || '';
+  const userLabel = $button.data('user-label') || '';
+  const userFullName = $button.data('user-fullname') || fullName;
+  const phone = String($button.attr('data-phone') || '').replace(/\D+/g, '');
 
   $modal.find('#edit-id').val($button.data('id'));
   $modal.find('#edit-type').val(type);
   $modal.find('#edit-phone').val(phone);
   $modal.find('#edit-status').val($button.data('status'));
 
-  $modal.find('#edit-fullname-free').val(type === 'Tự do' ? fullName : '');
-  ensureSelectOption($modal.find('#edit-staff-fullname'), fullName, fullName);
-  $modal.find('#edit-staff-fullname').val(type === 'Nội bộ' ? fullName : '');
+  $modal.find('#edit-fullname-free').val('');
+  ensureSelectOption(
+    $modal.find('#edit-users-id'),
+    usersId,
+    userLabel || userFullName,
+    userFullName,
+    phone
+  );
+  $modal.find('#edit-users-id').val(usersId ? String(usersId) : '');
 
   syncTrainerNameFields($modal);
 }
@@ -414,13 +594,53 @@ function resetAddModal() {
   $modal.find('.trainer-type-select').val('Nội bộ');
   $modal.find('.trainer-phone-input').val('');
   $modal.find('.trainer-name-free').val('');
-  $modal.find('.trainer-name-internal').val('');
+  $modal.find('.trainer-account-select').val('');
+  $modal.find('.trainer-account-fullname').val('');
   syncTrainerNameFields($modal);
 }
 
+function initTrainerAccountSelect2() {
+  if (!$.fn.select2) return;
+
+  $('.trainer-account-select').each(function() {
+    const $select = $(this);
+    const $modal = $select.closest('.modal');
+
+    if ($select.hasClass('select2-hidden-accessible')) {
+      $select.select2('destroy');
+    }
+
+    $select.select2({
+      theme: 'bootstrap4',
+      width: '100%',
+      dropdownParent: $modal.length ? $modal : $(document.body),
+      placeholder: '-- Chọn tài khoản/email --',
+      allowClear: false
+    });
+  });
+}
+
 $(function() {
+  initTrainerAccountSelect2();
+
+  // Click vào thanh chọn sẽ mở dropdown, gõ trong ô search để lọc tài khoản/email
+  $(document).on('focus', '.select2-container--bootstrap4 .select2-selection--single', function() {
+    const $select = $(this).closest('.select2-container').prev('select.trainer-account-select');
+    if ($select.length) {
+      $select.select2('open');
+    }
+  });
+
+  $(document).on('select2:open', function() {
+    const searchField = document.querySelector('.select2-container--open .select2-search__field');
+    if (searchField) {
+      searchField.focus();
+    }
+  });
+
   // Chỉ cho phép nhập số cho SĐT HLV
   $(document).on('input', '.trainer-phone-input', function() {
+    if ($(this).prop('readonly')) return;
     const digitsOnly = String($(this).val() || '').replace(/\D+/g, '');
     $(this).val(digitsOnly);
   });
@@ -432,6 +652,10 @@ $(function() {
 
   $(document).on('change', '.trainer-type-select', function() {
     syncTrainerNameFields($(this).closest('.modal-content'));
+  });
+
+  $(document).on('change', '.trainer-account-select', function() {
+    applyInternalAccountSelection($(this).closest('.modal-content'));
   });
 
   // Điền dữ liệu vào modal sửa
@@ -448,15 +672,15 @@ $(function() {
 
   $('#addTrainerModal, #editTrainerModal').on('show.bs.modal', function() {
     syncTrainerNameFields($(this).find('.modal-content'));
+    initTrainerAccountSelect2();
   });
 });
 
 (function() {
   function message(field) {
-    if (field === 'full_name_free') return 'Vui lòng nhập họ tên HLV';
-    if (field === 'staff_full_name') return 'Vui lòng chọn nhân viên';
+    if (field === 'users_id') return 'Vui lòng chọn tài khoản/email';
     if (field === 'type') return 'Vui lòng chọn loại HLV';
-    if (field === 'phone') return 'Vui lòng nhập số điện thoại bắt đầu bằng 0 và 10-11 số';
+    if (field === 'phone') return 'Số điện thoại tài khoản phải bắt đầu bằng 0 và gồm 10-11 số';
     return 'Vui lòng nhập dữ liệu hợp lệ';
   }
 
@@ -489,12 +713,12 @@ $(function() {
 
     if (!field) return true;
 
-    if (field === 'full_name_free' || field === 'staff_full_name') {
-      const modal = input.closest('.modal-content');
-      const typeSelect = modal ? modal.querySelector('.trainer-type-select') : null;
-      const activeType = typeSelect ? typeSelect.value : '';
-      const visible = field === 'full_name_free' ? activeType === 'Tự do' : activeType === 'Nội bộ';
-      if (visible && !value) {
+    if (field === 'full_name') {
+      return true;
+    }
+
+    if (field === 'users_id') {
+      if (!value) {
         show(input, message(field));
         return false;
       }
@@ -502,6 +726,10 @@ $(function() {
     }
 
     if (field === 'phone') {
+      if (!value) {
+        show(input, 'Tài khoản/email đã chọn chưa có số điện thoại');
+        return false;
+      }
       if (!/^0[0-9]{9,10}$/.test(value)) {
         show(input, message(field));
         return false;

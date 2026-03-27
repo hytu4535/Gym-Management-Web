@@ -857,6 +857,7 @@ CREATE TABLE `orders` (
   `payment_method` enum('cash','online','bank_transfer') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'cash',
   `transfer_code` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `proof_img` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` enum('pending','confirmed','delivered','cancelled') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
@@ -872,8 +873,41 @@ CREATE TABLE `orders` (
 
 LOCK TABLES `orders` WRITE;
 /*!40000 ALTER TABLE `orders` DISABLE KEYS */;
-INSERT INTO `orders` VALUES (1,1,1,'2026-02-18 09:15:00',250000.00,'cash',NULL,NULL,'delivered'),(8,1,11,'2026-02-18 18:50:10',100000.00,'cash',NULL,NULL,'delivered'),(9,2,12,'2026-02-18 11:45:00',125000.00,'cash',NULL,NULL,'delivered'),(10,2,13,'2026-02-18 13:00:00',99000.99,'online',NULL,NULL,'confirmed'),(11,3,14,'2026-02-18 14:20:00',760000.00,'cash',NULL,NULL,'cancelled'),(12,2,NULL,'2026-03-08 05:01:30',1380000.00,'online',NULL,NULL,'delivered'),(13,2,NULL,'2026-03-08 05:02:31',1380000.00,'cash',NULL,NULL,'cancelled'),(14,2,27,'2026-03-08 05:05:14',1380000.00,'cash',NULL,NULL,'pending'),(15,2,NULL,'2026-03-08 05:08:05',1380000.00,'online',NULL,NULL,'pending'),(16,2,NULL,'2026-03-08 06:08:05',13530000.00,'cash',NULL,NULL,'delivered'),(17,2,NULL,'2026-03-08 06:12:37',18530000.00,'cash',NULL,NULL,'cancelled'),(18,2,NULL,'2026-03-08 06:15:07',40000.00,'cash',NULL,NULL,'pending'),(19,2,NULL,'2026-03-08 06:15:28',40000.00,'cash',NULL,NULL,'pending'),(20,2,NULL,'2026-03-08 06:16:29',580000.00,'cash',NULL,NULL,'pending'),(21,1,NULL,'2026-03-11 16:58:19',6780000.00,'cash',NULL,NULL,'delivered'),(22,1,NULL,'2026-03-11 17:25:47',3492750.00,'cash',NULL,NULL,'delivered'),(23,1,NULL,'2026-03-11 17:29:29',2217000.00,'cash',NULL,NULL,'delivered'),(24,3,NULL,'2026-03-11 17:35:28',2082000.00,'cash',NULL,NULL,'pending'),(25,1,NULL,'2026-03-18 18:51:49',3436500.00,'online',NULL,NULL,'confirmed'),(26,1,NULL,'2026-03-23 03:00:03',255000.00,'cash',NULL,NULL,'pending'),(27,1,NULL,'2026-03-23 03:18:59',1350000.00,'cash',NULL,NULL,'pending'),(28,1,NULL,'2026-03-23 04:10:32',1200000.00,'bank_transfer','TT028IA','order_1774213832_69c05ac8ab9e1.jpg','pending'),(29,1,NULL,'2026-03-23 04:13:55',556500.00,'bank_transfer','TT028GN','order_1774214035_69c05b93451ad.jpg','delivered'),(30,1,NULL,'2026-03-23 04:15:44',1785000.00,'bank_transfer','TT028LF','order_1774214144_69c05c00a5157.jpg','pending'),(31,1,NULL,'2026-03-23 04:17:37',1785000.00,'bank_transfer','TT028VC','order_1774214257_69c05c713271d.jpg','pending'),(32,1,NULL,'2026-03-23 04:22:54',7522500.00,'bank_transfer','TT028OM','order_1774214574_69c05daebda06.jpg','confirmed'),(33,1,NULL,'2026-03-25 19:59:20',5446625.00,'bank_transfer','TT033HS','order_1774443560_69c3dc2843fd5.jpg','pending'),(34,1,NULL,'2026-03-25 22:10:27',1127500.00,'bank_transfer','TT034AY','order_1774451427_69c3fae3b0271.jpg','pending'),(35,1,NULL,'2026-03-25 22:11:49',2125000.00,'bank_transfer','TT034IH','order_1774451509_69c3fb3544040.jpg','pending'),(36,18,28,'2026-03-25 22:29:16',8130000.00,'bank_transfer','TT034OC','order_1774452556_69c3ff4c9f383.jpg','pending'),(37,18,NULL,'2026-03-25 22:38:12',1056000.00,'cash',NULL,NULL,'confirmed'),(38,18,NULL,'2026-03-25 22:39:48',1056000.00,'cash',NULL,NULL,'pending'),(39,19,31,'2026-03-26 04:50:44',2724000.00,'cash',NULL,NULL,'pending'),(40,19,40,'2026-03-26 16:38:23',4580000.00,'cash',NULL,NULL,'delivered');
-/*!40000 ALTER TABLE `orders` ENABLE KEYS */;
+INSERT INTO `orders` VALUES
+(1,1,1,'2026-02-18 09:15:00',250000.00,'cash',NULL,NULL,NULL,'delivered'),
+(8,1,11,'2026-02-18 18:50:10',100000.00,'cash',NULL,NULL,NULL,'delivered'),
+(9,2,12,'2026-02-18 11:45:00',125000.00,'cash',NULL,NULL,NULL,'delivered'),
+(10,2,13,'2026-02-18 13:00:00',99000.99,'online',NULL,NULL,NULL,'confirmed'),
+(11,3,14,'2026-02-18 14:20:00',760000.00,'cash',NULL,NULL,NULL,'cancelled'),
+(12,2,NULL,'2026-03-08 05:01:30',1380000.00,'online',NULL,NULL,NULL,'delivered'),
+(13,2,NULL,'2026-03-08 05:02:31',1380000.00,'cash',NULL,NULL,NULL,'cancelled'),
+(14,2,27,'2026-03-08 05:05:14',1380000.00,'cash',NULL,NULL,NULL,'pending'),
+(15,2,NULL,'2026-03-08 05:08:05',1380000.00,'online',NULL,NULL,NULL,'pending'),
+(16,2,NULL,'2026-03-08 06:08:05',13530000.00,'cash',NULL,NULL,NULL,'delivered'),
+(17,2,NULL,'2026-03-08 06:12:37',18530000.00,'cash',NULL,NULL,NULL,'cancelled'),
+(18,2,NULL,'2026-03-08 06:15:07',40000.00,'cash',NULL,NULL,NULL,'pending'),
+(19,2,NULL,'2026-03-08 06:15:28',40000.00,'cash',NULL,NULL,NULL,'pending'),
+(20,2,NULL,'2026-03-08 06:16:29',580000.00,'cash',NULL,NULL,NULL,'pending'),
+(21,1,NULL,'2026-03-11 16:58:19',6780000.00,'cash',NULL,NULL,NULL,'delivered'),
+(22,1,NULL,'2026-03-11 17:25:47',3492750.00,'cash',NULL,NULL,NULL,'delivered'),
+(23,1,NULL,'2026-03-11 17:29:29',2217000.00,'cash',NULL,NULL,NULL,'delivered'),
+(24,3,NULL,'2026-03-11 17:35:28',2082000.00,'cash',NULL,NULL,NULL,'pending'),
+(25,1,NULL,'2026-03-18 18:51:49',3436500.00,'online',NULL,NULL,NULL,'confirmed'),
+(26,1,NULL,'2026-03-23 03:00:03',255000.00,'cash',NULL,NULL,NULL,'pending'),
+(27,1,NULL,'2026-03-23 03:18:59',1350000.00,'cash',NULL,NULL,NULL,'pending'),
+(28,1,NULL,'2026-03-23 04:10:32',1200000.00,'bank_transfer','TT028IA','order_1774213832_69c05ac8ab9e1.jpg',NULL,'pending'),
+(29,1,NULL,'2026-03-23 04:13:55',556500.00,'bank_transfer','TT028GN','order_1774214035_69c05b93451ad.jpg',NULL,'delivered'),
+(30,1,NULL,'2026-03-23 04:15:44',1785000.00,'bank_transfer','TT028LF','order_1774214144_69c05c00a5157.jpg',NULL,'pending'),
+(31,1,NULL,'2026-03-23 04:17:37',1785000.00,'bank_transfer','TT028VC','order_1774214257_69c05c713271d.jpg',NULL,'pending'),
+(32,1,NULL,'2026-03-23 04:22:54',7522500.00,'bank_transfer','TT028OM','order_1774214574_69c05daebda06.jpg',NULL,'confirmed'),
+(33,1,NULL,'2026-03-25 19:59:20',5446625.00,'bank_transfer','TT033HS','order_1774443560_69c3dc2843fd5.jpg',NULL,'pending'),
+(34,1,NULL,'2026-03-25 22:10:27',1127500.00,'bank_transfer','TT034AY','order_1774451427_69c3fae3b0271.jpg',NULL,'pending'),
+(35,1,NULL,'2026-03-25 22:11:49',2125000.00,'bank_transfer','TT034IH','order_1774451509_69c3fb3544040.jpg',NULL,'pending'),
+(36,18,28,'2026-03-25 22:29:16',8130000.00,'bank_transfer','TT034OC','order_1774452556_69c3ff4c9f383.jpg',NULL,'pending'),
+(37,18,NULL,'2026-03-25 22:38:12',1056000.00,'cash',NULL,NULL,NULL,'confirmed'),
+(38,18,NULL,'2026-03-25 22:39:48',1056000.00,'cash',NULL,NULL,NULL,'pending'),
+(39,19,31,'2026-03-26 04:50:44',2724000.00,'cash',NULL,NULL,NULL,'pending'),
+(40,19,40,'2026-03-26 16:38:23',4580000.00,'cash',NULL,NULL,NULL,'delivered');
 UNLOCK TABLES;
 
 --

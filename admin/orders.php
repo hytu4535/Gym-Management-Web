@@ -26,8 +26,17 @@ $filter_to_date = isset($_GET['to_date']) ? $_GET['to_date'] : '';
 $filter_city = isset($_GET['city']) ? $_GET['city'] : '';
 $filter_district = isset($_GET['district']) ? $_GET['district'] : '';
 
+// Tương thích DB: nếu chưa có cột note thì vẫn hiển thị được danh sách đơn hàng
+$has_order_note = false;
+$note_column_check = $conn->query("SHOW COLUMNS FROM orders LIKE 'note'");
+if ($note_column_check && $note_column_check->num_rows > 0) {
+  $has_order_note = true;
+}
+
+$order_note_select = $has_order_note ? 'o.note' : 'NULL AS note';
+
 // Xây dựng câu query với filter
-$sql = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, o.transfer_code, o.proof_img, m.full_name, 
+$sql = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, o.transfer_code, o.proof_img, $order_note_select, m.full_name, 
         a.city, a.district 
         FROM orders o 
         LEFT JOIN members m ON o.member_id = m.id 
@@ -214,6 +223,7 @@ $districts_result = $conn->query($districts_sql);
                     <th>Địa điểm giao</th>
                     <th>Tổng tiền</th>
                     <th>Phương thức</th>
+                    <th>Ghi chú</th>
                     <th>Nội dung CK</th>
                     <th>Bằng chứng</th>
                     <th>Trạng thái</th>
@@ -247,6 +257,10 @@ $districts_result = $conn->query($districts_sql);
                                 ? '<span class="text-info"><i class="fas fa-university"></i> Chuyển khoản</span>' 
                                 : '<span class="text-success"><i class="fas fa-money-bill-wave"></i> Tiền mặt</span>');
 
+                            $orderNote = !empty($row['note'])
+                              ? nl2br(htmlspecialchars($row['note']))
+                              : '<span class="text-muted">-</span>';
+
                             $transferCode = $row['transfer_code'] ?? '<span class="text-muted">-</span>';
                             $proofImg = '';
                             if (!empty($row['proof_img'])) {
@@ -273,6 +287,7 @@ $districts_result = $conn->query($districts_sql);
                             echo "  <td>{$location}</td>";
                             echo "  <td class='text-danger font-weight-bold'>{$formattedPrice}</td>";
                             echo "  <td>{$paymentMethod}</td>";
+                            echo "  <td>{$orderNote}</td>";
                             echo "  <td>{$transferCode}</td>";
                             echo "  <td>{$proofImg}</td>";
                             echo "  <td>{$statusBadge}</td>";
@@ -287,7 +302,7 @@ $districts_result = $conn->query($districts_sql);
                             echo "</tr>";
                         }
                     } else {
-                        echo "<tr><td colspan='10' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
+                      echo "<tr><td colspan='11' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
                     }
                   ?>
                   </tbody>

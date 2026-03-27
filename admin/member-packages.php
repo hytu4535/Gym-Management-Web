@@ -18,6 +18,26 @@ $db = getDB();
 $message = '';
 $messageType = '';
 
+$filterMemberId = trim((string) ($_GET['member_id'] ?? ''));
+$filterPackageId = trim((string) ($_GET['package_id'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$memberPackageWhereClauses = [];
+$memberPackageParams = [];
+if ($filterMemberId !== '') {
+  $memberPackageWhereClauses[] = 'mp.member_id = ?';
+  $memberPackageParams[] = (int) $filterMemberId;
+}
+if ($filterPackageId !== '') {
+  $memberPackageWhereClauses[] = 'mp.package_id = ?';
+  $memberPackageParams[] = (int) $filterPackageId;
+}
+if ($filterStatus !== '') {
+  $memberPackageWhereClauses[] = 'mp.status = ?';
+  $memberPackageParams[] = $filterStatus;
+}
+$memberPackageWhereSql = !empty($memberPackageWhereClauses) ? ' WHERE ' . implode(' AND ', $memberPackageWhereClauses) : '';
+
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     try {
@@ -59,11 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // Lấy danh sách gói tập của hội viên
-$stmt = $db->query("SELECT mp.*, m.full_name, pkg.package_name, pkg.duration_months, pkg.price 
+$stmt = $db->prepare("SELECT mp.*, m.full_name, pkg.package_name, pkg.duration_months, pkg.price 
                     FROM member_packages mp 
                     LEFT JOIN members m ON mp.member_id = m.id 
-                    LEFT JOIN membership_packages pkg ON mp.package_id = pkg.id 
+                    LEFT JOIN membership_packages pkg ON mp.package_id = pkg.id" . $memberPackageWhereSql . " 
                     ORDER BY mp.id DESC");
+$stmt->execute($memberPackageParams);
 $memberPackages = $stmt->fetchAll();
 
 // Lấy danh sách members và packages cho form
@@ -96,6 +117,27 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'member-packages.php';
+          $filterFieldsHtml = '
+            <div class="col-md-4"><div class="form-group mb-0"><label>Hội viên</label><select name="member_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($members as $member) {
+            $selected = (string) $filterMemberId === (string) $member['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $member['id'] . '" ' . $selected . '>' . htmlspecialchars($member['full_name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-4"><div class="form-group mb-0"><label>Gói tập</label><select name="package_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($packages as $pkg) {
+            $selected = (string) $filterPackageId === (string) $pkg['id'] ? 'selected' : '';
+            $label = $pkg['package_name'] . ' - ' . number_format($pkg['price'], 0, ',', '.') . ' VNĐ';
+            $filterFieldsHtml .= '<option value="' . (int) $pkg['id'] . '" ' . $selected . '>' . htmlspecialchars($label) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Đang hoạt động</option><option value="expired" ' . ($filterStatus === 'expired' ? 'selected' : '') . '>Hết hạn</option><option value="cancelled" ' . ($filterStatus === 'cancelled' ? 'selected' : '') . '>Đã hủy</option></select></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <?php if ($message): ?>
         <div class="alert alert-<?php echo $messageType; ?> alert-dismissible fade show">
           <?php echo $message; ?>
@@ -115,7 +157,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table id="packageTable" class="table table-bordered table-striped">
+                <table id="packageTable" class="table table-bordered table-striped js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

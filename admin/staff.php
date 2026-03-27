@@ -13,10 +13,25 @@ include 'layout/sidebar.php';
 require_once '../config/db.php';
 
 // Lấy danh sách staff + user liên kết
+$filterName = trim((string) ($_GET['name'] ?? ''));
+$filterPosition = trim((string) ($_GET['position'] ?? ''));
+$filterAccount = trim((string) ($_GET['account'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') { $whereClauses[] = "s.full_name LIKE '%" . $conn->real_escape_string($filterName) . "%'"; }
+if ($filterPosition !== '') { $whereClauses[] = "s.position LIKE '%" . $conn->real_escape_string($filterPosition) . "%'"; }
+if ($filterAccount !== '') {
+  $escapedAccount = $conn->real_escape_string($filterAccount);
+  $whereClauses[] = "(u.username LIKE '%" . $escapedAccount . "%' OR u.email LIKE '%" . $escapedAccount . "%')";
+}
+if ($filterStatus !== '') { $whereClauses[] = "s.status = '" . $conn->real_escape_string($filterStatus) . "'"; }
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
 $sql = "SELECT s.id, s.full_name, s.position, s.status, u.id as users_id, u.username, u.email 
-        FROM staff s 
-        LEFT JOIN users u ON s.users_id = u.id 
-        ORDER BY s.id DESC";
+  FROM staff s 
+  LEFT JOIN users u ON s.users_id = u.id" . $whereSql . " ORDER BY s.id DESC";
 $result = $conn->query($sql);
 ?>
 
@@ -29,6 +44,17 @@ $result = $conn->query($sql);
 
   <section class="content">
     <div class="container-fluid">
+      <?php
+        $filterMode = 'server';
+        $filterAction = 'staff.php';
+        $filterFieldsHtml = '
+          <div class="col-md-3"><div class="form-group mb-0"><label>Họ tên</label><input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Nhập họ tên"></div></div>
+          <div class="col-md-3"><div class="form-group mb-0"><label>Chức vụ</label><input type="text" name="position" class="form-control" value="' . htmlspecialchars($filterPosition) . '" placeholder="Nhập chức vụ"></div></div>
+          <div class="col-md-3"><div class="form-group mb-0"><label>Tài khoản / Email</label><input type="text" name="account" class="form-control" value="' . htmlspecialchars($filterAccount) . '" placeholder="Nhập username hoặc email"></div></div>
+          <div class="col-md-3"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả trạng thái --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option></select></div></div>
+        ';
+        include 'layout/filter-card.php';
+      ?>
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">Danh sách Staff</h3>
@@ -39,7 +65,7 @@ $result = $conn->query($sql);
           </div>
         </div>
         <div class="card-body">
-          <table class="table table-bordered table-striped data-table">
+          <table class="table table-bordered table-striped data-table js-admin-table">
             <thead>
               <tr>
                 <th>ID</th>

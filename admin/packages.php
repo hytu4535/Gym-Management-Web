@@ -20,11 +20,47 @@ include 'layout/sidebar.php';
 // kết nối DB (nếu bạn dùng file config riêng thì giữ nguyên)
 require_once '../config/db.php';
 
-$sql = "SELECT id, package_name, duration_months, price, description, status 
-        FROM membership_packages 
-        ORDER BY id DESC";
+$filterName = trim((string) ($_GET['package_name'] ?? ''));
+$filterDurationMin = trim((string) ($_GET['duration_min'] ?? ''));
+$filterDurationMax = trim((string) ($_GET['duration_max'] ?? ''));
+$filterPriceMin = trim((string) ($_GET['price_min'] ?? ''));
+$filterPriceMax = trim((string) ($_GET['price_max'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
 
-$result = $conn->query($sql);
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') {
+  $whereClauses[] = 'package_name LIKE ?';
+  $whereParams[] = '%' . $filterName . '%';
+}
+if ($filterDurationMin !== '' && is_numeric($filterDurationMin)) {
+  $whereClauses[] = 'duration_months >= ?';
+  $whereParams[] = (int) $filterDurationMin;
+}
+if ($filterDurationMax !== '' && is_numeric($filterDurationMax)) {
+  $whereClauses[] = 'duration_months <= ?';
+  $whereParams[] = (int) $filterDurationMax;
+}
+if ($filterPriceMin !== '' && is_numeric($filterPriceMin)) {
+  $whereClauses[] = 'price >= ?';
+  $whereParams[] = (float) $filterPriceMin;
+}
+if ($filterPriceMax !== '' && is_numeric($filterPriceMax)) {
+  $whereClauses[] = 'price <= ?';
+  $whereParams[] = (float) $filterPriceMax;
+}
+if ($filterStatus !== '') {
+  $whereClauses[] = 'status = ?';
+  $whereParams[] = $filterStatus;
+}
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
+$sql = "SELECT id, package_name, duration_months, price, description, status 
+        FROM membership_packages" . $whereSql . " ORDER BY id DESC";
+
+$stmt = $conn->prepare($sql);
+$stmt->execute($whereParams);
+$result = $stmt->get_result();
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -49,6 +85,53 @@ $result = $conn->query($sql);
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'packages.php';
+          $filterFieldsHtml = '
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Tên gói</label>
+                <input type="text" name="package_name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Nhập tên gói">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Thời hạn từ</label>
+                <input type="number" name="duration_min" class="form-control" min="0" value="' . htmlspecialchars($filterDurationMin) . '" placeholder=">=">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Thời hạn đến</label>
+                <input type="number" name="duration_max" class="form-control" min="0" value="' . htmlspecialchars($filterDurationMax) . '" placeholder="<=">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Giá từ</label>
+                <input type="number" name="price_min" class="form-control" min="0" value="' . htmlspecialchars($filterPriceMin) . '" placeholder=">=">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Giá đến</label>
+                <input type="number" name="price_max" class="form-control" min="0" value="' . htmlspecialchars($filterPriceMax) . '" placeholder="<=">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Trạng thái</label>
+                <select name="status" class="form-control">
+                  <option value="">-- Tất cả trạng thái --</option>
+                  <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option>
+                  <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option>
+                </select>
+              </div>
+            </div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
@@ -61,7 +144,7 @@ $result = $conn->query($sql);
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

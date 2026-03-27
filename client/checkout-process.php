@@ -210,8 +210,8 @@ try {
     $stmt_order->close();
 
     $stmt_item = $conn->prepare("
-        INSERT INTO order_items (order_id, item_type, item_id, item_name, price, quantity) 
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO order_items (order_id, item_type, item_id, item_name, price, quantity, discount) 
+           VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
     
     $stmt_update_stock = $conn->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
@@ -222,8 +222,14 @@ try {
         $item_id = (int) $item['item_id'];
         $item_name = $item['item_name'];
         $item_quantity = (int) $item['quantity'];
+        $discount_amount = 0;
 
-        $stmt_item->bind_param("isisdi", $order_id, $item_type, $item_id, $item_name, $price_to_save, $item_quantity);
+        if ($item_type === 'product') {
+            $original_price = isset($item['selling_price']) ? (float) $item['selling_price'] : 0;
+            $discount_amount = max(0, round(($original_price - $price_to_save) * $item_quantity, 2));
+        }
+
+        $stmt_item->bind_param("isisdid", $order_id, $item_type, $item_id, $item_name, $price_to_save, $item_quantity, $discount_amount);
         $stmt_item->execute();
 
         if ($item_type === 'product') {

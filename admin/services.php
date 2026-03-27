@@ -17,6 +17,23 @@ include '../includes/functions.php';
 
 $db = getDB();
 
+$filterName = trim((string) ($_GET['name'] ?? ''));
+$filterType = trim((string) ($_GET['type'] ?? ''));
+$filterPriceMin = trim((string) ($_GET['price_min'] ?? ''));
+$filterPriceMax = trim((string) ($_GET['price_max'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$serviceTypesFilter = $db->query("SELECT DISTINCT type FROM services WHERE type IS NOT NULL AND type <> '' ORDER BY type ASC")->fetchAll(PDO::FETCH_COLUMN);
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') { $whereClauses[] = 'name LIKE ?'; $whereParams[] = '%' . $filterName . '%'; }
+if ($filterType !== '') { $whereClauses[] = 'type = ?'; $whereParams[] = $filterType; }
+if ($filterPriceMin !== '' && is_numeric($filterPriceMin)) { $whereClauses[] = 'price >= ?'; $whereParams[] = (float) $filterPriceMin; }
+if ($filterPriceMax !== '' && is_numeric($filterPriceMax)) { $whereClauses[] = 'price <= ?'; $whereParams[] = (float) $filterPriceMax; }
+if ($filterStatus !== '') { $whereClauses[] = 'status = ?'; $whereParams[] = $filterStatus; }
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
 function processServiceImageUpload($fileInputName, $existingPath = null) {
   if (!isset($_FILES[$fileInputName]) || !is_array($_FILES[$fileInputName])) {
     return $existingPath;
@@ -146,7 +163,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Lấy danh sách dịch vụ
-$stmt = $db->query("SELECT * FROM services ORDER BY id DESC");
+$stmt = $db->prepare("SELECT * FROM services" . $whereSql . " ORDER BY id DESC");
+$stmt->execute($whereParams);
 $services = $stmt->fetchAll();
 
 // Lấy flash message
@@ -178,6 +196,23 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'services.php';
+          $filterFieldsHtml = '
+            <div class="col-md-2"><div class="form-group mb-0"><label>Tên DV</label><input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Tên dịch vụ"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Loại</label><select name="type" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($serviceTypesFilter as $serviceTypeOption) {
+            $selected = $filterType === $serviceTypeOption ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . htmlspecialchars($serviceTypeOption) . '" ' . $selected . '>' . htmlspecialchars($serviceTypeOption) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Giá từ</label><input type="number" name="price_min" class="form-control" min="0" value="' . htmlspecialchars($filterPriceMin) . '" placeholder=">="></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Giá đến</label><input type="number" name="price_max" class="form-control" min="0" value="' . htmlspecialchars($filterPriceMax) . '" placeholder="<="></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="hoạt động" ' . ($filterStatus === 'hoạt động' ? 'selected' : '') . '>Hoạt động</option><option value="không hoạt động" ' . ($filterStatus === 'không hoạt động' ? 'selected' : '') . '>Không hoạt động</option></select></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
 
         <!-- Thông báo -->
         <?php if ($flash): ?>
@@ -199,7 +234,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

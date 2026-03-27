@@ -37,7 +37,7 @@ if ($result_order->num_rows == 0) {
 }
 
 $order = $result_order->fetch_assoc();
-$sql_items = "SELECT oi.id AS item_id, oi.item_type, oi.item_name, oi.quantity, oi.price, oi.discount, oi.subtotal
+$sql_items = "SELECT oi.id AS item_id, oi.item_type, oi.item_name, oi.quantity, oi.price, COALESCE(oi.discount, 0) AS discount, oi.subtotal
               FROM order_items oi
               WHERE oi.order_id = $order_id";
 $result_items = $conn->query($sql_items);
@@ -112,7 +112,7 @@ $result_items = $conn->query($sql_items);
                             
                             $price = $item['price'];
                             $quantity = $item['quantity'];
-                            $discount = $item['discount'];
+                            $discount = (float) ($item['discount'] ?? 0);
                             $subtotal = $item['subtotal'];
                             
                             echo "<tr>";

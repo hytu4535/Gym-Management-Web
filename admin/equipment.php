@@ -19,6 +19,21 @@ include 'layout/header.php';
 include 'layout/sidebar.php';
 
 $db = getDB();
+
+$filterName = trim((string) ($_GET['name'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') {
+  $whereClauses[] = 'name LIKE ?';
+  $whereParams[] = '%' . $filterName . '%';
+}
+if ($filterStatus !== '') {
+  $whereClauses[] = 'status = ?';
+  $whereParams[] = $filterStatus;
+}
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -43,6 +58,30 @@ $db = getDB();
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'equipment.php';
+          $filterFieldsHtml = '
+            <div class="col-md-6">
+              <div class="form-group mb-0">
+                <label>Tên thiết bị</label>
+                <input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Nhập tên thiết bị">
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="form-group mb-0">
+                <label>Tình trạng</label>
+                <select name="status" class="form-control">
+                  <option value="">-- Tất cả tình trạng --</option>
+                  <option value="dang su dung" ' . ($filterStatus === 'dang su dung' ? 'selected' : '') . '>Đang sử dụng</option>
+                  <option value="bao tri" ' . ($filterStatus === 'bao tri' ? 'selected' : '') . '>Bảo trì</option>
+                  <option value="ngung hoat dong" ' . ($filterStatus === 'ngung hoat dong' ? 'selected' : '') . '>Ngừng hoạt động</option>
+                </select>
+              </div>
+            </div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
@@ -55,7 +94,7 @@ $db = getDB();
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>
@@ -69,7 +108,8 @@ $db = getDB();
                   <?php
                   require_once '../includes/functions.php';
                   $db = getDB();
-                  $stmt = $db->query("SELECT * FROM equipment ORDER BY id DESC");
+                  $stmt = $db->prepare("SELECT * FROM equipment" . $whereSql . " ORDER BY id DESC");
+                  $stmt->execute($whereParams);
                   $equipments = $stmt->fetchAll();
                   foreach ($equipments as $equipment): ?>
                   <tr>

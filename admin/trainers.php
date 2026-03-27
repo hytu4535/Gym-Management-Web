@@ -101,6 +101,20 @@ function isTrainerRoleUser(array $user, array $trainerRoleIds)
 $trainerRoleIds = getTrainerRoleIds($db);
 $trainerUsers = loadTrainerUsers($db, $trainerRoleIds);
 $trainerHasUsersIdColumn = hasTableColumn($db, 'trainers', 'users_id');
+$filterName = trim((string) ($_GET['name'] ?? ''));
+$filterType = trim((string) ($_GET['type'] ?? ''));
+$filterPhone = trim((string) ($_GET['phone'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$trainerTypesFilter = $db->query("SELECT DISTINCT type FROM trainers WHERE type IS NOT NULL AND type <> '' ORDER BY type ASC")->fetchAll(PDO::FETCH_COLUMN);
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') { $whereClauses[] = 't.full_name LIKE ?'; $whereParams[] = '%' . $filterName . '%'; }
+if ($filterType !== '') { $whereClauses[] = 't.type = ?'; $whereParams[] = $filterType; }
+if ($filterPhone !== '') { $whereClauses[] = 't.phone LIKE ?'; $whereParams[] = '%' . $filterPhone . '%'; }
+if ($filterStatus !== '') { $whereClauses[] = 't.status = ?'; $whereParams[] = $filterStatus; }
+$trainerWhereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
 
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -234,10 +248,12 @@ $trainerUserJoinSql = $trainerHasUsersIdColumn
   ? "LEFT JOIN users u ON u.id = t.users_id"
   : "";
 
-$stmt = $db->query("SELECT t.*, $trainerSelectUsersIdSql, $trainerSelectUserLabelSql
+$stmt = $db->prepare("SELECT t.*, $trainerSelectUsersIdSql, $trainerSelectUserLabelSql
                     FROM trainers t
                     $trainerUserJoinSql
+                    $trainerWhereSql
                     ORDER BY t.id DESC");
+$stmt->execute($whereParams);
 $trainers = $stmt->fetchAll();
 
 // Lấy flash message
@@ -269,6 +285,22 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'trainers.php';
+          $filterFieldsHtml = '
+            <div class="col-md-3"><div class="form-group mb-0"><label>Họ tên</label><input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Họ tên HLV"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Loại</label><select name="type" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($trainerTypesFilter as $trainerTypeOption) {
+            $selected = $filterType === $trainerTypeOption ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . htmlspecialchars($trainerTypeOption) . '" ' . $selected . '>' . htmlspecialchars($trainerTypeOption) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>SĐT</label><input type="text" name="phone" class="form-control" value="' . htmlspecialchars($filterPhone) . '" placeholder="Số điện thoại"></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="hoạt động" ' . ($filterStatus === 'hoạt động' ? 'selected' : '') . '>Hoạt động</option><option value="nghỉ việc" ' . ($filterStatus === 'nghỉ việc' ? 'selected' : '') . '>Nghỉ việc</option></select></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
 
         <!-- Thông báo -->
         <?php if ($flash): ?>
@@ -290,7 +322,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

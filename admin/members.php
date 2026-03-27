@@ -99,14 +99,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+// Bộ lọc danh sách
+$filterName = trim((string) ($_GET['name'] ?? ''));
+$filterEmail = trim((string) ($_GET['email'] ?? ''));
+$filterPhone = trim((string) ($_GET['phone'] ?? ''));
+$filterTier = trim((string) ($_GET['tier_id'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') { $whereClauses[] = 'm.full_name LIKE ?'; $whereParams[] = '%' . $filterName . '%'; }
+if ($filterEmail !== '') { $whereClauses[] = 'u.email LIKE ?'; $whereParams[] = '%' . $filterEmail . '%'; }
+if ($filterPhone !== '') { $whereClauses[] = '(u.phone LIKE ? OR m.phone LIKE ?)'; $whereParams[] = '%' . $filterPhone . '%'; $whereParams[] = '%' . $filterPhone . '%'; }
+if ($filterTier !== '' && ctype_digit($filterTier)) { $whereClauses[] = 'm.tier_id = ?'; $whereParams[] = (int) $filterTier; }
+if ($filterStatus !== '') { $whereClauses[] = 'm.status = ?'; $whereParams[] = $filterStatus; }
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
 // Lấy danh sách hội viên
-$stmt = $db->query("SELECT m.*, u.email, u.phone AS user_phone, t.name as tier_name, t.level as tier_level 
+$stmt = $db->prepare("SELECT m.*, u.email, u.phone AS user_phone, t.name as tier_name, t.level as tier_level 
                     FROM members m 
                     LEFT JOIN users u ON m.users_id = u.id 
-                    LEFT JOIN member_tiers t ON m.tier_id = t.id 
-                    ORDER BY m.id DESC");
+                    LEFT JOIN member_tiers t ON m.tier_id = t.id" . $whereSql . " ORDER BY m.id DESC");
+$stmt->execute($whereParams);
 $members = $stmt->fetchAll();
 $usedUserIds = array_map('intval', array_column($members, 'users_id'));
+
+$tiersFilter = $db->query("SELECT id, name FROM member_tiers ORDER BY level ASC")->fetchAll();
 
 // Lấy danh sách users cho form
 $users = $db->query("SELECT id, username, full_name, email, phone FROM users ORDER BY email ASC")->fetchAll();
@@ -137,6 +155,23 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'members.php';
+          $filterFieldsHtml = '
+            <div class="col-md-2"><div class="form-group mb-0"><label>Họ tên</label><input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Họ tên"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Email</label><input type="text" name="email" class="form-control" value="' . htmlspecialchars($filterEmail) . '" placeholder="Email"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Số điện thoại</label><input type="text" name="phone" class="form-control" value="' . htmlspecialchars($filterPhone) . '" placeholder="SĐT"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Hạng HV</label><select name="tier_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($tiersFilter as $tierOption) {
+            $selected = $filterTier !== '' && (int) $filterTier === (int) $tierOption['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $tierOption['id'] . '" ' . $selected . '>' . htmlspecialchars($tierOption['name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Hoạt động</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Không hoạt động</option></select></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <?php if ($message): ?>
         <div class="alert alert-<?php echo $messageType; ?> alert-dismissible fade show">
           <?php echo $message; ?>
@@ -156,7 +191,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table id="memberTable" class="table table-bordered table-striped">
+                <table id="memberTable" class="table table-bordered table-striped js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

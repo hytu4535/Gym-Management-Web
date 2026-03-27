@@ -17,6 +17,31 @@ include '../includes/functions.php';
 
 $db = getDB();
 
+$filterMemberId = trim((string) ($_GET['member_id'] ?? ''));
+$filterTrainerId = trim((string) ($_GET['trainer_id'] ?? ''));
+$filterFromDate = trim((string) ($_GET['from_date'] ?? ''));
+$filterToDate = trim((string) ($_GET['to_date'] ?? ''));
+
+$scheduleWhereClauses = [];
+$scheduleParams = [];
+if ($filterMemberId !== '') {
+  $scheduleWhereClauses[] = 'ts.member_id = ?';
+  $scheduleParams[] = (int) $filterMemberId;
+}
+if ($filterTrainerId !== '') {
+  $scheduleWhereClauses[] = 'ts.trainer_id = ?';
+  $scheduleParams[] = (int) $filterTrainerId;
+}
+if ($filterFromDate !== '') {
+  $scheduleWhereClauses[] = 'DATE(ts.training_date) >= ?';
+  $scheduleParams[] = $filterFromDate;
+}
+if ($filterToDate !== '') {
+  $scheduleWhereClauses[] = 'DATE(ts.training_date) <= ?';
+  $scheduleParams[] = $filterToDate;
+}
+$scheduleWhereSql = !empty($scheduleWhereClauses) ? ' WHERE ' . implode(' AND ', $scheduleWhereClauses) : '';
+
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
@@ -76,15 +101,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Lấy danh sách lịch tập kèm tên hội viên và HLV
-$stmt = $db->query("
-    SELECT ts.*, 
-           m.full_name AS member_name, 
-           t.full_name AS trainer_name
-    FROM training_schedules ts
-    LEFT JOIN members m ON ts.member_id = m.id
-    LEFT JOIN trainers t ON ts.trainer_id = t.id
-    ORDER BY ts.training_date DESC
+$stmt = $db->prepare(" 
+  SELECT ts.*, 
+       m.full_name AS member_name, 
+       t.full_name AS trainer_name
+  FROM training_schedules ts
+  LEFT JOIN members m ON ts.member_id = m.id
+  LEFT JOIN trainers t ON ts.trainer_id = t.id" . $scheduleWhereSql . "
+  ORDER BY ts.training_date DESC
 ");
+$stmt->execute($scheduleParams);
 $schedules = $stmt->fetchAll();
 
 // Lấy danh sách hội viên (active) cho dropdown
@@ -124,6 +150,27 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'training-schedules.php';
+          $filterFieldsHtml = '
+            <div class="col-md-3"><div class="form-group mb-0"><label>Hội viên</label><select name="member_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($members as $member) {
+            $selected = (string) $filterMemberId === (string) $member['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $member['id'] . '" ' . $selected . '>' . htmlspecialchars($member['full_name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>HLV</label><select name="trainer_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($trainers as $trainer) {
+            $selected = (string) $filterTrainerId === (string) $trainer['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $trainer['id'] . '" ' . $selected . '>' . htmlspecialchars($trainer['full_name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Từ ngày</label><input type="date" name="from_date" class="form-control" value="' . htmlspecialchars($filterFromDate) . '"></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Đến ngày</label><input type="date" name="to_date" class="form-control" value="' . htmlspecialchars($filterToDate) . '"></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
 
         <!-- Thông báo -->
         <?php if ($flash): ?>
@@ -187,7 +234,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

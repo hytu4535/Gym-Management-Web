@@ -22,8 +22,33 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
-$usageStmt = $db->query("SELECT pu.id, pu.member_id, pu.promotion_id, pu.order_id, pu.applied_amount, pu.applied_at, m.full_name AS member_name, mt.name AS tier_name, tp.name AS promotion_name FROM promotion_usage pu INNER JOIN members m ON m.id = pu.member_id LEFT JOIN member_tiers mt ON mt.id = m.tier_id INNER JOIN tier_promotions tp ON tp.id = pu.promotion_id ORDER BY pu.applied_at DESC, pu.id DESC");
+$filterMemberId = trim((string) ($_GET['member_id'] ?? ''));
+$filterTierId = trim((string) ($_GET['tier_id'] ?? ''));
+$filterPromotionId = trim((string) ($_GET['promotion_id'] ?? ''));
+$filterAmountMin = trim((string) ($_GET['amount_min'] ?? ''));
+$filterAmountMax = trim((string) ($_GET['amount_max'] ?? ''));
+$filterFromDate = trim((string) ($_GET['from_date'] ?? ''));
+$filterToDate = trim((string) ($_GET['to_date'] ?? ''));
+
+$promotionUsageWhereClauses = [];
+$promotionUsageParams = [];
+if ($filterMemberId !== '') { $promotionUsageWhereClauses[] = 'pu.member_id = ?'; $promotionUsageParams[] = (int) $filterMemberId; }
+if ($filterTierId !== '') { $promotionUsageWhereClauses[] = 'm.tier_id = ?'; $promotionUsageParams[] = (int) $filterTierId; }
+if ($filterPromotionId !== '') { $promotionUsageWhereClauses[] = 'pu.promotion_id = ?'; $promotionUsageParams[] = (int) $filterPromotionId; }
+if ($filterAmountMin !== '' && is_numeric($filterAmountMin)) { $promotionUsageWhereClauses[] = 'pu.applied_amount >= ?'; $promotionUsageParams[] = (float) $filterAmountMin; }
+if ($filterAmountMax !== '' && is_numeric($filterAmountMax)) { $promotionUsageWhereClauses[] = 'pu.applied_amount <= ?'; $promotionUsageParams[] = (float) $filterAmountMax; }
+if ($filterFromDate !== '') { $promotionUsageWhereClauses[] = 'DATE(pu.applied_at) >= ?'; $promotionUsageParams[] = $filterFromDate; }
+if ($filterToDate !== '') { $promotionUsageWhereClauses[] = 'DATE(pu.applied_at) <= ?'; $promotionUsageParams[] = $filterToDate; }
+$promotionUsageWhereSql = !empty($promotionUsageWhereClauses) ? ' WHERE ' . implode(' AND ', $promotionUsageWhereClauses) : '';
+
+$usageSql = "SELECT pu.id, pu.member_id, pu.promotion_id, pu.order_id, pu.applied_amount, pu.applied_at, m.full_name AS member_name, mt.name AS tier_name, tp.name AS promotion_name FROM promotion_usage pu INNER JOIN members m ON m.id = pu.member_id LEFT JOIN member_tiers mt ON mt.id = m.tier_id INNER JOIN tier_promotions tp ON tp.id = pu.promotion_id" . $promotionUsageWhereSql . " ORDER BY pu.applied_at DESC, pu.id DESC";
+$usageStmt = $db->prepare($usageSql);
+$usageStmt->execute($promotionUsageParams);
 $promotionUsages = $usageStmt->fetchAll();
+
+$members = $db->query("SELECT id, full_name FROM members ORDER BY full_name ASC")->fetchAll();
+$tiers = $db->query("SELECT id, name FROM member_tiers ORDER BY level ASC")->fetchAll();
+$promotions = $db->query("SELECT id, name FROM tier_promotions ORDER BY id DESC")->fetchAll();
 
 ?>
 
@@ -49,6 +74,35 @@ $promotionUsages = $usageStmt->fetchAll();
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'promotion-usage.php';
+          $filterFieldsHtml = '
+            <div class="col-md-3"><div class="form-group mb-0"><label>Hội viên</label><select name="member_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($members as $member) {
+            $selected = (string) $filterMemberId === (string) $member['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $member['id'] . '" ' . $selected . '>' . htmlspecialchars($member['full_name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Hạng</label><select name="tier_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($tiers as $tier) {
+            $selected = (string) $filterTierId === (string) $tier['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $tier['id'] . '" ' . $selected . '>' . htmlspecialchars($tier['name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Khuyến mãi</label><select name="promotion_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($promotions as $promotion) {
+            $selected = (string) $filterPromotionId === (string) $promotion['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $promotion['id'] . '" ' . $selected . '>' . htmlspecialchars($promotion['name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Số tiền từ</label><input type="number" name="amount_min" class="form-control" min="0" value="' . htmlspecialchars($filterAmountMin) . '" placeholder=">="></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Số tiền đến</label><input type="number" name="amount_max" class="form-control" min="0" value="' . htmlspecialchars($filterAmountMax) . '" placeholder="<="></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Từ ngày</label><input type="date" name="from_date" class="form-control" value="' . htmlspecialchars($filterFromDate) . '"></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Đến ngày</label><input type="date" name="to_date" class="form-control" value="' . htmlspecialchars($filterToDate) . '"></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
@@ -56,7 +110,7 @@ $promotionUsages = $usageStmt->fetchAll();
                 <h3 class="card-title">Danh sách Sử Dụng Khuyến Mãi</h3>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table" id="promotionUsageTable">
                   <thead>
                   <tr>
                     <th>ID</th>

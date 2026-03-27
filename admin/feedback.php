@@ -16,6 +16,9 @@ checkPermission('MANAGE_FEEDBACK');
 require_once '../config/db.php';
 require_once '../includes/functions.php';
 
+$filterKeyword = trim((string) ($_GET['keyword'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
 // Handle AJAX actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -68,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Get all feedback
-$feedback = getAllFeedback();
+$feedback = getAllFeedback($filterStatus !== '' ? $filterStatus : null);
 
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
@@ -110,6 +113,15 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+                <?php
+                    $filterMode = 'server';
+                    $filterAction = 'feedback.php';
+                    $filterFieldsHtml = '
+                        <div class="col-md-4"><div class="form-group mb-0"><label>Từ khóa</label><input type="text" name="keyword" class="form-control" value="' . htmlspecialchars($filterKeyword) . '" placeholder="Tên thành viên / nội dung / người phản hồi"></div></div>
+                        <div class="col-md-3"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="new" ' . ($filterStatus === 'new' ? 'selected' : '') . '>Mới</option><option value="processing" ' . ($filterStatus === 'processing' ? 'selected' : '') . '>Đang xử lý</option><option value="processed" ' . ($filterStatus === 'processed' ? 'selected' : '') . '>Đã xử lý</option><option value="closed" ' . ($filterStatus === 'closed' ? 'selected' : '') . '>Đã đóng</option></select></div></div>
+                    ';
+                    include 'layout/filter-card.php';
+                ?>
         <div class="row">
           <div class="col-12">
                         <div class="card card-outline card-primary">
@@ -118,7 +130,7 @@ include 'layout/sidebar.php';
               </div>
               <div class="card-body">
                                 <div class="table-responsive">
-                                <table class="table table-bordered table-striped" id="feedbackTable">
+                                <table class="table table-bordered table-striped js-admin-table" id="feedbackTable">
                                     <thead>
                   <tr>
                     <th style="width: 50px;">ID</th>

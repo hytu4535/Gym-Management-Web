@@ -257,6 +257,7 @@ include 'layout/sidebar.php';
 
       <div class="row">
         <div class="col-12">
+          <?php include 'layout/filter-card.php'; ?>
           <div class="card">
             <div class="card-header">
               <h3 class="card-title">Danh sách lớp tập</h3>
@@ -267,7 +268,7 @@ include 'layout/sidebar.php';
               </div>
             </div>
             <div class="card-body">
-              <table class="table table-bordered table-striped data-table">
+              <table class="table table-bordered table-striped data-table js-admin-table">
                 <thead>
                   <tr>
                     <th>ID</th>

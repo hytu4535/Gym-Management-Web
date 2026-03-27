@@ -1,103 +1,246 @@
 <?php
-session_start(); // luôn khởi tạo session
-
+session_start();
 $page_title = "Quản lý Staff";
 
-// kiểm tra đăng nhập
 include '../includes/auth.php';
-
-// kết nối DB và kiểm tra quyền
 include '../includes/database.php';
 include '../includes/auth_permission.php';
-
-// chỉ cho phép user có quyền MANAGE_STAFF
 checkPermission('MANAGE_STAFF');
 
-// layout chung
-include 'layout/header.php'; 
+include 'layout/header.php';
 include 'layout/sidebar.php';
+
+require_once '../config/db.php';
+
+// Lấy danh sách staff + user liên kết
+$filterName = trim((string) ($_GET['name'] ?? ''));
+$filterPosition = trim((string) ($_GET['position'] ?? ''));
+$filterAccount = trim((string) ($_GET['account'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') { $whereClauses[] = "s.full_name LIKE '%" . $conn->real_escape_string($filterName) . "%'"; }
+if ($filterPosition !== '') { $whereClauses[] = "s.position LIKE '%" . $conn->real_escape_string($filterPosition) . "%'"; }
+if ($filterAccount !== '') {
+  $escapedAccount = $conn->real_escape_string($filterAccount);
+  $whereClauses[] = "(u.username LIKE '%" . $escapedAccount . "%' OR u.email LIKE '%" . $escapedAccount . "%')";
+}
+if ($filterStatus !== '') { $whereClauses[] = "s.status = '" . $conn->real_escape_string($filterStatus) . "'"; }
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
+$sql = "SELECT s.id, s.full_name, s.position, s.status, u.id as users_id, u.username, u.email 
+  FROM staff s 
+  LEFT JOIN users u ON s.users_id = u.id" . $whereSql . " ORDER BY s.id DESC";
+$result = $conn->query($sql);
 ?>
 
-  <!-- Content Wrapper. Contains page content -->
-  <div class="content-wrapper">
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-      <div class="container-fluid">
-        <div class="row mb-2">
-          <div class="col-sm-6">
-            <h1 class="m-0">Quản lý Staff</h1>
+<div class="content-wrapper">
+  <div class="content-header">
+    <div class="container-fluid">
+      <h1 class="m-0">Quản lý Staff</h1>
+    </div>
+  </div>
+
+  <section class="content">
+    <div class="container-fluid">
+      <?php
+        $filterMode = 'server';
+        $filterAction = 'staff.php';
+        $filterFieldsHtml = '
+          <div class="col-md-3"><div class="form-group mb-0"><label>Họ tên</label><input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Nhập họ tên"></div></div>
+          <div class="col-md-3"><div class="form-group mb-0"><label>Chức vụ</label><input type="text" name="position" class="form-control" value="' . htmlspecialchars($filterPosition) . '" placeholder="Nhập chức vụ"></div></div>
+          <div class="col-md-3"><div class="form-group mb-0"><label>Tài khoản / Email</label><input type="text" name="account" class="form-control" value="' . htmlspecialchars($filterAccount) . '" placeholder="Nhập username hoặc email"></div></div>
+          <div class="col-md-3"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả trạng thái --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option></select></div></div>
+        ';
+        include 'layout/filter-card.php';
+      ?>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Danh sách Staff</h3>
+          <div class="card-tools">
+            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addStaffModal">
+                <i class="fas fa-plus"></i> Thêm Staff
+            </button>
           </div>
-          <div class="col-sm-6">
-            <ol class="breadcrumb float-sm-right">
-              <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item active">Staff</li>
-            </ol>
-          </div>
+        </div>
+        <div class="card-body">
+          <table class="table table-bordered table-striped data-table js-admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Họ tên</th>
+                <th>Chức vụ</th>
+                <th>User liên kết</th>
+                <th>Trạng thái</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php 
+              if ($result && $result->num_rows > 0) {
+                while($row = $result->fetch_assoc()) {
+                if ($row['status'] == 'active') {
+                    $statusBadge = '<span class="badge badge-pill badge-success">
+                                      <i class="fas fa-check-circle"></i> Đang làm việc
+                                    </span>';
+                } else {
+                    $statusBadge = '<span class="badge badge-pill badge-danger">
+                                      <i class="fas fa-times-circle"></i> Ngừng hoạt động
+                                    </span>';
+                }
+
+                  $userInfo = $row['username'] ? $row['username']." (".$row['email'].")" : "<i>Chưa liên kết</i>";
+
+                  echo "<tr>";
+                  echo "  <td>{$row['id']}</td>";
+                  echo "  <td class='font-weight-bold text-primary'>{$row['full_name']}</td>";
+                  echo "  <td>{$row['position']}</td>";
+                  echo "  <td>{$userInfo}</td>";
+                  echo "  <td>{$statusBadge}</td>";
+                  echo "  <td>
+                            <button class='btn btn-warning btn-sm' data-toggle='modal' 
+                                    data-target='#editStaffModal{$row['id']}'>
+                              <i class='fas fa-edit'></i>
+                            </button>
+                            <a href='process/staff_management.php?action=delete&id={$row['id']}' 
+                               class='btn btn-danger btn-sm' 
+                               onclick=\"return confirm('Xóa staff này?');\">
+                              <i class='fas fa-trash'></i>
+                            </a>
+                          </td>";
+                  echo "</tr>";
+
+                  // Modal edit cho từng staff
+                  echo "
+                  <div class='modal fade' id='editStaffModal{$row['id']}' tabindex='-1'>
+                    <div class='modal-dialog modal-lg'>
+                      <div class='modal-content'>
+                        <div class='modal-header'>
+                          <h5 class='modal-title'>Chỉnh sửa Staff</h5>
+                          <button type='button' class='close' data-dismiss='modal'>&times;</button>
+                        </div>
+                        <form action='process/staff_management.php' method='POST'>
+                          <input type='hidden' name='action' value='edit'>
+                          <input type='hidden' name='id' value='{$row['id']}'>
+                          <input type='hidden' name='users_id' value='{$row['users_id']}'>
+                          <div class='modal-body'>
+                            <div class='form-group'>
+                              <label>Họ tên</label>
+                              <input type='text' class='form-control' name='full_name' value='".htmlspecialchars($row['full_name'])."' required>
+                            </div>
+                            <div class='form-group'>
+                              <label>Chức vụ</label>
+                              <input type='text' class='form-control' name='position' value='".htmlspecialchars($row['position'])."' required>
+                            </div>
+                            <div class='form-group'>
+                              <label>Trạng thái</label>
+                              <select class='form-control' name='status'>
+                                <option value='Active' ".($row['status']=='Active'?'selected':'').">Active</option>
+                                <option value='Inactive' ".($row['status']=='Inactive'?'selected':'').">Inactive</option>
+                              </select>
+                            </div>
+                            <hr>
+                            <h6>Tài khoản User liên kết</h6>
+                            <div class='form-group'>
+                              <label>Username</label>
+                              <input type='text' class='form-control' name='username' value='".htmlspecialchars($row['username'])."'>
+                            </div>
+                            <div class='form-group'>
+                              <label>Email</label>
+                              <input type='email' class='form-control' name='email' value='".htmlspecialchars($row['email'])."'>
+                            </div>
+                          </div>
+                          <div class='modal-footer'>
+                            <button type='button' class='btn btn-secondary' data-dismiss='modal'>Đóng</button>
+                            <button type='submit' class='btn btn-primary'>Cập nhật</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>";
+                }
+              } else {
+                echo "<tr><td colspan='6' class='text-center'>Chưa có staff nào.</td></tr>";
+              }
+              ?>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
+  </section>
+</div>
 
-    <!-- Main content -->
-    <section class="content">
-      <div class="container-fluid">
-        <div class="row">
-          <div class="col-12">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">Danh sách Staff</h3>
-                <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm">
-                    <i class="fas fa-plus"></i> Thêm Staff
-                  </button>
-                </div>
-              </div>
-              <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
-                  <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Họ tên</th>
-                    <th>Email</th>
-                    <th>SĐT</th>
-                    <th>Chức vụ</th>
-                    <th>Trạng thái</th>
-                    <th>Hành động</th>
-                  </tr>
-                  </thead>
-                  <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>Lê Văn C</td>
-                    <td>staff1@gym.com</td>
-                    <td>0923456789</td>
-                    <td>Lễ tân</td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>Phạm Thị D</td>
-                    <td>staff2@gym.com</td>
-                    <td>0934567890</td>
-                    <td>Quản lý</td>
-                    <td><span class="badge badge-success">Active</span></td>
-                    <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-warning btn-sm"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-danger btn-sm"><i class="fas fa-trash"></i></button>
-                    </td>
-                  </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+<!-- Modal thêm staff -->
+<div class="modal fade" id="addStaffModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Thêm Staff Mới</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <form action="process/staff_management.php" method="POST">
+        <input type="hidden" name="action" value="add">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Họ tên</label>
+            <input type="text" class="form-control" name="full_name" required>
+          </div>
+          <div class="form-group">
+            <label>Chức vụ</label>
+            <input type="text" class="form-control" name="position" required>
+          </div>
+          <div class="form-group">
+            <label>Trạng thái</label>
+            <select class="form-control" name="status">
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+          <hr>
+          <h6>Tài khoản User mới</h6>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" class="form-control" name="username" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" class="form-control" name="password" required>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" class="form-control" name="email" required>
           </div>
         </div>
-      </div>
-    </section>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary">Lưu Staff</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <?php include 'layout/footer.php'; ?>
+
+<!-- Khởi tạo DataTables -->
+<script>
+  if ($.fn.DataTable.isDataTable('.data-table')) {
+    $('.data-table').DataTable().destroy();
+  }
+  $(document).ready(function() {
+    if ($.fn.DataTable.isDataTable('.data-table')) {
+      $('.data-table').DataTable().destroy();
+    }
+    $('.data-table').DataTable({
+      "paging": true,
+      "lengthChange": true,
+      "searching": true,
+      "ordering": true,
+      "info": true,
+      "autoWidth": false,
+      "responsive": true
+    });
+  });
+</script>

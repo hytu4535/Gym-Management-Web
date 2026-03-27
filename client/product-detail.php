@@ -37,25 +37,30 @@ $review_count = 0;
 $review_avg = 0.0;
 $rating = isset($product['rating']) ? (float) $product['rating'] : 0.0;
 $review_items = [];
+$hasReviewTable = false;
+$reviewTableCheck = $conn->query("SHOW TABLES LIKE 'product_reviews'");
+if ($reviewTableCheck && $reviewTableCheck->num_rows > 0) {
+    $hasReviewTable = true;
 
-$stmt_review_stats = $conn->prepare("SELECT COUNT(*) AS review_count, ROUND(AVG(rating), 1) AS avg_rating FROM product_reviews WHERE product_id = ? AND status = 'approved'");
-$stmt_review_stats->bind_param('i', $product_id);
-$stmt_review_stats->execute();
-$review_stats_result = $stmt_review_stats->get_result();
-if ($review_stats_result && ($review_stats = $review_stats_result->fetch_assoc())) {
-    $review_count = (int) ($review_stats['review_count'] ?? 0);
-    $review_avg = (float) ($review_stats['avg_rating'] ?? 0);
-}
-$stmt_review_stats->close();
+    $stmt_review_stats = $conn->prepare("SELECT COUNT(*) AS review_count, ROUND(AVG(rating), 1) AS avg_rating FROM product_reviews WHERE product_id = ? AND status = 'approved'");
+    $stmt_review_stats->bind_param('i', $product_id);
+    $stmt_review_stats->execute();
+    $review_stats_result = $stmt_review_stats->get_result();
+    if ($review_stats_result && ($review_stats = $review_stats_result->fetch_assoc())) {
+        $review_count = (int) ($review_stats['review_count'] ?? 0);
+        $review_avg = (float) ($review_stats['avg_rating'] ?? 0);
+    }
+    $stmt_review_stats->close();
 
-$stmt_review_items = $conn->prepare("SELECT pr.rating, pr.content, pr.created_at, m.full_name FROM product_reviews pr JOIN members m ON m.id = pr.member_id WHERE pr.product_id = ? AND pr.status = 'approved' ORDER BY pr.created_at DESC LIMIT 6");
-$stmt_review_items->bind_param('i', $product_id);
-$stmt_review_items->execute();
-$review_items_result = $stmt_review_items->get_result();
-while ($review_row = $review_items_result->fetch_assoc()) {
-    $review_items[] = $review_row;
+    $stmt_review_items = $conn->prepare("SELECT pr.rating, pr.content, pr.created_at, m.full_name FROM product_reviews pr JOIN members m ON m.id = pr.member_id WHERE pr.product_id = ? AND pr.status = 'approved' ORDER BY pr.created_at DESC LIMIT 6");
+    $stmt_review_items->bind_param('i', $product_id);
+    $stmt_review_items->execute();
+    $review_items_result = $stmt_review_items->get_result();
+    while ($review_row = $review_items_result->fetch_assoc()) {
+        $review_items[] = $review_row;
+    }
+    $stmt_review_items->close();
 }
-$stmt_review_items->close();
 
 if ($review_count > 0) {
     $rating = $review_avg;
@@ -330,7 +335,9 @@ include 'layout/header.php';
                             <span class="review-summary-pill"><i class="fa fa-star"></i> <?php echo number_format($rating, 1); ?>/5</span>
                             <span class="review-summary-pill"><i class="fa fa-comment-o"></i> <?php echo $review_count; ?> lượt</span>
                         </div>
-                        <?php if (!empty($review_items)): ?>
+                        <?php if (!$hasReviewTable): ?>
+                            <div class="review-empty">Hệ thống hiện chưa hỗ trợ đánh giá sản phẩm.</div>
+                        <?php elseif (!empty($review_items)): ?>
                             <div class="review-list">
                                 <?php foreach ($review_items as $review_item): ?>
                                     <div class="review-item">

@@ -1,8 +1,15 @@
 <?php
 $page_title = "Quản lý Báo Cáo";
-require_once '../config/db.php';
+
+include '../includes/auth.php';
+include '../includes/database.php';
+include '../includes/auth_permission.php';
+checkPermission('VIEW_REPORTS');
+
 include 'layout/header.php';
 include 'layout/sidebar.php';
+
+require_once '../config/db.php';
 
 $today = date('Y-m-d');
 $defaultFromDate = date('Y-m-01');

@@ -16,6 +16,41 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
+$filterMemberId = trim((string) ($_GET['member_id'] ?? ''));
+$filterServiceId = trim((string) ($_GET['service_id'] ?? ''));
+$filterType = trim((string) ($_GET['type'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+$filterFromDate = trim((string) ($_GET['from_date'] ?? ''));
+$filterToDate = trim((string) ($_GET['to_date'] ?? ''));
+
+$memberServiceWhereClauses = [];
+$memberServiceParams = [];
+if ($filterMemberId !== '') {
+  $memberServiceWhereClauses[] = 'ms.member_id = ?';
+  $memberServiceParams[] = (int) $filterMemberId;
+}
+if ($filterServiceId !== '') {
+  $memberServiceWhereClauses[] = 'ms.service_id = ?';
+  $memberServiceParams[] = (int) $filterServiceId;
+}
+if ($filterType !== '') {
+  $memberServiceWhereClauses[] = 's.type = ?';
+  $memberServiceParams[] = $filterType;
+}
+if ($filterStatus !== '') {
+  $memberServiceWhereClauses[] = 'ms.status = ?';
+  $memberServiceParams[] = $filterStatus;
+}
+if ($filterFromDate !== '') {
+  $memberServiceWhereClauses[] = 'DATE(ms.start_date) >= ?';
+  $memberServiceParams[] = $filterFromDate;
+}
+if ($filterToDate !== '') {
+  $memberServiceWhereClauses[] = 'DATE(ms.start_date) <= ?';
+  $memberServiceParams[] = $filterToDate;
+}
+$memberServiceWhereSql = !empty($memberServiceWhereClauses) ? ' WHERE ' . implode(' AND ', $memberServiceWhereClauses) : '';
+
 function isPastDate($date)
 {
   if (empty($date)) {
@@ -115,15 +150,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Lấy danh sách dịch vụ đã gán kèm tên hội viên và dịch vụ
-$stmt = $db->query("
-    SELECT ms.*, 
-           m.full_name AS member_name,
-           s.name AS service_name, s.type AS service_type, s.price AS service_price
-    FROM member_services ms
-    LEFT JOIN members m ON ms.member_id = m.id
-    LEFT JOIN services s ON ms.service_id = s.id
-    ORDER BY ms.start_date DESC
+$stmt = $db->prepare("
+  SELECT ms.*, 
+       m.full_name AS member_name,
+       s.name AS service_name, s.type AS service_type, s.price AS service_price
+  FROM member_services ms
+  LEFT JOIN members m ON ms.member_id = m.id
+  LEFT JOIN services s ON ms.service_id = s.id" . $memberServiceWhereSql . "
+  ORDER BY ms.start_date DESC
 ");
+$stmt->execute($memberServiceParams);
 $records = $stmt->fetchAll();
 
 foreach ($records as &$record) {
@@ -171,6 +207,30 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'member_services.php';
+          $filterFieldsHtml = '
+            <div class="col-md-3"><div class="form-group mb-0"><label>Hội viên</label><select name="member_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($members as $member) {
+            $selected = (string) $filterMemberId === (string) $member['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $member['id'] . '" ' . $selected . '>' . htmlspecialchars($member['full_name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Dịch vụ</label><select name="service_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($services as $svc) {
+            $selected = (string) $filterServiceId === (string) $svc['id'] ? 'selected' : '';
+            $label = $svc['name'] . ' (' . $svc['type'] . ')';
+            $filterFieldsHtml .= '<option value="' . (int) $svc['id'] . '" ' . $selected . '>' . htmlspecialchars($label) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Loại</label><select name="type" class="form-control"><option value="">-- Tất cả --</option><option value="thư giãn" ' . ($filterType === 'thư giãn' ? 'selected' : '') . '>Thư giãn</option><option value="xoa bóp" ' . ($filterType === 'xoa bóp' ? 'selected' : '') . '>Xoa bóp</option><option value="hỗ trợ" ' . ($filterType === 'hỗ trợ' ? 'selected' : '') . '>Hỗ trợ</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="còn hiệu lực" ' . ($filterStatus === 'còn hiệu lực' ? 'selected' : '') . '>Còn hiệu lực</option><option value="đã dùng" ' . ($filterStatus === 'đã dùng' ? 'selected' : '') . '>Đã dùng</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Từ ngày</label><input type="date" name="from_date" class="form-control" value="' . htmlspecialchars($filterFromDate) . '"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Đến ngày</label><input type="date" name="to_date" class="form-control" value="' . htmlspecialchars($filterToDate) . '"></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
 
         <!-- Thông báo -->
         <?php if ($flash): ?>
@@ -227,7 +287,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

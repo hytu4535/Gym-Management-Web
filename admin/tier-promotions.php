@@ -122,7 +122,33 @@ $tiers = $tiersStmt->fetchAll();
 $categoriesStmt = $db->query("SELECT name FROM categories ORDER BY name ASC");
 $categories = $categoriesStmt->fetchAll(PDO::FETCH_COLUMN);
 
-$promotionsStmt = $db->query("SELECT tp.*, mt.name AS tier_name FROM tier_promotions tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id ORDER BY tp.id DESC");
+$filterKeyword = trim((string) ($_GET['keyword'] ?? ''));
+$filterTierId = trim((string) ($_GET['tier_id'] ?? ''));
+$filterDiscountType = trim((string) ($_GET['discount_type'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$promotionWhereClauses = [];
+$promotionParams = [];
+if ($filterKeyword !== '') {
+  $promotionWhereClauses[] = 'tp.name LIKE ?';
+  $promotionParams[] = '%' . $filterKeyword . '%';
+}
+if ($filterTierId !== '') {
+  $promotionWhereClauses[] = 'tp.tier_id = ?';
+  $promotionParams[] = (int) $filterTierId;
+}
+if ($filterDiscountType !== '') {
+  $promotionWhereClauses[] = 'tp.discount_type = ?';
+  $promotionParams[] = $filterDiscountType;
+}
+if ($filterStatus !== '') {
+  $promotionWhereClauses[] = 'tp.status = ?';
+  $promotionParams[] = $filterStatus;
+}
+$promotionWhereSql = !empty($promotionWhereClauses) ? ' WHERE ' . implode(' AND ', $promotionWhereClauses) : '';
+
+$promotionsStmt = $db->prepare("SELECT tp.*, mt.name AS tier_name FROM tier_promotions tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id" . $promotionWhereSql . " ORDER BY tp.id DESC");
+$promotionsStmt->execute($promotionParams);
 $promotions = $promotionsStmt->fetchAll();
 
 function resolveTierDisplayName($tierId, $tierName) {
@@ -166,6 +192,22 @@ function resolveTierDisplayName($tierId, $tierName) {
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'tier-promotions.php';
+          $filterFieldsHtml = '
+            <div class="col-md-4"><div class="form-group mb-0"><label>Từ khóa</label><input type="text" name="keyword" class="form-control" value="' . htmlspecialchars($filterKeyword) . '" placeholder="Tên chương trình"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Hạng</label><select name="tier_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($tiers as $tier) {
+            $selected = (string) $filterTierId === (string) $tier['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $tier['id'] . '" ' . $selected . '>' . htmlspecialchars(resolveTierDisplayName($tier['id'], $tier['name'])) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Loại giảm</label><select name="discount_type" class="form-control"><option value="">-- Tất cả --</option><option value="percentage" ' . ($filterDiscountType === 'percentage' ? 'selected' : '') . '>Phần trăm</option><option value="fixed" ' . ($filterDiscountType === 'fixed' ? 'selected' : '') . '>Cố định</option><option value="package" ' . ($filterDiscountType === 'package' ? 'selected' : '') . '>Gói dịch vụ</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option><option value="expired" ' . ($filterStatus === 'expired' ? 'selected' : '') . '>Expired</option></select></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
@@ -178,7 +220,7 @@ function resolveTierDisplayName($tierId, $tierName) {
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table" id="tierPromotionsTable">
                   <thead>
                   <tr>
                     <th>ID</th>

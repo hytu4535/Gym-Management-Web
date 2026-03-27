@@ -23,15 +23,53 @@ $db = getDB();
 $checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
 $hasPhoneColumn = !empty($checkColumn);
 
+// Bộ lọc
+$filterUsername = trim((string) ($_GET['username'] ?? ''));
+$filterEmail = trim((string) ($_GET['email'] ?? ''));
+$filterPhone = trim((string) ($_GET['phone'] ?? ''));
+$filterRoleId = trim((string) ($_GET['role_id'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
 // Pagination
 $itemsPerPage = 10;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $offset = ($page - 1) * $itemsPerPage;
 
+$whereClauses = [];
+$whereParams = [];
+
+if ($filterUsername !== '') {
+  $whereClauses[] = 'u.username LIKE ?';
+  $whereParams[] = '%' . $filterUsername . '%';
+}
+
+if ($filterEmail !== '') {
+  $whereClauses[] = 'u.email LIKE ?';
+  $whereParams[] = '%' . $filterEmail . '%';
+}
+
+if ($hasPhoneColumn && $filterPhone !== '') {
+  $whereClauses[] = 'u.phone LIKE ?';
+  $whereParams[] = '%' . $filterPhone . '%';
+}
+
+if ($filterRoleId !== '' && ctype_digit($filterRoleId)) {
+  $whereClauses[] = 'u.role_id = ?';
+  $whereParams[] = (int) $filterRoleId;
+}
+
+if ($filterStatus !== '') {
+  $whereClauses[] = 'u.status = ?';
+  $whereParams[] = $filterStatus;
+}
+
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
 // Lấy tổng số users
-$countSql = "SELECT COUNT(*) as total FROM users";
-$countStmt = $db->query($countSql);
-$totalRecords = $countStmt->fetch()['total'];
+$countSql = "SELECT COUNT(*) as total FROM users u JOIN roles r ON u.role_id = r.id" . $whereSql;
+$countStmt = $db->prepare($countSql);
+$countStmt->execute($whereParams);
+$totalRecords = (int) ($countStmt->fetch()['total'] ?? 0);
 $totalPages = ceil($totalRecords / $itemsPerPage);
 
 // Lấy danh sách users
@@ -39,16 +77,19 @@ if ($hasPhoneColumn) {
   $sql = "SELECT u.id, u.username, u.full_name, u.email, u.phone, u.password, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
+            $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 } else {
   $sql = "SELECT u.id, u.username, u.full_name, u.email, u.password, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
+            $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 }
-$stmt = $db->query($sql);
+$stmt = $db->prepare($sql);
+$stmt->execute($whereParams);
 $users = $stmt->fetchAll();
 
 // Lấy danh sách roles để dùng cho form
@@ -96,6 +137,75 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
 
   <section class="content">
     <div class="container-fluid">
+      <div class="row mb-3">
+        <div class="col-12">
+          <div class="card card-primary collapsed-card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-filter"></i> Lọc users</h3>
+              <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <form method="GET" action="users.php">
+                <div class="row">
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Tên đăng nhập</label>
+                      <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($filterUsername) ?>" placeholder="Nhập tên đăng nhập">
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Email</label>
+                      <input type="text" name="email" class="form-control" value="<?= htmlspecialchars($filterEmail) ?>" placeholder="Nhập email">
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Số điện thoại</label>
+                      <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($filterPhone) ?>" placeholder="Nhập số điện thoại">
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Vai trò</label>
+                      <select name="role_id" class="form-control">
+                        <option value="">-- Tất cả vai trò --</option>
+                        <?php foreach ($roles as $role): ?>
+                          <option value="<?= $role['id'] ?>" <?= $filterRoleId !== '' && (int) $filterRoleId === (int) $role['id'] ? 'selected' : '' ?>><?= htmlspecialchars($role['name']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Trạng thái</label>
+                      <select name="status" class="form-control">
+                        <option value="">-- Tất cả trạng thái --</option>
+                        <option value="active" <?= $filterStatus === 'active' ? 'selected' : '' ?>>Active</option>
+                        <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary btn-block mb-3">
+                      <i class="fas fa-search"></i> Lọc
+                    </button>
+                  </div>
+                  <div class="col-md-3 d-flex align-items-end">
+                    <a href="users.php" class="btn btn-secondary btn-block mb-3">
+                      <i class="fas fa-redo"></i> Xóa bộ lọc
+                    </a>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
       <?php if (!empty($generalMessage)): ?>
         <div class="alert alert-warning alert-dismissible fade show" role="alert">
           <i class="fas fa-exclamation-triangle"></i> <?= htmlspecialchars($generalMessage) ?>
@@ -114,7 +224,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
           </div>
         </div>
         <div class="card-body">
-          <table class="table table-bordered table-striped">
+          <table class="table table-bordered table-striped js-admin-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -327,10 +437,10 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
             <ul class="pagination justify-content-center">
               <?php if ($page > 1): ?>
                 <li class="page-item">
-                  <a class="page-link" href="?page=1">Đầu tiên</a>
+                  <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 1])) ?>">Đầu tiên</a>
                 </li>
                 <li class="page-item">
-                  <a class="page-link" href="?page=<?= $page - 1 ?>">Trước</a>
+                  <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>">Trước</a>
                 </li>
               <?php else: ?>
                 <li class="page-item disabled">
@@ -357,7 +467,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                   </li>
                 <?php else: ?>
                   <li class="page-item">
-                    <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>"><?= $i ?></a>
                   </li>
                 <?php endif;
               endfor;
@@ -368,10 +478,10 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
 
               <?php if ($page < $totalPages): ?>
                 <li class="page-item">
-                  <a class="page-link" href="?page=<?= $page + 1 ?>">Sau</a>
+                  <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>">Sau</a>
                 </li>
                 <li class="page-item">
-                  <a class="page-link" href="?page=<?= $totalPages ?>">Cuối cùng</a>
+                  <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $totalPages])) ?>">Cuối cùng</a>
                 </li>
               <?php else: ?>
                 <li class="page-item disabled">

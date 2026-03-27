@@ -188,20 +188,46 @@ $suppliers = getAllSuppliers();
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <div class="row mb-3">
+          <div class="col-12">
+            <div class="card card-primary collapsed-card">
+              <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-filter"></i> Lọc nhà cung cấp</h3>
+                <div class="card-tools">
+                  <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="row align-items-end">
+                  <div class="col-md-10">
+                    <div class="form-group mb-0">
+                      <label>Từ khóa</label>
+                      <input type="text" id="searchInput" class="form-control" placeholder="Tìm theo tên, số điện thoại hoặc địa chỉ...">
+                    </div>
+                  </div>
+                  <div class="col-md-2">
+                    <div class="form-group mb-0">
+                      <button class="btn btn-primary btn-block mb-2" id="searchBtn" type="button">
+                        <i class="fas fa-search"></i> Lọc
+                      </button>
+                      <button class="btn btn-secondary btn-block" id="resetSearchBtn" type="button">
+                        <i class="fas fa-redo"></i> Xóa bộ lọc
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="row">
           <div class="col-12">
             <div class="card">
               <div class="card-header">
                 <h3 class="card-title">Danh sách Nhà Cung Cấp</h3>
                 <div class="card-tools">
-                  <div class="input-group input-group-sm" style="width: 150px;">
-                    <input type="text" id="searchInput" class="form-control" placeholder="Tìm kiếm...">
-                    <div class="input-group-append">
-                      <button class="btn btn-default" id="searchBtn">
-                        <i class="fas fa-search"></i>
-                      </button>
-                    </div>
-                  </div>
                   <button type="button" class="btn btn-primary btn-sm ml-2" id="addSupplierBtn" data-toggle="modal" data-target="#addSupplierModal">
                     <i class="fas fa-plus"></i> Thêm NCC
                   </button>
@@ -412,6 +438,11 @@ $(document).ready(function() {
         
         const keyword = $('#searchInput').val().trim();
         loadSuppliers(keyword);
+    });
+
+    $('#resetSearchBtn').on('click', function() {
+      $('#searchInput').val('');
+      loadSuppliers('');
     });
 });
 

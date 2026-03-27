@@ -109,6 +109,7 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php include 'layout/filter-card.php'; ?>
         <?php if ($message): ?>
         <div class="alert alert-<?php echo $messageType; ?> alert-dismissible fade show">
           <?php echo $message; ?>
@@ -128,7 +129,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table id="bmiTable" class="table table-bordered table-striped">
+                <table id="bmiTable" class="table table-bordered table-striped js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

@@ -100,19 +100,51 @@ try {
                 throw new Exception("Vui lòng nhập đầy đủ địa chỉ giao hàng mới.");
             }
 
-            $stmt_insert_addr = $conn->prepare("INSERT INTO addresses (member_id, full_address, city, district, is_default) VALUES (?, ?, ?, ?, 0)");
-            if ($stmt_insert_addr) {
-                 $stmt_insert_addr->bind_param("isss", $member_id, $full_address, $city, $district);
-                 $stmt_insert_addr->execute();
-                 $address_id = $conn->insert_id;
-                 $stmt_insert_addr->close();
+            $existing_default_id = 0;
+            $stmt_default_addr = $conn->prepare("SELECT id FROM addresses WHERE member_id = ? AND is_default = 1 LIMIT 1");
+            $stmt_default_addr->bind_param("i", $member_id);
+            $stmt_default_addr->execute();
+            $default_addr_res = $stmt_default_addr->get_result()->fetch_assoc();
+            if ($default_addr_res) {
+                $existing_default_id = (int) $default_addr_res['id'];
             }
+            $stmt_default_addr->close();
+
+            $new_is_default = $existing_default_id > 0 ? 0 : 1;
+
+            $stmt_insert_addr = $conn->prepare("INSERT INTO addresses (member_id, full_address, city, district, is_default) VALUES (?, ?, ?, ?, ?)");
+            if (!$stmt_insert_addr) {
+                throw new Exception("Không thể lưu địa chỉ giao hàng mới.");
+            }
+            $stmt_insert_addr->bind_param("isssi", $member_id, $full_address, $city, $district, $new_is_default);
+            $stmt_insert_addr->execute();
+            $address_id = (int) $conn->insert_id;
+            $stmt_insert_addr->close();
         } else {
-            $posted_address = $_POST['address_id'] ?? '';
-            if ($posted_address === 'default' || empty($posted_address)) {
-                $address_id = 0;
+            $posted_address_id = isset($_POST['address_id']) ? (int) $_POST['address_id'] : 0;
+
+            if ($posted_address_id > 0) {
+                $stmt_check_addr = $conn->prepare("SELECT id FROM addresses WHERE id = ? AND member_id = ? LIMIT 1");
+                $stmt_check_addr->bind_param("ii", $posted_address_id, $member_id);
+                $stmt_check_addr->execute();
+                $checked_addr = $stmt_check_addr->get_result()->fetch_assoc();
+                $stmt_check_addr->close();
+
+                if (!$checked_addr) {
+                    throw new Exception("Địa chỉ giao hàng đã chọn không hợp lệ.");
+                }
+                $address_id = (int) $checked_addr['id'];
             } else {
-                $address_id = (int)$posted_address;
+                $stmt_default_or_latest = $conn->prepare("SELECT id FROM addresses WHERE member_id = ? ORDER BY is_default DESC, id DESC LIMIT 1");
+                $stmt_default_or_latest->bind_param("i", $member_id);
+                $stmt_default_or_latest->execute();
+                $fallback_addr = $stmt_default_or_latest->get_result()->fetch_assoc();
+                $stmt_default_or_latest->close();
+
+                if (!$fallback_addr) {
+                    throw new Exception("Bạn chưa có địa chỉ giao hàng. Vui lòng nhập địa chỉ mới.");
+                }
+                $address_id = (int) $fallback_addr['id'];
             }
         }
     }
@@ -126,6 +158,13 @@ try {
     $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
     $total_amount = $subtotal + $shipping_fee;
     $status = 'pending';
+
+    $order_note = trim($_POST['note'] ?? '');
+    if ($order_note !== '') {
+        $order_note = mb_substr($order_note, 0, 2000, 'UTF-8');
+    } else {
+        $order_note = null;
+    }
 
     $transfer_code = null;
     $proof_img = null;
@@ -162,17 +201,17 @@ try {
     }
 
     $stmt_order = $conn->prepare(
-        "INSERT INTO orders (member_id, address_id, total_amount, payment_method, status, transfer_code, proof_img) 
-         VALUES (?, NULLIF(?, 0), ?, ?, ?, ?, ?)"
+           "INSERT INTO orders (member_id, address_id, total_amount, payment_method, status, transfer_code, proof_img, note) 
+            VALUES (?, NULLIF(?, 0), ?, ?, ?, ?, ?, ?)"
     );
-    $stmt_order->bind_param("iidssss", $member_id, $address_id, $total_amount, $payment_method, $status, $transfer_code, $proof_img);
+        $stmt_order->bind_param("iidsssss", $member_id, $address_id, $total_amount, $payment_method, $status, $transfer_code, $proof_img, $order_note);
     $stmt_order->execute();
     $order_id = $conn->insert_id;
     $stmt_order->close();
 
     $stmt_item = $conn->prepare("
-        INSERT INTO order_items (order_id, item_type, item_id, item_name, price, quantity) 
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO order_items (order_id, item_type, item_id, item_name, price, quantity, discount) 
+           VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
     
     $stmt_update_stock = $conn->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
@@ -183,8 +222,14 @@ try {
         $item_id = (int) $item['item_id'];
         $item_name = $item['item_name'];
         $item_quantity = (int) $item['quantity'];
+        $discount_amount = 0;
 
-        $stmt_item->bind_param("isisdi", $order_id, $item_type, $item_id, $item_name, $price_to_save, $item_quantity);
+        if ($item_type === 'product') {
+            $original_price = isset($item['selling_price']) ? (float) $item['selling_price'] : 0;
+            $discount_amount = max(0, round(($original_price - $price_to_save) * $item_quantity, 2));
+        }
+
+        $stmt_item->bind_param("isisdid", $order_id, $item_type, $item_id, $item_name, $price_to_save, $item_quantity, $discount_amount);
         $stmt_item->execute();
 
         if ($item_type === 'product') {

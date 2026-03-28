@@ -1,4 +1,5 @@
 <?php
+session_start();
 include '../../includes/database.php';
 $db = getDB();
 
@@ -69,5 +70,7 @@ try {
         exit();
     }
 } catch (PDOException $e) {
-    die("Lỗi SQL: " . $e->getMessage());
+    $_SESSION['validation_errors'] = ['general' => 'Không thể xóa hoặc cập nhật vai trò này vì đang có dữ liệu liên quan. Vui lòng chuyển các user sang vai trò khác trước khi thao tác.'];
+    header("Location: ../roles.php");
+    exit();
 }

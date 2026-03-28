@@ -15,11 +15,16 @@ function json_response($success, $message, $extra = [])
     exit();
 }
 
-function parse_training_datetime($schedule_time, $schedule_days)
+function parse_training_datetime($schedule_start_time, $schedule_days)
 {
     $timeString = '06:00';
-    if (!empty($schedule_time) && preg_match('/(\d{1,2}:\d{2})/', $schedule_time, $matches)) {
-        $timeString = $matches[1];
+    if (!empty($schedule_start_time)) {
+        $normalizedTime = trim((string) $schedule_start_time);
+        if (preg_match('/^(\d{1,2}:\d{2})(?::\d{2})?$/', $normalizedTime, $matches)) {
+            $timeString = substr($matches[1], 0, 5);
+        } elseif (preg_match('/(\d{1,2}:\d{2})/', $normalizedTime, $matches)) {
+            $timeString = $matches[1];
+        }
     }
 
     $weekdayMap = [
@@ -69,6 +74,37 @@ function parse_training_datetime($schedule_time, $schedule_days)
     return $candidate->format('Y-m-d H:i:s');
 }
 
+function supportsStructuredScheduleTime(mysqli $conn)
+{
+    static $supportsStructured = null;
+
+    if ($supportsStructured !== null) {
+      return $supportsStructured;
+    }
+
+    $databaseResult = $conn->query('SELECT DATABASE() AS db_name');
+    $databaseRow = $databaseResult ? $databaseResult->fetch_assoc() : null;
+    $databaseName = $databaseRow['db_name'] ?? '';
+
+    if ($databaseName === '') {
+        $supportsStructured = false;
+        return $supportsStructured;
+    }
+
+    $databaseNameEscaped = $conn->real_escape_string($databaseName);
+    $columnResult = $conn->query(
+        "SELECT COUNT(*) AS column_count
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = '{$databaseNameEscaped}'
+           AND TABLE_NAME = 'class_schedules'
+           AND COLUMN_NAME IN ('schedule_start_time', 'schedule_end_time')"
+    );
+    $columnRow = $columnResult ? $columnResult->fetch_assoc() : null;
+
+    $supportsStructured = ((int) ($columnRow['column_count'] ?? 0) === 2);
+    return $supportsStructured;
+}
+
 if (!isset($_SESSION['user_id'])) {
     json_response(false, 'Vui lòng đăng nhập.');
 }
@@ -104,12 +140,23 @@ $memberId = (int) $member['id'];
 try {
     $conn->begin_transaction();
 
-    $classStmt = $conn->prepare(
-        'SELECT id, class_name, class_type, trainer_id, schedule_time, schedule_days, capacity, enrolled_count, status
-         FROM class_schedules
-         WHERE id = ?
-         FOR UPDATE'
-    );
+    $structuredScheduleTime = supportsStructuredScheduleTime($conn);
+
+    if ($structuredScheduleTime) {
+        $classSql =
+            'SELECT id, class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, capacity, enrolled_count, status
+             FROM class_schedules
+             WHERE id = ?
+             FOR UPDATE';
+    } else {
+        $classSql =
+            'SELECT id, class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, capacity, enrolled_count, status
+             FROM class_schedules
+             WHERE id = ?
+             FOR UPDATE';
+    }
+
+    $classStmt = $conn->prepare($classSql);
     if (!$classStmt) {
         throw new Exception('Không thể đọc thông tin lớp.');
     }
@@ -189,7 +236,7 @@ try {
         $increaseStmt->execute();
         $increaseStmt->close();
 
-        $trainingDate = parse_training_datetime($class['schedule_time'], $class['schedule_days']);
+        $trainingDate = parse_training_datetime($class['schedule_start_time'] ?? '', $class['schedule_days']);
 
         $findScheduleStmt = $conn->prepare(
             'SELECT id, status

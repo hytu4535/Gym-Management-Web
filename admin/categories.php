@@ -18,8 +18,25 @@ include 'layout/sidebar.php';
 
 require_once '../config/db.php';
 
-$sql = "SELECT * FROM categories ORDER BY id DESC";
-$result = $conn->query($sql);
+$filterName = trim((string) ($_GET['name'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') {
+  $whereClauses[] = 'name LIKE ?';
+  $whereParams[] = '%' . $filterName . '%';
+}
+if ($filterStatus !== '') {
+  $whereClauses[] = 'status = ?';
+  $whereParams[] = $filterStatus;
+}
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
+$sql = "SELECT * FROM categories" . $whereSql . " ORDER BY id DESC";
+$stmt = $conn->prepare($sql);
+$stmt->execute($whereParams);
+$result = $stmt->get_result();
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -44,6 +61,29 @@ $result = $conn->query($sql);
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'categories.php';
+          $filterFieldsHtml = '
+            <div class="col-md-6">
+              <div class="form-group mb-0">
+                <label>Tên danh mục</label>
+                <input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Nhập tên danh mục">
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="form-group mb-0">
+                <label>Trạng thái</label>
+                <select name="status" class="form-control">
+                  <option value="">-- Tất cả trạng thái --</option>
+                  <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option>
+                  <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option>
+                </select>
+              </div>
+            </div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
@@ -56,7 +96,7 @@ $result = $conn->query($sql);
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>

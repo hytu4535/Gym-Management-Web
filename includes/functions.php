@@ -81,7 +81,7 @@ function formatDate($date, $format = 'd/m/Y') {
  * Format currency (VND)
  */
 function formatCurrency($amount) {
-    return number_format($amount, 0, ',', '.') . 'đ';
+    return number_format($amount, 0, ',', '.') . '-�';
 }
 
 /**
@@ -325,7 +325,7 @@ function deleteSupplier($id) {
         $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
         
         if ($result['count'] > 0) {
-            return ['success' => false, 'message' => 'Không thể xóa nhà cung cấp có phiếu nhập kho'];
+            return ['success' => false, 'message' => 'Kh+�ng th�+� x+�a nh+� cung cߦ�p c+� phiߦ+u nhߦ�p kho'];
         }
         
         $supplier = getSupplierById($id);
@@ -450,10 +450,10 @@ function addEquipment($data) {
         if ($result) {
             $equipmentId = $db->lastInsertId();
             logActivity(getCurrentUserId(), 'CREATE', 'equipment', $equipmentId, 'Added new equipment: ' . $data['name']);
-            return ['success' => true, 'id' => $equipmentId, 'message' => 'Thêm thiết bị thành công'];
+            return ['success' => true, 'id' => $equipmentId, 'message' => 'Th+�m thiߦ+t b�+� th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể thêm thiết bị'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� th+�m thiߦ+t b�+�'];
     } catch (Exception $e) {
         error_log("Error adding equipment: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -481,10 +481,10 @@ function updateEquipment($id, $data) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'UPDATE', 'equipment', $id, 'Updated equipment: ' . $data['name']);
-            return ['success' => true, 'message' => 'Cập nhật thiết bị thành công'];
+            return ['success' => true, 'message' => 'Cߦ�p nhߦ�t thiߦ+t b�+� th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể cập nhật thiết bị'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� cߦ�p nhߦ�t thiߦ+t b�+�'];
     } catch (Exception $e) {
         error_log("Error updating equipment: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -504,10 +504,10 @@ function deleteEquipment($id) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'DELETE', 'equipment', $id, 'Deleted equipment: ' . ($equipment['name'] ?? 'Unknown'));
-            return ['success' => true, 'message' => 'Xóa thiết bị thành công'];
+            return ['success' => true, 'message' => 'X+�a thiߦ+t b�+� th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể xóa thiết bị'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� x+�a thiߦ+t b�+�'];
     } catch (Exception $e) {
         error_log("Error deleting equipment: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -596,10 +596,10 @@ function addMaintenanceRecord($data) {
             $updateStmt->execute([$data['equipment_id']]);
             
             logActivity(getCurrentUserId(), 'CREATE', 'equipment_maintenance', $recordId, 'Added maintenance record');
-            return ['success' => true, 'id' => $recordId, 'message' => 'Thêm bản ghi bảo trì thành công'];
+            return ['success' => true, 'id' => $recordId, 'message' => 'Th+�m bߦ�n ghi bߦ�o tr+� th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể thêm bản ghi bảo trì'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� th+�m bߦ�n ghi bߦ�o tr+�'];
     } catch (Exception $e) {
         error_log("Error adding maintenance record: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -627,10 +627,10 @@ function updateMaintenanceRecord($id, $data) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'UPDATE', 'equipment_maintenance', $id, 'Updated maintenance record');
-            return ['success' => true, 'message' => 'Cập nhật bản ghi bảo trì thành công'];
+            return ['success' => true, 'message' => 'Cߦ�p nhߦ�t bߦ�n ghi bߦ�o tr+� th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể cập nhật bản ghi bảo trì'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� cߦ�p nhߦ�t bߦ�n ghi bߦ�o tr+�'];
     } catch (Exception $e) {
         error_log("Error updating maintenance record: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -649,10 +649,10 @@ function deleteMaintenanceRecord($id) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'DELETE', 'equipment_maintenance', $id, 'Deleted maintenance record');
-            return ['success' => true, 'message' => 'Xóa bản ghi bảo trì thành công'];
+            return ['success' => true, 'message' => 'X+�a bߦ�n ghi bߦ�o tr+� th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể xóa bản ghi bảo trì'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� x+�a bߦ�n ghi bߦ�o tr+�'];
     } catch (Exception $e) {
         error_log("Error deleting maintenance record: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -763,7 +763,7 @@ function addImportSlip($data) {
             floatval($data['total_amount']) ?? 0,
             $data['import_date'] ?? date('Y-m-d H:i:s'),
             sanitize($data['note']) ?? null,
-            $data['status'] ?? 'Đang chờ duyệt'
+            $data['status'] ?? '-�ang ch�+� duy�+�t'
         ]);
         
         if ($result) {
@@ -789,11 +789,11 @@ function addImportSlip($data) {
             
             $db->commit();
             logActivity(getCurrentUserId(), 'CREATE', 'import_slips', $importId, 'Added new import slip');
-            return ['success' => true, 'id' => $importId, 'message' => 'Thêm phiếu nhập thành công'];
+            return ['success' => true, 'id' => $importId, 'message' => 'Th+�m phiߦ+u nhߦ�p th+�nh c+�ng'];
         }
         
         $db->rollBack();
-        return ['success' => false, 'message' => 'Không thể thêm phiếu nhập'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� th+�m phiߦ+u nhߦ�p'];
     } catch (Exception $e) {
         error_log("Error adding import slip: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -815,16 +815,16 @@ function updateImportSlip($id, $data) {
         $result = $stmt->execute([
             floatval($data['total_amount']) ?? 0,
             sanitize($data['note']) ?? null,
-            $data['status'] ?? 'Đang chờ duyệt',
+            $data['status'] ?? '-�ang ch�+� duy�+�t',
             $id
         ]);
         
         if ($result) {
             logActivity(getCurrentUserId(), 'UPDATE', 'import_slips', $id, 'Updated import slip');
-            return ['success' => true, 'message' => 'Cập nhật phiếu nhập thành công'];
+            return ['success' => true, 'message' => 'Cߦ�p nhߦ�t phiߦ+u nhߦ�p th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể cập nhật phiếu nhập'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� cߦ�p nhߦ�t phiߦ+u nhߦ�p'];
     } catch (Exception $e) {
         error_log("Error updating import slip: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -850,11 +850,11 @@ function deleteImportSlip($id) {
         if ($result) {
             $db->commit();
             logActivity(getCurrentUserId(), 'DELETE', 'import_slips', $id, 'Deleted import slip');
-            return ['success' => true, 'message' => 'Xóa phiếu nhập thành công'];
+            return ['success' => true, 'message' => 'X+�a phiߦ+u nhߦ�p th+�nh c+�ng'];
         }
         
         $db->rollBack();
-        return ['success' => false, 'message' => 'Không thể xóa phiếu nhập'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� x+�a phiߦ+u nhߦ�p'];
     } catch (Exception $e) {
         error_log("Error deleting import slip: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -939,10 +939,10 @@ function addFeedbackResponse($feedbackId, $userId, $response) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'UPDATE', 'feedback', $feedbackId, 'Added response to feedback');
-            return ['success' => true, 'message' => 'Thêm phản hồi thành công'];
+            return ['success' => true, 'message' => 'Th+�m phߦ�n h�+�i th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể thêm phản hồi'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� th+�m phߦ�n h�+�i'];
     } catch (Exception $e) {
         error_log("Error adding feedback response: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -974,10 +974,10 @@ function updateFeedbackStatus($feedbackId, $status, $userId = null) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'UPDATE', 'feedback', $feedbackId, 'Updated feedback status to: ' . $status);
-            return ['success' => true, 'message' => 'Cập nhật trạng thái phản hồi thành công'];
+            return ['success' => true, 'message' => 'Cߦ�p nhߦ�t trߦ�ng th+�i phߦ�n h�+�i th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể cập nhật trạng thái'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� cߦ�p nhߦ�t trߦ�ng th+�i'];
     } catch (Exception $e) {
         error_log("Error updating feedback status: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -995,10 +995,10 @@ function deleteFeedback($id) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'DELETE', 'feedback', $id, 'Deleted feedback');
-            return ['success' => true, 'message' => 'Xóa phản hồi thành công'];
+            return ['success' => true, 'message' => 'X+�a phߦ�n h�+�i th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể xóa phản hồi'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� x+�a phߦ�n h�+�i'];
     } catch (Exception $e) {
         error_log("Error deleting feedback: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -1156,10 +1156,10 @@ function addTierPromotion($data) {
         if ($result) {
             $promotionId = $db->lastInsertId();
             logActivity(getCurrentUserId(), 'CREATE', 'tier_promotions', $promotionId, 'Added new tier promotion: ' . $data['name']);
-            return ['success' => true, 'id' => $promotionId, 'message' => 'Thêm ưu đãi thành công'];
+            return ['success' => true, 'id' => $promotionId, 'message' => 'Th+�m ��u -�+�i th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể thêm ưu đãi'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� th+�m ��u -�+�i'];
     } catch (Exception $e) {
         error_log("Error adding tier promotion: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -1196,10 +1196,10 @@ function updateTierPromotion($id, $data) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'UPDATE', 'tier_promotions', $id, 'Updated tier promotion: ' . $data['name']);
-            return ['success' => true, 'message' => 'Cập nhật ưu đãi thành công'];
+            return ['success' => true, 'message' => 'Cߦ�p nhߦ�t ��u -�+�i th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể cập nhật ưu đãi'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� cߦ�p nhߦ�t ��u -�+�i'];
     } catch (Exception $e) {
         error_log("Error updating tier promotion: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -1217,10 +1217,10 @@ function deleteTierPromotion($id) {
         
         if ($result) {
             logActivity(getCurrentUserId(), 'DELETE', 'tier_promotions', $id, 'Deleted tier promotion');
-            return ['success' => true, 'message' => 'Xóa ưu đãi thành công'];
+            return ['success' => true, 'message' => 'X+�a ��u -�+�i th+�nh c+�ng'];
         }
         
-        return ['success' => false, 'message' => 'Không thể xóa ưu đãi'];
+        return ['success' => false, 'message' => 'Kh+�ng th�+� x+�a ��u -�+�i'];
     } catch (Exception $e) {
         error_log("Error deleting tier promotion: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];

@@ -19,9 +19,32 @@ include 'layout/sidebar.php';
 
 $db = getDB();
 
+$validationErrors = $_SESSION['validation_errors'] ?? [];
+$generalMessage = '';
+if (!empty($validationErrors) && isset($validationErrors['general'])) {
+  $generalMessage = $validationErrors['general'];
+}
+unset($_SESSION['validation_errors']);
+
+$filterName = trim((string) ($_GET['name'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') {
+  $whereClauses[] = 'name LIKE ?';
+  $whereParams[] = '%' . $filterName . '%';
+}
+if ($filterStatus !== '') {
+  $whereClauses[] = 'status = ?';
+  $whereParams[] = $filterStatus;
+}
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
 // Lấy danh sách roles
-$sql = "SELECT * FROM roles";
-$stmt = $db->query($sql);
+$sql = "SELECT * FROM roles" . $whereSql . " ORDER BY id DESC";
+$stmt = $db->prepare($sql);
+$stmt->execute($whereParams);
 $roles = $stmt->fetchAll();
 ?>
 
@@ -34,6 +57,38 @@ $roles = $stmt->fetchAll();
 
   <section class="content">
     <div class="container-fluid">
+      <?php if ($generalMessage !== ''): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <?= htmlspecialchars($generalMessage) ?>
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      <?php endif; ?>
+      <?php
+        $filterMode = 'server';
+        $filterAction = 'roles.php';
+        $filterFieldsHtml = '
+          <div class="col-md-4">
+            <div class="form-group mb-0">
+              <label>Tên vai trò</label>
+              <input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Nhập tên vai trò">
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group mb-0">
+              <label>Trạng thái</label>
+              <select name="status" class="form-control">
+                <option value="">-- Tất cả trạng thái --</option>
+                <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option>
+                <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option>
+              </select>
+            </div>
+          </div>
+        ';
+        $filterAction = 'roles.php';
+        include 'layout/filter-card.php';
+      ?>
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">Danh sách Vai trò</h3>
@@ -44,7 +99,7 @@ $roles = $stmt->fetchAll();
           </div>
         </div>
         <div class="card-body">
-          <table class="table table-bordered table-striped">
+          <table class="table table-bordered table-striped js-admin-table">
             <thead>
               <tr>
                 <th>ID</th>

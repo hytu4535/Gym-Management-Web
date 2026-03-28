@@ -23,32 +23,74 @@ $db = getDB();
 $checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
 $hasPhoneColumn = !empty($checkColumn);
 
+// Bộ lọc
+$filterUsername = trim((string) ($_GET['username'] ?? ''));
+$filterEmail = trim((string) ($_GET['email'] ?? ''));
+$filterPhone = trim((string) ($_GET['phone'] ?? ''));
+$filterRoleId = trim((string) ($_GET['role_id'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+$filterStatusDb = $filterStatus === 'inactive' ? 'locked' : $filterStatus;
+
 // Pagination
 $itemsPerPage = 10;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $offset = ($page - 1) * $itemsPerPage;
 
+$whereClauses = [];
+$whereParams = [];
+
+if ($filterUsername !== '') {
+  $whereClauses[] = 'u.username LIKE ?';
+  $whereParams[] = '%' . $filterUsername . '%';
+}
+
+if ($filterEmail !== '') {
+  $whereClauses[] = 'u.email LIKE ?';
+  $whereParams[] = '%' . $filterEmail . '%';
+}
+
+if ($hasPhoneColumn && $filterPhone !== '') {
+  $whereClauses[] = 'u.phone LIKE ?';
+  $whereParams[] = '%' . $filterPhone . '%';
+}
+
+if ($filterRoleId !== '' && ctype_digit($filterRoleId)) {
+  $whereClauses[] = 'u.role_id = ?';
+  $whereParams[] = (int) $filterRoleId;
+}
+
+if ($filterStatus !== '') {
+  $whereClauses[] = 'u.status = ?';
+  $whereParams[] = $filterStatusDb;
+}
+
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
 // Lấy tổng số users
-$countSql = "SELECT COUNT(*) as total FROM users";
-$countStmt = $db->query($countSql);
-$totalRecords = $countStmt->fetch()['total'];
+$countSql = "SELECT COUNT(*) as total FROM users u JOIN roles r ON u.role_id = r.id" . $whereSql;
+$countStmt = $db->prepare($countSql);
+$countStmt->execute($whereParams);
+$totalRecords = (int) ($countStmt->fetch()['total'] ?? 0);
 $totalPages = ceil($totalRecords / $itemsPerPage);
 
 // Lấy danh sách users
 if ($hasPhoneColumn) {
-    $sql = "SELECT u.id, u.username, u.email, u.phone, u.password, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.phone, u.password, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
+            $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 } else {
-    $sql = "SELECT u.id, u.username, u.email, u.password, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.password, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
+            $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 }
-$stmt = $db->query($sql);
+$stmt = $db->prepare($sql);
+$stmt->execute($whereParams);
 $users = $stmt->fetchAll();
 
 // Lấy danh sách roles để dùng cho form
@@ -96,6 +138,75 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
 
   <section class="content">
     <div class="container-fluid">
+      <div class="row mb-3">
+        <div class="col-12">
+          <div class="card card-primary collapsed-card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-filter"></i> Lọc users</h3>
+              <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <form method="GET" action="users.php">
+                <div class="row">
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Tên đăng nhập</label>
+                      <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($filterUsername) ?>" placeholder="Nhập tên đăng nhập">
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Email</label>
+                      <input type="text" name="email" class="form-control" value="<?= htmlspecialchars($filterEmail) ?>" placeholder="Nhập email">
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Số điện thoại</label>
+                      <input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($filterPhone) ?>" placeholder="Nhập số điện thoại">
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Vai trò</label>
+                      <select name="role_id" class="form-control">
+                        <option value="">-- Tất cả vai trò --</option>
+                        <?php foreach ($roles as $role): ?>
+                          <option value="<?= $role['id'] ?>" <?= $filterRoleId !== '' && (int) $filterRoleId === (int) $role['id'] ? 'selected' : '' ?>><?= htmlspecialchars($role['name']) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="form-group">
+                      <label>Trạng thái</label>
+                      <select name="status" class="form-control">
+                        <option value="">-- Tất cả trạng thái --</option>
+                        <option value="active" <?= $filterStatus === 'active' ? 'selected' : '' ?>>Active</option>
+                        <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary btn-block mb-3">
+                      <i class="fas fa-search"></i> Lọc
+                    </button>
+                  </div>
+                  <div class="col-md-3 d-flex align-items-end">
+                    <a href="users.php" class="btn btn-secondary btn-block mb-3">
+                      <i class="fas fa-redo"></i> Xóa bộ lọc
+                    </a>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
       <?php if (!empty($generalMessage)): ?>
         <div class="alert alert-warning alert-dismissible fade show" role="alert">
           <i class="fas fa-exclamation-triangle"></i> <?= htmlspecialchars($generalMessage) ?>
@@ -114,7 +225,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
           </div>
         </div>
         <div class="card-body">
-          <table class="table table-bordered table-striped">
+          <table class="table table-bordered table-striped js-admin-table">
             <thead>
               <tr>
                 <th>ID</th>
@@ -147,17 +258,34 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <td><span class="badge badge-info"><?= $u['role'] ?></span></td>
                 <td>
                   <?php if($u['status']=='active'): ?>
-                    <span class="badge badge-success">Active</span>
+                    <span class="badge badge-success">Hoạt động</span>
                   <?php else: ?>
-                    <span class="badge badge-danger">Inactive</span>
+                    <span class="badge badge-danger">Bị khóa</span>
                   <?php endif; ?>
                 </td>
                 <td><?= $u['created_at'] ?></td>
                 <td>
+                  <!-- Nút xem chi tiết -->
+                  <button class="btn btn-info btn-sm" data-toggle="modal" data-target="#detailUserModal<?= $u['id'] ?>">
+                    <i class="fas fa-eye"></i>
+                  </button>
                   <!-- Nút sửa mở modal -->
                   <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal<?= $u['id'] ?>">
                     <i class="fas fa-edit"></i>
                   </button>
+                  <form action="process/user_management.php" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn thay đổi trạng thái user này?');">
+                    <input type="hidden" name="action" value="toggle_status">
+                    <input type="hidden" name="id" value="<?= $u['id'] ?>">
+                    <?php if($u['status']=='active'): ?>
+                      <button type="submit" class="btn btn-danger btn-sm">
+                        <i class="fas fa-lock"></i> Khóa
+                      </button>
+                    <?php else: ?>
+                      <button type="submit" class="btn btn-success btn-sm">
+                        <i class="fas fa-unlock"></i> Mở khóa
+                      </button>
+                    <?php endif; ?>
+                  </form>
                   <!-- Nút xoá -->
                   <a href="process/user_management.php?action=delete&id=<?= $u['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Xóa user này?');">
                     <i class="fas fa-trash"></i>
@@ -183,12 +311,17 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                           <input type="text" class="form-control" value="<?= $u['username'] ?>" disabled>
                         </div>
                         <div class="form-group">
+                          <label>Họ Tên</label>
+                          <input type="text" class="form-control <?= getFieldError('full_name', $validationErrors) ? 'is-invalid' : '' ?>" name="full_name" value="<?= htmlspecialchars(getFieldValue('full_name', $formData, $u['full_name'] ?? '')) ?>" data-field="full_name">
+                          <small class="text-danger d-block mt-2" style="<?= getFieldError('full_name', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('full_name', $validationErrors) ?></small>
+                        </div>
+                        <div class="form-group">
                           <label>Email (Không thể sửa)</label>
                           <input type="text" inputmode="email" class="form-control" value="<?= $u['email'] ?>" disabled>
                         </div>
                         <div class="form-group">
                           <label>Số điện thoại</label>
-                          <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData, $u['phone'] ?? '')) ?>" placeholder="Nhập 10-11 số" data-field="phone">
+                          <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData, $u['phone'] ?? '')) ?>" placeholder="Nhập số bắt đầu bằng 0 hoặc +84" data-field="phone">
                           <small class="text-danger d-block mt-2" style="<?= getFieldError('phone', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('phone', $validationErrors) ?></small>
                         </div>
                         <div class="form-group">
@@ -226,13 +359,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                           </select>
                           <small class="text-danger d-block mt-2" style="<?= getFieldError('role_id', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('role_id', $validationErrors) ?></small>
                         </div>
-                        <div class="form-group">
-                          <label>Trạng thái</label>
-                          <select class="form-control" name="status">
-                            <option value="active" <?= ($formData ? (getFieldValue('status', $formData) == 'active') : ($u['status']=='active')) ? 'selected' : '' ?>>Active</option>
-                            <option value="inactive" <?= ($formData ? (getFieldValue('status', $formData) == 'inactive') : ($u['status']=='inactive')) ? 'selected' : '' ?>>Inactive</option>
-                          </select>
-                        </div>
                       </div>
                       <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
@@ -240,6 +366,73 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                       </div>
                     </div>
                   </form>
+                </div>
+              </div>
+
+              <!-- Modal xem chi tiết user -->
+              <div class="modal fade" id="detailUserModal<?= $u['id'] ?>" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Chi tiết User</h5>
+                      <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                      <div class="row">
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>ID</label>
+                            <input type="text" class="form-control" value="<?= $u['id'] ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Trạng thái</label>
+                            <input type="text" class="form-control" value="<?= $u['status'] == 'active' ? 'Active' : 'Inactive' ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Tên đăng nhập</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['username']) ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Họ Tên</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['full_name'] ?? '') ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Email</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['email']) ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Số điện thoại</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['phone'] ?? '') ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Vai trò</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['role']) ?>" readonly>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="form-group">
+                            <label>Ngày tạo</label>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($u['created_at']) ?>" readonly>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <?php endforeach; ?>
@@ -251,10 +444,10 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
             <ul class="pagination justify-content-center">
               <?php if ($page > 1): ?>
                 <li class="page-item">
-                  <a class="page-link" href="?page=1">Đầu tiên</a>
+                  <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => 1])) ?>">Đầu tiên</a>
                 </li>
                 <li class="page-item">
-                  <a class="page-link" href="?page=<?= $page - 1 ?>">Trước</a>
+                  <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page - 1])) ?>">Trước</a>
                 </li>
               <?php else: ?>
                 <li class="page-item disabled">
@@ -281,7 +474,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                   </li>
                 <?php else: ?>
                   <li class="page-item">
-                    <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                    <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>"><?= $i ?></a>
                   </li>
                 <?php endif;
               endfor;
@@ -292,10 +485,10 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
 
               <?php if ($page < $totalPages): ?>
                 <li class="page-item">
-                  <a class="page-link" href="?page=<?= $page + 1 ?>">Sau</a>
+                  <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $page + 1])) ?>">Sau</a>
                 </li>
                 <li class="page-item">
-                  <a class="page-link" href="?page=<?= $totalPages ?>">Cuối cùng</a>
+                  <a class="page-link" href="?<?= http_build_query(array_merge($_GET, ['page' => $totalPages])) ?>">Cuối cùng</a>
                 </li>
               <?php else: ?>
                 <li class="page-item disabled">
@@ -332,13 +525,18 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
               <small class="text-danger d-block mt-2" style="<?= getFieldError('username', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('username', $validationErrors) ?></small>
             </div>
             <div class="form-group">
+              <label>Họ Tên</label>
+              <input type="text" class="form-control <?= getFieldError('full_name', $validationErrors) ? 'is-invalid' : '' ?>" name="full_name" value="<?= htmlspecialchars(getFieldValue('full_name', $formData)) ?>" data-field="full_name">
+              <small class="text-danger d-block mt-2" style="<?= getFieldError('full_name', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('full_name', $validationErrors) ?></small>
+            </div>
+            <div class="form-group">
               <label>Email</label>
               <input type="text" inputmode="email" class="form-control <?= getFieldError('email', $validationErrors) ? 'is-invalid' : '' ?>" name="email" value="<?= htmlspecialchars(getFieldValue('email', $formData)) ?>" data-field="email">
               <small class="text-danger d-block mt-2" style="<?= getFieldError('email', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('email', $validationErrors) ?></small>
             </div>
             <div class="form-group">
               <label>Số điện thoại</label>
-              <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData)) ?>" placeholder="Nhập 10-11 số" data-field="phone">
+              <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData)) ?>" placeholder="Nhập số bắt đầu bằng 0 hoặc +84" data-field="phone">
               <small class="text-danger d-block mt-2" style="<?= getFieldError('phone', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('phone', $validationErrors) ?></small>
             </div>
             <div class="form-group">
@@ -375,13 +573,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
               </select>
               <small class="text-danger d-block mt-2" style="<?= getFieldError('role_id', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('role_id', $validationErrors) ?></small>
             </div>
-            <div class="form-group">
-              <label>Trạng thái</label>
-              <select class="form-control" name="status">
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
@@ -413,12 +604,17 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
             <input type="text" class="form-control" value="<?= $editUserData['username'] ?>" disabled>
           </div>
           <div class="form-group">
+            <label>Họ Tên</label>
+            <input type="text" class="form-control <?= getFieldError('full_name', $validationErrors) ? 'is-invalid' : '' ?>" name="full_name" value="<?= htmlspecialchars(getFieldValue('full_name', $formData, $editUserData['full_name'] ?? '')) ?>" data-field="full_name">
+            <small class="text-danger d-block mt-2" style="<?= getFieldError('full_name', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('full_name', $validationErrors) ?></small>
+          </div>
+          <div class="form-group">
             <label>Email (Không thể sửa)</label>
             <input type="text" inputmode="email" class="form-control" value="<?= $editUserData['email'] ?>" disabled>
           </div>
           <div class="form-group">
             <label>Số điện thoại</label>
-            <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData, $editUserData['phone'] ?? '')) ?>" placeholder="Nhập 10-11 số" data-field="phone">
+            <input type="text" class="form-control <?= getFieldError('phone', $validationErrors) ? 'is-invalid' : '' ?>" name="phone" value="<?= htmlspecialchars(getFieldValue('phone', $formData, $editUserData['phone'] ?? '')) ?>" placeholder="Nhập số bắt đầu bằng 0 hoặc +84" data-field="phone">
             <small class="text-danger d-block mt-2" style="<?= getFieldError('phone', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('phone', $validationErrors) ?></small>
           </div>
           <div class="form-group">
@@ -455,13 +651,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
               <?php endforeach; ?>
             </select>
             <small class="text-danger d-block mt-2" style="<?= getFieldError('role_id', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('role_id', $validationErrors) ?></small>
-          </div>
-          <div class="form-group">
-            <label>Trạng thái</label>
-            <select class="form-control" name="status">
-              <option value="active" <?= ($formData ? (getFieldValue('status', $formData) == 'active') : ($editUserData['status']=='active')) ? 'selected' : '' ?>>Active</option>
-              <option value="inactive" <?= ($formData ? (getFieldValue('status', $formData) == 'inactive') : ($editUserData['status']=='inactive')) ? 'selected' : '' ?>>Inactive</option>
-            </select>
           </div>
         </div>
         <div class="modal-footer">
@@ -625,7 +814,7 @@ function isValidEmail(email) {
 
 function isValidPhone(phone) {
   if (!phone) return true;
-  return /^[0-9]{10,11}$/.test(phone);
+  return /^(?:\+84\d{9}|0\d{9,10})$/.test(phone);
 }
 
 function validateField(input, isAddForm = true) {
@@ -643,13 +832,18 @@ function validateField(input, isAddForm = true) {
     if (value && value.length < 3) return showError(input, 'Tên đăng nhập phải có ít nhất 3 ký tự'), false;
   }
 
+  if (fieldName === 'full_name') {
+    if (!value) return showError(input, 'Vui lòng nhập họ tên'), false;
+    if (value.length < 2) return showError(input, 'Họ tên phải có ít nhất 2 ký tự'), false;
+  }
+
   if (fieldName === 'email') {
     if (effectiveIsAddForm && !value) return showError(input, 'Vui lòng nhập email'), false;
     if (value && !isValidEmail(value)) return showError(input, 'Email không hợp lệ'), false;
   }
 
   if (fieldName === 'phone') {
-    if (!isValidPhone(value)) return showError(input, 'Vui lòng nhập 10-11 chữ số'), false;
+    if (!isValidPhone(value)) return showError(input, 'Vui lòng nhập số điện thoại bắt đầu bằng 0 hoặc +84 và phải có 10-11 số'), false;
   }
 
   if (fieldName === 'password') {

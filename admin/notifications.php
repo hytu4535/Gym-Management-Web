@@ -18,6 +18,9 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
+$filterKeyword = trim((string) ($_GET['keyword'] ?? ''));
+$filterReadStatus = trim((string) ($_GET['read_status'] ?? ''));
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recipient_group'])) {
   $group   = $_POST['recipient_group'];
   $recipientIdentifier = trim($_POST['recipient_identifier'] ?? '');
@@ -134,7 +137,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_notification_i
   exit;
 }
 
-$notificationsStmt = $db->query("SELECT n.id, n.title, n.content, n.created_at, n.is_read, u.username, u.email FROM notifications n INNER JOIN users u ON n.user_id = u.id ORDER BY n.id DESC");
+$notificationWhereClauses = [];
+$notificationParams = [];
+if ($filterKeyword !== '') {
+  $notificationWhereClauses[] = '(n.title LIKE ? OR n.content LIKE ? OR u.username LIKE ? OR u.email LIKE ?)';
+  $keywordValue = '%' . $filterKeyword . '%';
+  $notificationParams[] = $keywordValue;
+  $notificationParams[] = $keywordValue;
+  $notificationParams[] = $keywordValue;
+  $notificationParams[] = $keywordValue;
+}
+if ($filterReadStatus === 'read') {
+  $notificationWhereClauses[] = 'n.is_read = 1';
+} elseif ($filterReadStatus === 'unread') {
+  $notificationWhereClauses[] = 'n.is_read = 0';
+}
+
+$notificationSql = "SELECT n.id, n.title, n.content, n.created_at, n.is_read, u.username, u.email FROM notifications n INNER JOIN users u ON n.user_id = u.id";
+if (!empty($notificationWhereClauses)) {
+  $notificationSql .= ' WHERE ' . implode(' AND ', $notificationWhereClauses);
+}
+$notificationSql .= ' ORDER BY n.id DESC';
+
+$notificationsStmt = $db->prepare($notificationSql);
+$notificationsStmt->execute($notificationParams);
 $notifications = $notificationsStmt->fetchAll();
 
 // layout chung
@@ -165,6 +191,15 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'notifications.php';
+          $filterFieldsHtml = '
+            <div class="col-md-5"><div class="form-group mb-0"><label>Từ khóa</label><input type="text" name="keyword" class="form-control" value="' . htmlspecialchars($filterKeyword) . '" placeholder="Tiêu đề / nội dung / người nhận"></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Trạng thái đọc</label><select name="read_status" class="form-control"><option value="">-- Tất cả --</option><option value="unread" ' . ($filterReadStatus === 'unread' ? 'selected' : '') . '>Chưa đọc</option><option value="read" ' . ($filterReadStatus === 'read' ? 'selected' : '') . '>Đã đọc</option></select></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
@@ -177,7 +212,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table" id="notificationsTable">
                   <thead>
                   <tr>
                     <th>ID</th>

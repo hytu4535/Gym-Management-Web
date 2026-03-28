@@ -7,18 +7,21 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 if ($action == 'add') {
     $username = $_POST['username'] ?? '';
+    $full_name = $_POST['full_name'] ?? '';
     $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     $password_confirm = $_POST['password_confirm'] ?? '';
     $phone = $_POST['phone'] ?? '';
     $role_id = $_POST['role_id'] ?? '';
-    $status = 'active';
     
     $errors = [];
 
     // Kiểm tra các trường bắt buộc
     if (empty($username)) {
         $errors['username'] = 'Vui lòng nhập tên đăng nhập';
+    }
+    if (empty($full_name)) {
+        $errors['full_name'] = 'Vui lòng nhập họ tên';
     }
     if (empty($email)) {
         $errors['email'] = 'Vui lòng nhập email';
@@ -39,8 +42,8 @@ if ($action == 'add') {
     }
     
     // Kiểm tra phone format nếu có
-    if (!empty($phone) && !preg_match('/^[0-9]{10,11}$/', $phone)) {
-        $errors['phone'] = 'Vui lòng nhập 10-11 chữ số';
+    if (!empty($phone) && !preg_match('/^(?:\+84\d{9}|0\d{9,10})$/', $phone)) {
+        $errors['phone'] = 'Vui lòng nhập số điện thoại bắt đầu bằng 0 hoặc +84 và phải có 10-11 số';
     }
 
     // Kiểm tra password khớp
@@ -71,6 +74,7 @@ if ($action == 'add') {
         $_SESSION['validation_errors'] = $errors;
         $_SESSION['form_data'] = [
             'username' => $username,
+            'full_name' => $full_name,
             'email' => $email,
             'phone' => $phone,
             'role_id' => $role_id
@@ -83,15 +87,15 @@ if ($action == 'add') {
     $checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
     
     if (!empty($checkColumn)) {
-        $sql = "INSERT INTO users (username, password, email, phone, role_id, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, NOW())";
+        $sql = "INSERT INTO users (username, full_name, password, email, phone, role_id, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())";
         $stmt = $db->prepare($sql);
-        $stmt->execute([$username, $password, $email, $phone, $role_id, $status]);
+        $stmt->execute([$username, $full_name, $password, $email, $phone, $role_id, 'active']);
     } else {
-        $sql = "INSERT INTO users (username, password, email, role_id, status, created_at)
-                VALUES (?, ?, ?, ?, ?, NOW())";
+        $sql = "INSERT INTO users (username, full_name, password, email, role_id, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())";
         $stmt = $db->prepare($sql);
-        $stmt->execute([$username, $password, $email, $role_id, $status]);
+        $stmt->execute([$username, $full_name, $password, $email, $role_id, 'active']);
     }
 
     unset($_SESSION['validation_errors']);
@@ -116,9 +120,9 @@ if ($action == 'delete') {
         $refCount = (int)($refStmt->fetch()['cnt'] ?? 0);
 
         if ($refCount > 0) {
-            $softStmt = $db->prepare("UPDATE users SET status = 'inactive' WHERE id = ?");
+            $softStmt = $db->prepare("UPDATE users SET status = 'locked' WHERE id = ?");
             $softStmt->execute([$id]);
-            $_SESSION['validation_errors'] = ['general' => 'User đang có dữ liệu liên kết (hội viên). Đã chuyển sang trạng thái Inactive thay vì xóa.'];
+            $_SESSION['validation_errors'] = ['general' => 'User đang có dữ liệu liên kết (hội viên). Đã chuyển sang trạng thái bị khóa thay vì xóa.'];
             header("Location: ../users.php");
             exit();
         }
@@ -136,11 +140,38 @@ if ($action == 'delete') {
     }
 }
 
+if ($action == 'toggle_status') {
+    $id = $_POST['id'] ?? $_GET['id'] ?? '';
+
+    if (empty($id)) {
+        $_SESSION['validation_errors'] = ['general' => 'Yêu cầu không hợp lệ'];
+        header("Location: ../users.php");
+        exit();
+    }
+
+    $statusStmt = $db->prepare("SELECT status FROM users WHERE id = ? LIMIT 1");
+    $statusStmt->execute([$id]);
+    $currentUser = $statusStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$currentUser) {
+        $_SESSION['validation_errors'] = ['general' => 'Không tìm thấy user cần cập nhật'];
+        header("Location: ../users.php");
+        exit();
+    }
+
+    $newStatus = ($currentUser['status'] ?? '') === 'active' ? 'locked' : 'active';
+    $updateStmt = $db->prepare("UPDATE users SET status = ? WHERE id = ?");
+    $updateStmt->execute([$newStatus, $id]);
+
+    header("Location: ../users.php");
+    exit();
+}
+
 // xử lý edit
 if ($action == 'edit') {
     $id = $_POST['id'] ?? '';
     $role_id = $_POST['role_id'] ?? '';
-    $status = $_POST['status'] ?? 'active';
+    $full_name = $_POST['full_name'] ?? '';
     $password = $_POST['password'] ?? '';
     $password_confirm = $_POST['password_confirm'] ?? '';
     $phone = $_POST['phone'] ?? '';
@@ -154,11 +185,14 @@ if ($action == 'edit') {
     if (empty($role_id)) {
         $errors['role_id'] = 'Vui lòng chọn vai trò';
     }
+    if (empty($full_name)) {
+        $errors['full_name'] = 'Vui lòng nhập họ tên';
+    }
 
     // Lấy lại username/email hiện tại từ DB để không bị ghi đè bằng chuỗi rỗng từ form disabled
     $currentUser = null;
     if (empty($errors)) {
-        $currentStmt = $db->prepare("SELECT username, email FROM users WHERE id = ? LIMIT 1");
+        $currentStmt = $db->prepare("SELECT username, email, full_name FROM users WHERE id = ? LIMIT 1");
         $currentStmt->execute([$id]);
         $currentUser = $currentStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -168,8 +202,8 @@ if ($action == 'edit') {
     }
     
     // Kiểm tra phone format nếu có
-    if (!empty($phone) && !preg_match('/^[0-9]{10,11}$/', $phone)) {
-        $errors['phone'] = 'Vui lòng nhập 10-11 chữ số';
+    if (!empty($phone) && !preg_match('/^(?:\+84\d{9}|0\d{9,10})$/', $phone)) {
+        $errors['phone'] = 'Vui lòng nhập số điện thoại bắt đầu bằng 0 hoặc +84 và phải có 10-11 số';
     }
 
     // Kiểm tra password khớp nếu nhập mật khẩu
@@ -189,9 +223,9 @@ if ($action == 'edit') {
     if (!empty($errors)) {
         $_SESSION['validation_errors'] = $errors;
         $_SESSION['form_data'] = [
+            'full_name' => $full_name,
             'phone' => $phone,
-            'role_id' => $role_id,
-            'status' => $status
+            'role_id' => $role_id
         ];
         header("Location: ../users.php?edit=" . $id . "#editUserModal" . $id);
         exit();
@@ -202,23 +236,23 @@ if ($action == 'edit') {
 
     if (!empty($checkColumn)) {
         if (!empty($password)) {
-            $sql = "UPDATE users SET username=?, email=?, phone=?, role_id=?, status=?, password=? WHERE id=?";
+            $sql = "UPDATE users SET username=?, full_name=?, email=?, phone=?, role_id=?, password=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $currentUser['email'], $phone, $role_id, $status, $password, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $phone, $role_id, $password, $id]);
         } else {
-            $sql = "UPDATE users SET username=?, email=?, phone=?, role_id=?, status=? WHERE id=?";
+            $sql = "UPDATE users SET username=?, full_name=?, email=?, phone=?, role_id=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $currentUser['email'], $phone, $role_id, $status, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $phone, $role_id, $id]);
         }
     } else {
         if (!empty($password)) {
-            $sql = "UPDATE users SET username=?, email=?, role_id=?, status=?, password=? WHERE id=?";
+            $sql = "UPDATE users SET username=?, full_name=?, email=?, role_id=?, password=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $currentUser['email'], $role_id, $status, $password, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $role_id, $password, $id]);
         } else {
-            $sql = "UPDATE users SET username=?, email=?, role_id=?, status=? WHERE id=?";
+            $sql = "UPDATE users SET username=?, full_name=?, email=?, role_id=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $currentUser['email'], $role_id, $status, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $role_id, $id]);
         }
     }
 

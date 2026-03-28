@@ -4,6 +4,7 @@ require_once '../../config/db.php';
 if (isset($_POST['btn_add_product'])) {
     $name = $_POST['name'];
     $category_id = !empty($_POST['category_id']) ? $_POST['category_id'] : 'NULL';
+    $short_description = $conn->real_escape_string(trim($_POST['short_description'] ?? ''));
     $unit = $_POST['unit'];
     $selling_price = $_POST['selling_price'];
     $stock_quantity = $_POST['stock_quantity'];
@@ -35,8 +36,8 @@ if (isset($_POST['btn_add_product'])) {
         }
     }
 
-    $sql_insert = "INSERT INTO products (category_id, name, img, unit, stock_quantity, selling_price, status) 
-                   VALUES ($category_id, '$name', '$img_name', '$unit', $stock_quantity, $selling_price, '$status')";
+    $sql_insert = "INSERT INTO products (category_id, name, short_description, img, unit, stock_quantity, selling_price, status) 
+                   VALUES ($category_id, '$name', '$short_description', '$img_name', '$unit', $stock_quantity, $selling_price, '$status')";
 
     if ($conn->query($sql_insert) === TRUE) {
         echo "<script>

@@ -17,6 +17,27 @@ checkPermission('MANAGE_SALES');
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
 
+
+?>
+
+<style>
+  #ordersTable {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  #ordersTable th,
+  #ordersTable td {
+    vertical-align: middle;
+  }
+
+  #ordersTable .order-note-cell {
+    width: 130px;
+    text-align: center;
+    white-space: nowrap;
+  }
+</style>
+<?php
 require_once '../config/db.php';
 
 // Lấy giá trị filter từ form
@@ -25,9 +46,22 @@ $filter_from_date = isset($_GET['from_date']) ? $_GET['from_date'] : '';
 $filter_to_date = isset($_GET['to_date']) ? $_GET['to_date'] : '';
 $filter_city = isset($_GET['city']) ? $_GET['city'] : '';
 $filter_district = isset($_GET['district']) ? $_GET['district'] : '';
+$filter_member_id = isset($_GET['member_id']) ? (int) $_GET['member_id'] : 0;
+$filter_amount_min = isset($_GET['amount_min']) ? $_GET['amount_min'] : '';
+$filter_amount_max = isset($_GET['amount_max']) ? $_GET['amount_max'] : '';
+$filter_payment_method = isset($_GET['payment_method']) ? $_GET['payment_method'] : '';
+
+// Tương thích DB: nếu chưa có cột note thì vẫn hiển thị được danh sách đơn hàng
+$has_order_note = false;
+$note_column_check = $conn->query("SHOW COLUMNS FROM orders LIKE 'note'");
+if ($note_column_check && $note_column_check->num_rows > 0) {
+  $has_order_note = true;
+}
+
+$order_note_select = $has_order_note ? 'o.note' : 'NULL AS note';
 
 // Xây dựng câu query với filter
-$sql = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, o.transfer_code, o.proof_img, m.full_name, 
+$sql = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, o.transfer_code, o.proof_img, $order_note_select, m.full_name, 
         a.city, a.district 
         FROM orders o 
         LEFT JOIN members m ON o.member_id = m.id 
@@ -55,6 +89,22 @@ if (!empty($filter_district)) {
     $sql .= " AND a.district = '" . $conn->real_escape_string($filter_district) . "'";
 }
 
+if (!empty($filter_member_id)) {
+  $sql .= " AND o.member_id = " . (int) $filter_member_id;
+}
+
+if ($filter_amount_min !== '' && is_numeric($filter_amount_min)) {
+  $sql .= " AND o.total_amount >= " . (float) $filter_amount_min;
+}
+
+if ($filter_amount_max !== '' && is_numeric($filter_amount_max)) {
+  $sql .= " AND o.total_amount <= " . (float) $filter_amount_max;
+}
+
+if (!empty($filter_payment_method)) {
+  $sql .= " AND o.payment_method = '" . $conn->real_escape_string($filter_payment_method) . "'";
+}
+
 $sql .= " ORDER BY o.id DESC";
 
 $result = $conn->query($sql);
@@ -65,6 +115,12 @@ $cities_result = $conn->query($cities_sql);
 
 $districts_sql = "SELECT DISTINCT district FROM addresses WHERE district IS NOT NULL AND district != '' ORDER BY district";
 $districts_result = $conn->query($districts_sql);
+
+$customers_sql = "SELECT DISTINCT m.id, m.full_name
+                  FROM orders o
+                  INNER JOIN members m ON o.member_id = m.id
+                  ORDER BY m.full_name";
+$customers_result = $conn->query($customers_sql);
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -168,6 +224,48 @@ $districts_result = $conn->query($districts_sql);
                       </div>
                     </div>
 
+                    <!-- Filter by Customer -->
+                    <div class="col-md-3">
+                      <div class="form-group">
+                        <label>Tên khách hàng</label>
+                        <select name="member_id" class="form-control">
+                          <option value="">-- Tất cả --</option>
+                          <?php if ($customers_result && $customers_result->num_rows > 0): ?>
+                            <?php while ($customer_row = $customers_result->fetch_assoc()): ?>
+                              <option value="<?php echo (int) $customer_row['id']; ?>" <?php echo ($filter_member_id == (int) $customer_row['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($customer_row['full_name']); ?></option>
+                            <?php endwhile; ?>
+                          <?php endif; ?>
+                        </select>
+                      </div>
+                    </div>
+
+                    <!-- Filter by Amount Range -->
+                    <div class="col-md-2">
+                      <div class="form-group">
+                        <label>Mức tiền từ</label>
+                        <input type="number" name="amount_min" class="form-control" min="0" value="<?php echo htmlspecialchars($filter_amount_min); ?>" placeholder=">=">
+                      </div>
+                    </div>
+                    <div class="col-md-2">
+                      <div class="form-group">
+                        <label>Mức tiền đến</label>
+                        <input type="number" name="amount_max" class="form-control" min="0" value="<?php echo htmlspecialchars($filter_amount_max); ?>" placeholder="<=">
+                      </div>
+                    </div>
+
+                    <!-- Filter by Payment Method -->
+                    <div class="col-md-2">
+                      <div class="form-group">
+                        <label>Phương thức</label>
+                        <select name="payment_method" class="form-control">
+                          <option value="">-- Tất cả --</option>
+                          <option value="cash" <?php echo ($filter_payment_method == 'cash') ? 'selected' : ''; ?>>Tiền mặt</option>
+                          <option value="online" <?php echo ($filter_payment_method == 'online') ? 'selected' : ''; ?>>Online</option>
+                          <option value="bank_transfer" <?php echo ($filter_payment_method == 'bank_transfer') ? 'selected' : ''; ?>>Chuyển khoản</option>
+                        </select>
+                      </div>
+                    </div>
+
                     <!-- Filter Buttons -->
                     <div class="col-md-1">
                       <div class="form-group">
@@ -205,7 +303,8 @@ $districts_result = $conn->query($districts_sql);
                 <h3 class="card-title">Danh sách Orders</h3>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <div class="table-responsive">
+                <table class="table table-bordered table-striped data-table" id="ordersTable">
                   <thead>
                   <tr>
                     <th>Mã ĐH</th>
@@ -214,6 +313,7 @@ $districts_result = $conn->query($districts_sql);
                     <th>Địa điểm giao</th>
                     <th>Tổng tiền</th>
                     <th>Phương thức</th>
+                    <th style="width: 130px;">Ghi chú</th>
                     <th>Nội dung CK</th>
                     <th>Bằng chứng</th>
                     <th>Trạng thái</th>
@@ -247,6 +347,11 @@ $districts_result = $conn->query($districts_sql);
                                 ? '<span class="text-info"><i class="fas fa-university"></i> Chuyển khoản</span>' 
                                 : '<span class="text-success"><i class="fas fa-money-bill-wave"></i> Tiền mặt</span>');
 
+                            $noteText = trim($row['note'] ?? '');
+                            $orderNote = !empty($noteText)
+                              ? nl2br(htmlspecialchars($noteText))
+                              : '<span class="text-muted">-</span>';
+
                             $transferCode = $row['transfer_code'] ?? '<span class="text-muted">-</span>';
                             $proofImg = '';
                             if (!empty($row['proof_img'])) {
@@ -273,6 +378,12 @@ $districts_result = $conn->query($districts_sql);
                             echo "  <td>{$location}</td>";
                             echo "  <td class='text-danger font-weight-bold'>{$formattedPrice}</td>";
                             echo "  <td>{$paymentMethod}</td>";
+                            if (!empty($noteText)) {
+                              $escapedNoteText = htmlspecialchars($noteText, ENT_QUOTES, 'UTF-8');
+                              echo "  <td class='order-note-cell'><button type='button' class='btn btn-outline-info btn-sm' data-toggle='modal' data-target='#orderNoteModal' data-note='{$escapedNoteText}'><i class='fas fa-sticky-note'></i> Xem ghi chú</button></td>";
+                            } else {
+                              echo "  <td class='order-note-cell'><span class='text-muted'>-</span></td>";
+                            }
                             echo "  <td>{$transferCode}</td>";
                             echo "  <td>{$proofImg}</td>";
                             echo "  <td>{$statusBadge}</td>";
@@ -287,7 +398,7 @@ $districts_result = $conn->query($districts_sql);
                             echo "</tr>";
                         }
                     } else {
-                        echo "<tr><td colspan='10' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
+                      echo "<tr><td colspan='11' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
                     }
                   ?>
                   </tbody>
@@ -299,4 +410,30 @@ $districts_result = $conn->query($districts_sql);
       </div>
     </section>
 
+<div class="modal fade" id="orderNoteModal" tabindex="-1" role="dialog" aria-labelledby="orderNoteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title" id="orderNoteModalLabel">Ghi chú đơn hàng</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true" class="text-white">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="orderNoteContent" style="white-space: pre-wrap; word-break: break-word;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?php include 'layout/footer.php'; ?>
+
+<script>
+$(document).on('click', '[data-target="#orderNoteModal"]', function() {
+    var note = $(this).data('note') || '';
+    $('#orderNoteContent').html(note ? $('<div>').text(note).html().replace(/\n/g, '<br>') : '<span class="text-muted">Không có ghi chú</span>');
+});
+</script>

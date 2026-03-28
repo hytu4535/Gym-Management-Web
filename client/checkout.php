@@ -116,7 +116,7 @@ $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
 $total = $subtotal + $shipping_fee;
 
 
-$user_sql = "SELECT m.full_name, m.phone, m.address, u.email 
+$user_sql = "SELECT m.id AS member_id, m.full_name, m.phone, u.email 
              FROM members m 
              JOIN users u ON m.users_id = u.id 
              WHERE u.id = ?";
@@ -125,6 +125,35 @@ $stmt_user->bind_param("i", $user_id);
 $stmt_user->execute();
 $user_info = $stmt_user->get_result()->fetch_assoc();
 $stmt_user->close();
+
+$member_id = (int) ($user_info['member_id'] ?? 0);
+$member_addresses = [];
+$default_address_id = 0;
+
+if ($hasPhysicalProducts && $member_id > 0) {
+    $address_sql = "SELECT id, full_address, district, city, is_default
+                    FROM addresses
+                    WHERE member_id = ?
+                    ORDER BY is_default DESC, id DESC";
+    $stmt_address = $conn->prepare($address_sql);
+    $stmt_address->bind_param("i", $member_id);
+    $stmt_address->execute();
+    $address_result = $stmt_address->get_result();
+
+    while ($address_row = $address_result->fetch_assoc()) {
+        $member_addresses[] = $address_row;
+        if ($default_address_id === 0 && (int) $address_row['is_default'] === 1) {
+            $default_address_id = (int) $address_row['id'];
+        }
+    }
+    $stmt_address->close();
+
+    if ($default_address_id === 0 && !empty($member_addresses)) {
+        $default_address_id = (int) $member_addresses[0]['id'];
+    }
+}
+
+$has_saved_addresses = !empty($member_addresses);
 
 include 'layout/header.php'; 
 ?>
@@ -187,23 +216,39 @@ include 'layout/header.php';
                         <h5>Địa chỉ giao hàng</h5>
                         <div class="form-group">
                             <label>Chọn địa chỉ có sẵn</label>
-                            <select id="address-select" name="address_id" class="form-control">
-                                <?php if (!empty($user_info['address'])): ?>
-                                    <option value="default"><?php echo htmlspecialchars($user_info['address']); ?></option>
+                            <select id="address-select" name="address_id" class="form-control" <?php echo $has_saved_addresses ? '' : 'disabled'; ?>>
+                                <?php if ($has_saved_addresses): ?>
+                                    <?php foreach ($member_addresses as $address): ?>
+                                        <?php
+                                            $address_id = (int) $address['id'];
+                                            $full_address_text = trim((string) ($address['full_address'] ?? ''));
+                                            $district_text = trim((string) ($address['district'] ?? ''));
+                                            $city_text = trim((string) ($address['city'] ?? ''));
+                                            $address_parts = array_filter([$full_address_text, $district_text, $city_text], function ($part) {
+                                                return $part !== '';
+                                            });
+                                            $address_label = implode(', ', $address_parts);
+                                        ?>
+                                        <option value="<?php echo $address_id; ?>" <?php echo $address_id === $default_address_id ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($address_label); ?><?php echo (int) $address['is_default'] === 1 ? ' (Mặc định)' : ''; ?>
+                                        </option>
+                                    <?php endforeach; ?>
                                 <?php else: ?>
-                                    <option value="">-- Bạn chưa có địa chỉ mặc định --</option>
+                                    <option value="">-- Bạn chưa có địa chỉ đã lưu --</option>
                                 <?php endif; ?>
                             </select>
+                            <small class="form-text text-muted mt-1">Địa chỉ mặc định sẽ được chọn sẵn. Bạn có thể quản lý tại <a href="addresses.php">Sổ địa chỉ</a>.</small>
                         </div>
+                        <input type="hidden" id="has-saved-addresses" value="<?php echo $has_saved_addresses ? '1' : '0'; ?>">
                         
                         <div class="form-check mb-3 mt-3">
-                            <input type="checkbox" class="form-check-input" id="use-new-address" name="use_new_address" value="1" <?php echo empty($user_info['address']) ? 'checked' : ''; ?>>
+                            <input type="checkbox" class="form-check-input" id="use-new-address" name="use_new_address" value="1" <?php echo !$has_saved_addresses ? 'checked' : ''; ?>>
                             <label class="form-check-label" for="use-new-address" style="font-weight: bold; cursor: pointer;">
                                 Sử dụng địa chỉ mới
                             </label>
                         </div>
 
-                        <div id="new-address-form" style="display: <?php echo empty($user_info['address']) ? 'block' : 'none'; ?>; background: #fff; padding: 15px; border: 1px solid #e1e1e1; border-radius: 5px;">
+                        <div id="new-address-form" style="display: <?php echo !$has_saved_addresses ? 'block' : 'none'; ?>; background: #fff; padding: 15px; border: 1px solid #e1e1e1; border-radius: 5px;">
                             <div class="row">
                                 <div class="col-lg-12">
                                     <div class="form-group">
@@ -342,16 +387,28 @@ include 'layout/header.php';
 <script>
 var useNewAddress = document.getElementById('use-new-address');
 if (useNewAddress) {
+    var addressSelect = document.getElementById('address-select');
+    var hasSavedAddressesInput = document.getElementById('has-saved-addresses');
+
     useNewAddress.addEventListener('change', function() {
         var newAddressForm = document.getElementById('new-address-form');
-        var addressSelect = document.getElementById('address-select');
+        var hasSavedAddresses = hasSavedAddressesInput && hasSavedAddressesInput.value === '1';
         
         if (this.checked) {
             newAddressForm.style.display = 'block';
-            addressSelect.disabled = true;
+            if (addressSelect) {
+                addressSelect.disabled = true;
+            }
         } else {
+            if (!hasSavedAddresses) {
+                this.checked = true;
+                alert('Bạn chưa có địa chỉ đã lưu. Vui lòng nhập địa chỉ mới.');
+                return;
+            }
             newAddressForm.style.display = 'none';
-            addressSelect.disabled = false;
+            if (addressSelect) {
+                addressSelect.disabled = false;
+            }
         }
     });
 }
@@ -370,7 +427,9 @@ document.querySelectorAll('input[name="payment_method"]').forEach(function(radio
 });
 
 document.getElementById('checkout-form').addEventListener('submit', function(e) {
-    var useNewAddress = document.getElementById('use-new-address').checked;
+    var useNewAddressCheckbox = document.getElementById('use-new-address');
+    var useNewAddress = useNewAddressCheckbox ? useNewAddressCheckbox.checked : false;
+    var addressSelect = document.getElementById('address-select');
     
     if (useNewAddress) {
         var newAddress = document.querySelector('input[name="new_address"]').value.trim();
@@ -381,6 +440,10 @@ document.getElementById('checkout-form').addEventListener('submit', function(e) 
             e.preventDefault(); 
             alert('Vui lòng nhập đầy đủ: Địa chỉ, Thành phố và Quận/Huyện!');
         }
+    } else if (addressSelect && !addressSelect.value) {
+        e.preventDefault();
+        alert('Vui lòng chọn địa chỉ giao hàng có sẵn hoặc nhập địa chỉ mới!');
+        return;
     }
 
     var paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;

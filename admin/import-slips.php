@@ -225,7 +225,23 @@ $products = $productsStmt->fetchAll();
 $equipmentStmt = $db->query("SELECT id, name FROM equipment ORDER BY name ASC");
 $equipmentList = $equipmentStmt->fetchAll();
 
-$importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.note, i.status, (i.status + 0) AS status_idx, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
+$filterSupplierId = trim((string) ($_GET['supplier_id'] ?? ''));
+$filterStaffId = trim((string) ($_GET['staff_id'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+$filterFromDate = trim((string) ($_GET['from_date'] ?? ''));
+$filterToDate = trim((string) ($_GET['to_date'] ?? ''));
+
+$importSlipWhereClauses = [];
+$importSlipParams = [];
+if ($filterSupplierId !== '') { $importSlipWhereClauses[] = 'i.supplier_id = ?'; $importSlipParams[] = (int) $filterSupplierId; }
+if ($filterStaffId !== '') { $importSlipWhereClauses[] = 'i.staff_id = ?'; $importSlipParams[] = (int) $filterStaffId; }
+if ($filterStatus !== '' && is_numeric($filterStatus)) { $importSlipWhereClauses[] = '(i.status + 0) = ?'; $importSlipParams[] = (int) $filterStatus; }
+if ($filterFromDate !== '') { $importSlipWhereClauses[] = 'DATE(i.import_date) >= ?'; $importSlipParams[] = $filterFromDate; }
+if ($filterToDate !== '') { $importSlipWhereClauses[] = 'DATE(i.import_date) <= ?'; $importSlipParams[] = $filterToDate; }
+$importSlipWhereSql = !empty($importSlipWhereClauses) ? ' WHERE ' . implode(' AND ', $importSlipWhereClauses) : '';
+
+$importSlipsStmt = $db->prepare("SELECT i.id, i.total_amount, i.import_date, i.note, i.status, (i.status + 0) AS status_idx, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id" . $importSlipWhereSql . " ORDER BY i.id DESC");
+$importSlipsStmt->execute($importSlipParams);
 $importSlips = $importSlipsStmt->fetchAll();
 
 $importSlipDetailsMap = [];
@@ -313,6 +329,28 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'import-slips.php';
+          $filterFieldsHtml = '
+            <div class="col-md-3"><div class="form-group mb-0"><label>Nhà cung cấp</label><select name="supplier_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($suppliers as $supplier) {
+            $selected = (string) $filterSupplierId === (string) $supplier['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $supplier['id'] . '" ' . $selected . '>' . htmlspecialchars($supplier['name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Nhân viên</label><select name="staff_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($staffs as $staff) {
+            $selected = (string) $filterStaffId === (string) $staff['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $staff['id'] . '" ' . $selected . '>' . htmlspecialchars($staff['full_name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="2" ' . ($filterStatus === '2' ? 'selected' : '') . '>Đang chờ duyệt</option><option value="1" ' . ($filterStatus === '1' ? 'selected' : '') . '>Đã nhập</option><option value="3" ' . ($filterStatus === '3' ? 'selected' : '') . '>Đã hủy</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Từ ngày</label><input type="date" name="from_date" class="form-control" value="' . htmlspecialchars($filterFromDate) . '"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Đến ngày</label><input type="date" name="to_date" class="form-control" value="' . htmlspecialchars($filterToDate) . '"></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
@@ -325,7 +363,7 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>Mã Phiếu</th>

@@ -19,6 +19,13 @@ include 'layout/sidebar.php';
 
 $db = getDB();
 
+$validationErrors = $_SESSION['validation_errors'] ?? [];
+$generalMessage = '';
+if (!empty($validationErrors) && isset($validationErrors['general'])) {
+  $generalMessage = $validationErrors['general'];
+}
+unset($_SESSION['validation_errors']);
+
 $filterName = trim((string) ($_GET['name'] ?? ''));
 $filterStatus = trim((string) ($_GET['status'] ?? ''));
 
@@ -50,6 +57,14 @@ $roles = $stmt->fetchAll();
 
   <section class="content">
     <div class="container-fluid">
+      <?php if ($generalMessage !== ''): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <?= htmlspecialchars($generalMessage) ?>
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      <?php endif; ?>
       <?php
         $filterMode = 'server';
         $filterAction = 'roles.php';

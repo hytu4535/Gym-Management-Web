@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $db = getDB();
 
     // Lấy thông tin user + role
-    $sql = "SELECT u.id, u.username, u.password, r.id AS role_id, r.name AS role_name
+    $sql = "SELECT u.id, u.username, u.password, u.status, r.id AS role_id, r.name AS role_name
             FROM users u
             JOIN roles r ON u.role_id = r.id
             WHERE u.username = ?
@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $user = $stmt->fetch();
 
     // So sánh mật khẩu plain text
-    if ($user && $password === $user['password']) {
+    if ($user && $user['status'] === 'active' && $password === $user['password']) {
         // Lấy danh sách quyền từ bảng role_permissions
         $sql = "SELECT p.code 
                 FROM role_permissions rp
@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         // Lưu vào session
         $_SESSION['admin_logged_in'] = true;
+        $_SESSION['admin_user_id'] = $user['id'];
         $_SESSION['admin_username'] = $user['username'];
         $_SESSION['role'] = $user['role_name'];
         $_SESSION['role_id'] = $user['role_id']; // thêm dòng này để lưu role_id
@@ -38,6 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         header("Location: index.php");
         exit();
+      } elseif ($user && $user['status'] !== 'active') {
+        $error = "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.";
     } else {
         $error = "Sai tên đăng nhập hoặc mật khẩu!";
     }

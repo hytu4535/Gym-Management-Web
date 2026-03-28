@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE users_id = ? AND id <> ?");
         $duplicateStmt->execute([$users_id, $memberId]);
         if ((int) $duplicateStmt->fetchColumn() > 0) {
-          throw new Exception("Email/tài khoản này đã được hội viên khác sử dụng.");
+          throw new Exception("Tên đăng nhập / email này đã được sử dụng bởi tài khoản khác.");
         }
 
         $userStmt = $db->prepare("SELECT full_name, phone FROM users WHERE id = ?");
@@ -259,8 +259,9 @@ include 'layout/sidebar.php';
         <div class="modal-body">
           <input type="hidden" name="id" id="member_id">
           <input type="hidden" name="users_id" id="users_id_hidden">
+          <input type="hidden" id="member_form_mode" value="add">
           <div class="form-group">
-            <label>Tài khoản / Email</label>
+            <label>Tên đăng nhập / Email</label>
             <select name="users_id" id="users_id" class="form-control select2bs4" required style="width: 100%;">
               <option value="">--- Chọn tài khoản ---</option>
               <?php foreach ($users as $user): ?>
@@ -268,7 +269,7 @@ include 'layout/sidebar.php';
               <option value="<?php echo $user['id']; ?>" data-used="<?php echo in_array((int) $user['id'], $usedUserIds, true) ? '1' : '0'; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>"><?php echo htmlspecialchars($userLabel); ?></option>
               <?php endforeach; ?>
             </select>
-            <small id="users_id_error" class="text-danger d-none">Email/tài khoản này đã được hội viên khác sử dụng.</small>
+            <small id="users_id_error" class="text-danger d-none">Tên đăng nhập / email này đã được sử dụng bởi tài khoản khác.</small>
           </div>
           <div class="form-group">
             <label>Họ tên</label>
@@ -324,6 +325,7 @@ function resetForm() {
   document.getElementById('modalTitle').innerText = 'Thêm Hội Viên';
   document.getElementById('member_id').value = '';
   document.getElementById('users_id_hidden').value = '';
+  document.getElementById('member_form_mode').value = 'add';
   $('#users_id').prop('disabled', false);
   $('#users_id').val(null).trigger('change');
   document.getElementById('full_name').value = '';
@@ -340,6 +342,7 @@ function editMember(member) {
   document.getElementById('modalTitle').innerText = 'Sửa Hội Viên';
   document.getElementById('member_id').value = member.id;
   document.getElementById('users_id_hidden').value = member.users_id || '';
+  document.getElementById('member_form_mode').value = 'edit';
   $('#users_id').prop('disabled', true);
   $('#users_id').val(String(member.users_id || '')).trigger('change');
   syncFieldsFromSelectedUser();
@@ -364,6 +367,7 @@ function syncFieldsFromSelectedUser() {
   var fullNameInput = document.getElementById('full_name');
   var hiddenUserId = document.getElementById('users_id_hidden');
   var userError = document.getElementById('users_id_error');
+  var formMode = document.getElementById('member_form_mode').value || 'add';
   var selectedOption = userSelect.options[userSelect.selectedIndex];
   var phoneValue = selectedOption ? (selectedOption.getAttribute('data-phone') || '') : '';
   var fullNameValue = selectedOption ? (selectedOption.getAttribute('data-name') || '') : '';
@@ -376,7 +380,7 @@ function syncFieldsFromSelectedUser() {
   fullNameInput.value = fullNameValue;
 
   if (userError) {
-    if (isUsed && userSelect.value) {
+    if (formMode === 'add' && isUsed && userSelect.value) {
       userError.classList.remove('d-none');
       userSelect.classList.add('is-invalid');
     } else {
@@ -443,9 +447,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var userSelect = document.getElementById('users_id');
     var selectedOption = userSelect.options[userSelect.selectedIndex];
     var isUsed = selectedOption && selectedOption.getAttribute('data-used') === '1';
+    var formMode = document.getElementById('member_form_mode').value || 'add';
     var isFullNameValid = validateFullNameField();
 
-    if (isUsed) {
+    if (formMode === 'add' && isUsed) {
       event.preventDefault();
       event.stopPropagation();
       userSelect.focus();

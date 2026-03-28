@@ -29,6 +29,7 @@ $filterEmail = trim((string) ($_GET['email'] ?? ''));
 $filterPhone = trim((string) ($_GET['phone'] ?? ''));
 $filterRoleId = trim((string) ($_GET['role_id'] ?? ''));
 $filterStatus = trim((string) ($_GET['status'] ?? ''));
+$filterStatusDb = $filterStatus === 'inactive' ? 'locked' : $filterStatus;
 
 // Pagination
 $itemsPerPage = 10;
@@ -60,7 +61,7 @@ if ($filterRoleId !== '' && ctype_digit($filterRoleId)) {
 
 if ($filterStatus !== '') {
   $whereClauses[] = 'u.status = ?';
-  $whereParams[] = $filterStatus;
+  $whereParams[] = $filterStatusDb;
 }
 
 $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
@@ -257,9 +258,9 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <td><span class="badge badge-info"><?= $u['role'] ?></span></td>
                 <td>
                   <?php if($u['status']=='active'): ?>
-                    <span class="badge badge-success">Active</span>
+                    <span class="badge badge-success">Hoạt động</span>
                   <?php else: ?>
-                    <span class="badge badge-danger">Inactive</span>
+                    <span class="badge badge-danger">Bị khóa</span>
                   <?php endif; ?>
                 </td>
                 <td><?= $u['created_at'] ?></td>
@@ -272,6 +273,19 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                   <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal<?= $u['id'] ?>">
                     <i class="fas fa-edit"></i>
                   </button>
+                  <form action="process/user_management.php" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn thay đổi trạng thái user này?');">
+                    <input type="hidden" name="action" value="toggle_status">
+                    <input type="hidden" name="id" value="<?= $u['id'] ?>">
+                    <?php if($u['status']=='active'): ?>
+                      <button type="submit" class="btn btn-danger btn-sm">
+                        <i class="fas fa-lock"></i> Khóa
+                      </button>
+                    <?php else: ?>
+                      <button type="submit" class="btn btn-success btn-sm">
+                        <i class="fas fa-unlock"></i> Mở khóa
+                      </button>
+                    <?php endif; ?>
+                  </form>
                   <!-- Nút xoá -->
                   <a href="process/user_management.php?action=delete&id=<?= $u['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Xóa user này?');">
                     <i class="fas fa-trash"></i>
@@ -344,13 +358,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                             <?php endforeach; ?>
                           </select>
                           <small class="text-danger d-block mt-2" style="<?= getFieldError('role_id', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('role_id', $validationErrors) ?></small>
-                        </div>
-                        <div class="form-group">
-                          <label>Trạng thái</label>
-                          <select class="form-control" name="status">
-                            <option value="active" <?= ($formData ? (getFieldValue('status', $formData) == 'active') : ($u['status']=='active')) ? 'selected' : '' ?>>Active</option>
-                            <option value="inactive" <?= ($formData ? (getFieldValue('status', $formData) == 'inactive') : ($u['status']=='inactive')) ? 'selected' : '' ?>>Inactive</option>
-                          </select>
                         </div>
                       </div>
                       <div class="modal-footer">
@@ -566,13 +573,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
               </select>
               <small class="text-danger d-block mt-2" style="<?= getFieldError('role_id', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('role_id', $validationErrors) ?></small>
             </div>
-            <div class="form-group">
-              <label>Trạng thái</label>
-              <select class="form-control" name="status">
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
@@ -651,13 +651,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
               <?php endforeach; ?>
             </select>
             <small class="text-danger d-block mt-2" style="<?= getFieldError('role_id', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('role_id', $validationErrors) ?></small>
-          </div>
-          <div class="form-group">
-            <label>Trạng thái</label>
-            <select class="form-control" name="status">
-              <option value="active" <?= ($formData ? (getFieldValue('status', $formData) == 'active') : ($editUserData['status']=='active')) ? 'selected' : '' ?>>Active</option>
-              <option value="inactive" <?= ($formData ? (getFieldValue('status', $formData) == 'inactive') : ($editUserData['status']=='inactive')) ? 'selected' : '' ?>>Inactive</option>
-            </select>
           </div>
         </div>
         <div class="modal-footer">

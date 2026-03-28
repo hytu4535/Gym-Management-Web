@@ -1,0 +1,5 @@
+opencv-python
+mediapipe
+mysql-connector-python
+numpy
+flask

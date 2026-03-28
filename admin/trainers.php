@@ -101,8 +101,6 @@ function isTrainerRoleUser(array $user, array $trainerRoleIds)
 $trainerRoleIds = getTrainerRoleIds($db);
 $trainerUsers = loadTrainerUsers($db, $trainerRoleIds);
 $trainerHasUsersIdColumn = hasTableColumn($db, 'trainers', 'users_id');
-<<<<<<< HEAD
-=======
 $filterName = trim((string) ($_GET['name'] ?? ''));
 $filterType = trim((string) ($_GET['type'] ?? ''));
 $filterPhone = trim((string) ($_GET['phone'] ?? ''));
@@ -117,7 +115,6 @@ if ($filterType !== '') { $whereClauses[] = 't.type = ?'; $whereParams[] = $filt
 if ($filterPhone !== '') { $whereClauses[] = 't.phone LIKE ?'; $whereParams[] = '%' . $filterPhone . '%'; }
 if ($filterStatus !== '') { $whereClauses[] = 't.status = ?'; $whereParams[] = $filterStatus; }
 $trainerWhereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
->>>>>>> master
 
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -251,19 +248,12 @@ $trainerUserJoinSql = $trainerHasUsersIdColumn
   ? "LEFT JOIN users u ON u.id = t.users_id"
   : "";
 
-<<<<<<< HEAD
-$stmt = $db->query("SELECT t.*, $trainerSelectUsersIdSql, $trainerSelectUserLabelSql
-                    FROM trainers t
-                    $trainerUserJoinSql
-                    ORDER BY t.id DESC");
-=======
 $stmt = $db->prepare("SELECT t.*, $trainerSelectUsersIdSql, $trainerSelectUserLabelSql
                     FROM trainers t
                     $trainerUserJoinSql
                     $trainerWhereSql
                     ORDER BY t.id DESC");
 $stmt->execute($whereParams);
->>>>>>> master
 $trainers = $stmt->fetchAll();
 
 // Lấy flash message

@@ -638,6 +638,9 @@ CREATE TABLE `members` (
   `weight` decimal(5,2) DEFAULT NULL COMMENT 'Cân nặng (kg)',
   `tier_id` int DEFAULT '1' COMMENT 'Hạng hội viên',
   `total_spent` decimal(12,2) DEFAULT '0.00' COMMENT 'Tổng tiền đã chi',
+  `face_consent` tinyint(1) NOT NULL DEFAULT '0',
+  `face_consent_at` datetime DEFAULT NULL,
+  `face_consent_source` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `users_id` (`users_id`),
   KEY `fk_members_tier` (`tier_id`),
@@ -652,7 +655,7 @@ CREATE TABLE `members` (
 
 LOCK TABLES `members` WRITE;
 /*!40000 ALTER TABLE `members` DISABLE KEYS */;
-INSERT INTO `members` VALUES (1,1,'Trương Trung Kiên','0912345678','18/16 Phan Văn Trị, P.Chợ Quán, Q.5, TPHCM','2024-01-15','active',175.00,70.00,4,41579375.00),(2,2,'Nguyễn Tường Huy','0987654321','Quận 3, TP.HCM','2024-02-20','active',180.00,70.00,3,23390000.00),(3,3,'Nguyễn Nguyên Bảo','0903456789','Thủ Đức, TP.HCM','2023-11-05','active',165.00,70.00,2,3882000.00),(13,9,'test','0786026878','666 Võ Văn Kiệt, Gò Vấp, TP.HCM','2026-02-15','active',180.00,55.00,1,0.00),(18,25,'ý ý','0786026878',NULL,'2026-03-25','active',175.00,55.00,3,10242000.00),(19,27,'k','0786026878','','2026-03-25','active',156.00,56.00,2,7304000.00),(21,29,'z','0786020202','','2026-03-25','active',0.00,0.00,1,0.00),(22,23,'kkkk','0786026878',NULL,'2026-03-26','active',175.00,22.00,1,0.00),(24,32,'Bẻo','09999999999',NULL,'2026-03-26','active',166.00,66.00,1,0.00);
+INSERT INTO `members` (`id`, `users_id`, `full_name`, `phone`, `address`, `join_date`, `status`, `height`, `weight`, `tier_id`, `total_spent`) VALUES (1,1,'Trương Trung Kiên','0912345678','18/16 Phan Văn Trị, P.Chợ Quán, Q.5, TPHCM','2024-01-15','active',175.00,70.00,4,41579375.00),(2,2,'Nguyễn Tường Huy','0987654321','Quận 3, TP.HCM','2024-02-20','active',180.00,70.00,3,23390000.00),(3,3,'Nguyễn Nguyên Bảo','0903456789','Thủ Đức, TP.HCM','2023-11-05','active',165.00,70.00,2,3882000.00),(13,9,'test','0786026878','666 Võ Văn Kiệt, Gò Vấp, TP.HCM','2026-02-15','active',180.00,55.00,1,0.00),(18,25,'ý ý','0786026878',NULL,'2026-03-25','active',175.00,55.00,3,10242000.00),(19,27,'k','0786026878','','2026-03-25','active',156.00,56.00,2,7304000.00),(21,29,'z','0786020202','','2026-03-25','active',0.00,0.00,1,0.00),(22,23,'kkkk','0786026878',NULL,'2026-03-26','active',175.00,22.00,1,0.00),(24,32,'Bẻo','09999999999',NULL,'2026-03-26','active',166.00,66.00,1,0.00);
 /*!40000 ALTER TABLE `members` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1307,6 +1310,36 @@ LOCK TABLES `users` WRITE;
 INSERT INTO `users` VALUES (1,3,'truongtrungkien','1','kien@gmail.com','',NULL,'active','2026-01-26 19:05:40'),(2,3,'nguyentuonghuy','123456','huy@gmail.com','',NULL,'active','2026-01-26 19:05:40'),(3,3,'nguyennguyenbao','123456','bao@gmail.com','',NULL,'active','2026-01-26 19:05:40'),(9,6,'test1','123456','test1@gmail.com','','07860267777','active','2026-02-15 11:22:23'),(10,6,'nguyenvana','123456','nguyenvana@gmail.com','','0912345678','active','2026-03-11 03:00:00'),(11,6,'tranthib','123456','tranthib@gmail.com','','0901234567','active','2026-03-11 03:05:00'),(13,5,'phamvand','123456','phamvand@gmail.com','','0971122334','active','2026-03-11 03:15:00'),(14,5,'hoangthie','123456','hoangthie@gmail.com','','0965566778','active','2026-03-11 03:20:00'),(15,6,'vuhongf','123456','vuhongf@gmail.com','','0939988776','active','2026-03-11 03:25:00'),(16,6,'dovanh','123456','dovanh@gmail.com','','0923456789','active','2026-03-11 03:30:00'),(17,4,'admin2','123456','admin2@gmail.com','','0891234567','active','2026-03-11 03:35:00'),(18,6,'nguyenvanminh','123456','nguyenvanminh@gmail.com','','0887654321','active','2026-03-11 03:40:00'),(19,6,'tranthilan','123456','tranthilan@gmail.com','','0862345678','active','2026-03-11 03:45:00'),(20,5,'nguyenminhtuan','123456','nguyenminhtuan@gmail.com','','0859876543','active','2026-03-11 03:50:00'),(21,5,'tranthanhhuong','123456','tranthanhhuong@gmail.com','','0841122334','active','2026-03-11 03:55:00'),(22,5,'levanhai','123456','levanhai@gmail.com','','0835566778','active','2026-03-11 04:00:00'),(23,7,'h','1','h@gmail.com','','0786026878','active','2026-03-15 11:28:26'),(25,6,'y','1','y@gmail.com','Nguyễn Thị Ý','0812345679','active','2026-03-25 15:22:27'),(27,6,'k','1','k@gmail.com','','0912345666','active','2026-03-25 21:08:56'),(29,6,'z','1','z@kk.com','',NULL,'active','2026-03-25 22:12:21'),(32,9,'bbb','123456','beo@gmail.com','Bẻo ','09999999999','active','2026-03-26 16:02:32'),(33,9,'hhh','123456','h22@gmail.com','Nguyễn Tường Huy','0786026878','active','2026-03-26 16:22:13');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Face recognition schema
+--
+
+CREATE TABLE IF NOT EXISTS `face_profiles` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `member_id` int NOT NULL,
+  `face_vector` longtext NOT NULL,
+  `image_path` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_face_profiles_member_id` (`member_id`),
+  CONSTRAINT `fk_face_profiles_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `face_checkin_logs` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `member_id` int DEFAULT NULL,
+  `confidence` decimal(6,4) DEFAULT NULL,
+  `is_success` tinyint(1) NOT NULL DEFAULT '0',
+  `captured_image_path` varchar(255) DEFAULT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_face_checkin_member_id` (`member_id`),
+  CONSTRAINT `fk_face_checkin_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

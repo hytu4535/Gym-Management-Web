@@ -162,11 +162,8 @@ try {
     // Tính tổng có áp dụng promotion (nếu có)
     $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
     $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
-    
-    $subtotal = $cart_total['final_subtotal']; // Tổng sau base + promotion
-
     $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
-    $total_amount = $subtotal + $shipping_fee;
+    $total_amount = $cart_total['final_subtotal'] + $shipping_fee;
     $status = 'pending';
 
     $order_note = trim($_POST['note'] ?? '');

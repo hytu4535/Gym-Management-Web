@@ -78,7 +78,7 @@ $stmt_promo->close();
 $promotion_discount_amount = (float)($promo_row['promo_discount'] ?? 0);
 $total_discount_amount = $tier_discount_amount + $promotion_discount_amount;
 $shipping_fee = $has_physical_products ? 30000 : 0;
-$subtotal_before_discount = $total_items_cost + $total_discount_amount;
+$subtotal_before_discount = $total_items_cost;
 
 include 'layout/header.php'; 
 ?>

@@ -6,6 +6,9 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/address_schema.php';
+
+ensureAddressSchemaMysqli($conn);
 include 'layout/header.php'; 
 
 $user_id = $_SESSION['user_id'];
@@ -343,19 +346,42 @@ $default_address = $default_addresses[0] ?? null;
                             <div class="address-card-body">
                                 <div id="message-container" class="message-wrap"></div>
 
-                                <form id="address-form">
+                                <form id="address-form" data-address-picker="1" data-mode="client" action="ajax/address-actions.php" novalidate>
                                     <input type="hidden" name="id" id="address-id">
                                     <div class="form-group">
                                         <label for="full_address">Địa chỉ chi tiết</label>
                                         <input type="text" name="full_address" id="full_address" class="form-control" placeholder="Số nhà, tên đường, thôn/xóm...">
+                                        <small class="text-danger d-none form-field-error" data-error-for="full_address"></small>
                                     </div>
                                     <div class="form-group">
-                                        <label for="district">Quận/Huyện</label>
-                                        <input type="text" name="district" id="district" class="form-control" placeholder="Quận/Huyện">
+                                        <label for="city">Tỉnh / Thành phố</label>
+                                        <select name="city" id="city" class="form-control">
+                                            <option value="">-- Chọn Tỉnh / Thành phố --</option>
+                                        </select>
+                                        <small class="text-danger d-none form-field-error" data-error-for="city"></small>
                                     </div>
                                     <div class="form-group">
-                                        <label for="city">Thành phố</label>
-                                        <input type="text" name="city" id="city" class="form-control" placeholder="Tỉnh/Thành phố">
+                                        <label for="district">Quận / Huyện</label>
+                                        <select name="district" id="district" class="form-control">
+                                            <option value="">-- Chọn Quận / Huyện --</option>
+                                        </select>
+                                        <small class="text-danger d-none form-field-error" data-error-for="district"></small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ward">Phường / Xã</label>
+                                        <select name="ward" id="ward" class="form-control">
+                                            <option value="">-- Chọn Phường / Xã --</option>
+                                        </select>
+                                        <small class="text-danger d-none form-field-error" data-error-for="ward"></small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="type">Loại địa chỉ</label>
+                                        <select name="type" id="type" class="form-control">
+                                            <option value="home">Nhà riêng</option>
+                                            <option value="work">Cơ quan</option>
+                                            <option value="other">Khác</option>
+                                        </select>
+                                        <small class="text-danger d-none form-field-error" data-error-for="type"></small>
                                     </div>
                                     <div class="form-actions mt-4">
                                         <button type="submit" id="submit-btn" class="btn btn-success" style="border-radius:12px;padding:10px 18px;">
@@ -397,15 +423,27 @@ $default_address = $default_addresses[0] ?? null;
                                                             <span class="badge badge-success" style="border-radius:999px;padding:7px 12px;">Mặc định</span>
                                                         <?php endif; ?>
                                                     </div>
+                                                    <?php
+                                                        $addressTypeLabel = 'Nhà riêng';
+                                                        if (($addr['type'] ?? 'home') === 'work') {
+                                                            $addressTypeLabel = 'Cơ quan';
+                                                        } elseif (($addr['type'] ?? 'home') === 'other') {
+                                                            $addressTypeLabel = 'Khác';
+                                                        }
+                                                    ?>
                                                     <div class="address-meta">
-                                                        <?php echo htmlspecialchars($addr['district']); ?>, <?php echo htmlspecialchars($addr['city']); ?>
+                                                        <?php echo htmlspecialchars($addr['ward'] ?? ''); ?>, <?php echo htmlspecialchars($addr['district']); ?>, <?php echo htmlspecialchars($addr['city']); ?>
+                                                        <span class="badge badge-light ml-2" style="border-radius:999px;padding:5px 10px;">&nbsp;<?php echo $addressTypeLabel; ?>&nbsp;</span>
                                                     </div>
                                                     <div class="address-actions">
                                                         <button class="btn-address btn-edit edit-btn"
                                                                 data-id="<?php echo $addr['id']; ?>"
                                                                 data-full="<?php echo htmlspecialchars($addr['full_address']); ?>"
                                                                 data-district="<?php echo htmlspecialchars($addr['district']); ?>"
-                                                                data-city="<?php echo htmlspecialchars($addr['city']); ?>">
+                                                                data-city="<?php echo htmlspecialchars($addr['city']); ?>"
+                                                                data-ward="<?php echo htmlspecialchars($addr['ward'] ?? ''); ?>"
+                                                                data-type="<?php echo htmlspecialchars($addr['type'] ?? 'home'); ?>"
+                                                                data-default="<?php echo (int) $addr['is_default']; ?>">
                                                             <i class="fa fa-pencil mr-1"></i> Sửa
                                                         </button>
                                                         <button class="btn-address btn-default default-btn"
@@ -450,6 +488,8 @@ $default_address = $default_addresses[0] ?? null;
     </div>
 </section>
 
+<script src="../assets/js/address-picker.js"></script>
+
 <script>
 function showMessage(message, type) {
     var container = document.getElementById('message-container');
@@ -457,39 +497,49 @@ function showMessage(message, type) {
 
     setTimeout(function() {
         container.innerHTML = '';
-    }, 3000);
+    }, 5000);
 }
 
 function resetAddressForm() {
-    document.getElementById('address-id').value = '';
-    document.getElementById('full_address').value = '';
-    document.getElementById('district').value = '';
-    document.getElementById('city').value = '';
+    AddressPicker.resetForm(document.getElementById('address-form'));
     document.getElementById('submit-btn').innerHTML = '<i class="fa fa-save mr-1"></i> Lưu địa chỉ';
 }
 
 document.getElementById('address-form').addEventListener('submit', function(e){
     e.preventDefault();
 
-    let full = document.getElementById('full_address').value.trim();
-    let district = document.getElementById('district').value.trim();
-    let city = document.getElementById('city').value.trim();
-
-    // Kiểm tra dữ liệu đầu vào
-    if (!full || !district || !city) {
-        showMessage("Vui lòng nhập đầy đủ thông tin địa chỉ!", "error");
+    if (!AddressPicker.validateForm(this)) {
         return;
     }
 
     let formData = new FormData(this);
-    fetch('ajax/address-actions.php', {
+    fetch(this.action, {
         method: 'POST',
         body: formData
     }).then(res => res.json())
       .then(data => {
-        showMessage(data.message, data.success ? 'success' : 'error');
+        if (data.fieldErrors) {
+            Object.keys(data.fieldErrors).forEach(function (field) {
+                var errorBox = document.querySelector('[data-error-for="' + field + '"]');
+                var input = document.querySelector('[name="' + field + '"]');
+                if (errorBox) {
+                    errorBox.textContent = data.fieldErrors[field];
+                    errorBox.classList.remove('d-none');
+                }
+                if (input) {
+                    input.classList.add('is-invalid');
+                }
+            });
+        }
+
+        if (data.success) {
+            showMessage(data.message, 'success');
+        } else if (!data.fieldErrors) {
+            showMessage(data.message, 'error');
+        }
+
         if(data.success) {
-            setTimeout(() => location.reload(), 1500);
+            setTimeout(() => location.reload(), 3000);
         }
       });
 });
@@ -502,11 +552,15 @@ document.getElementById('reset-btn').addEventListener('click', function() {
 // Nút sửa: load dữ liệu vào form
 document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', function(){
-        // Đổ dữ liệu vào form
-        document.getElementById('address-id').value = this.dataset.id;
-        document.getElementById('full_address').value = this.dataset.full;
-        document.getElementById('district').value = this.dataset.district;
-        document.getElementById('city').value = this.dataset.city;
+        AddressPicker.fillForm(document.getElementById('address-form'), {
+            id: this.dataset.id,
+            full_address: this.dataset.full,
+            district: this.dataset.district,
+            city: this.dataset.city,
+            ward: this.dataset.ward || '',
+            type: this.dataset.type || 'home',
+            is_default: this.dataset.default || 0
+        });
 
         // Đổi nút submit thành "Cập nhật địa chỉ"
         document.getElementById('submit-btn').innerHTML = '<i class="fa fa-save mr-1"></i> Cập nhật địa chỉ';

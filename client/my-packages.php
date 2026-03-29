@@ -183,7 +183,6 @@ include 'layout/header.php';
                     </div>
                 </div>
             </div>
-            
             <div class="col-lg-9">
                 <div class="profile-content" style="background-color: aliceblue; padding: 30px; border-radius: 8px;">
                     <div class="d-flex justify-content-between align-items-center mb-4">

@@ -7,7 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = trim($_POST['password']);
 
     $db = getDB();
-
+  
     $sql = "SELECT u.id, u.username, u.password, u.status, r.id AS role_id, r.name AS role_name
             FROM users u
             JOIN roles r ON u.role_id = r.id

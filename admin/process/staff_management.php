@@ -37,7 +37,7 @@ try {
             failAndGoBack('Vui lòng chọn tài khoản / email hợp lệ.');
         }
 
-        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE user_id = ?");
+        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE users_id = ?");
         $duplicateStmt->execute([$usersId]);
         if ((int) $duplicateStmt->fetchColumn() > 0) {
             failAndGoBack('Tài khoản / email này đã được dùng trong bảng staff.');
@@ -77,12 +77,12 @@ try {
 
         if ($hasDepartmentIdColumn) {
             $stmt = $db->prepare(
-                "INSERT INTO staff (user_id, full_name, position, department_id, status) VALUES (?, ?, ?, ?, ?)"
+                "INSERT INTO staff (users_id, full_name, position, department_id, status) VALUES (?, ?, ?, ?, ?)"
             );
             $stmt->execute([$usersId, $fullName, $position, $departmentId, $status]);
         } else {
             $stmt = $db->prepare(
-                "INSERT INTO staff (user_id, full_name, position, status) VALUES (?, ?, ?, ?)"
+                "INSERT INTO staff (users_id, full_name, position, status) VALUES (?, ?, ?, ?)"
             );
             $stmt->execute([$usersId, $fullName, $position, $status]);
         }
@@ -112,7 +112,7 @@ try {
             failAndGoBack('Thiếu thông tin staff cần cập nhật.');
         }
 
-        $currentStmt = $db->prepare("SELECT user_id FROM staff WHERE id = ?");
+        $currentStmt = $db->prepare("SELECT users_id FROM staff WHERE id = ?");
         $currentStmt->execute([$id]);
         $currentUsersId = (int) $currentStmt->fetchColumn();
 

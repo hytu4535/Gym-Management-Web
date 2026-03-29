@@ -1,373 +1,508 @@
-<?php
-session_start();
+<?php 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once '../config/db.php';
 require_once '../includes/discount_helper.php';
 
+
 if (!isset($_SESSION['user_id'])) {
-    echo "<script>alert('Vui lòng đăng nhập!'); window.location.href='login.php';</script>";
-    exit();
+    echo "<script>alert('Vui lòng đăng nhập để tiến hành thanh toán!'); window.location.href='login.php';</script>";
+    exit;
 }
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: cart.php');
-    exit();
-}
-
 $user_id = $_SESSION['user_id'];
-$use_new_address = isset($_POST['use_new_address']) ? (int)$_POST['use_new_address'] : 0;
-$payment_method = $_POST['payment_method'] ?? 'cash';
 
-$conn->begin_transaction();
+$hasPhysicalProducts = false;
+$hasPackageItems = false;
 
-try {
-    $stmt_member = $conn->prepare("SELECT id FROM members WHERE users_id = ?");
-    $stmt_member->bind_param("i", $user_id);
-    $stmt_member->execute();
-    $res_member = $stmt_member->get_result();
-    
-    if ($res_member->num_rows === 0) {
-        throw new Exception("Không tìm thấy hồ sơ hội viên của bạn. Vui lòng cập nhật thông tin!");
-    }
-    $member_id = $res_member->fetch_assoc()['id'];
-    $stmt_member->close();
-
-    $stmt_cart = $conn->prepare("
-        SELECT ci.item_type,
-               ci.item_id,
-               ci.quantity,
-               p.selling_price,
-               p.stock_quantity,
-               p.name,
-               mp.package_name,
-               mp.price AS package_price,
-               mp.duration_months,
-               s.name AS service_name,
-               s.price AS service_price,
-               cs.class_name,
-               cs.price_per_session AS class_price,
-               cs.schedule_days AS class_schedule_days,
-               cs.schedule_start_time AS class_start_time,
-               cs.schedule_end_time AS class_end_time,
-               c.id as cart_id
-        FROM carts c 
-        JOIN cart_items ci ON c.id = ci.cart_id
-        LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id 
-        LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
-        LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
-        LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
-        WHERE c.member_id = ? AND c.status = 'active' FOR UPDATE
-    ");
-    $stmt_cart->bind_param("i", $member_id); 
-    $stmt_cart->execute();
-    $cart_res = $stmt_cart->get_result();
-    
-    if ($cart_res->num_rows === 0) {
-        throw new Exception("Giỏ hàng của bạn đang trống!");
-    }
-    
-    $cart_items = [];
-    $cart_id = 0;
-    $hasPhysicalProducts = false;
-    
-    while ($row = $cart_res->fetch_assoc()) {
-        if ($row['item_type'] === 'product') {
-            $hasPhysicalProducts = true;
-
-            if ($row['quantity'] > $row['stock_quantity']) {
-                throw new Exception("Sản phẩm '{$row['name']}' chỉ còn {$row['stock_quantity']} cái. Vui lòng giảm số lượng.");
-            }
-
-            $price_info = calculateDiscountedPrice($row['selling_price'], $user_id, $conn);
-            $row['final_price'] = $price_info['final_price'];
-            $row['item_name'] = $row['name'];
-        } elseif ($row['item_type'] === 'package') {
-            $row['quantity'] = 1;
-            $row['final_price'] = (float) $row['package_price'];
-            $row['item_name'] = $row['package_name'];
-        } elseif ($row['item_type'] === 'class') {
-            $row['quantity'] = 1;
-            $row['final_price'] = (float) $row['class_price'];
-            $row['item_name'] = $row['class_name'];
-        } else {
-            $row['quantity'] = 1;
-            $row['final_price'] = (float) $row['service_price'];
-            $row['item_name'] = $row['service_name'];
-        }
-        
-        $cart_items[] = $row;
-        $cart_id = $row['cart_id']; 
-    }
-    $stmt_cart->close();
-
-    $address_id = 0;
-    if ($hasPhysicalProducts) {
-        if ($use_new_address === 1) {
-            $full_address = trim($_POST['new_address'] ?? '');
-            $district = trim($_POST['district'] ?? '');
-            $city = trim($_POST['city'] ?? '');
-            
-            if (empty($full_address) || empty($district) || empty($city)) {
-                throw new Exception("Vui lòng nhập đầy đủ địa chỉ giao hàng mới.");
-            }
-
-            $existing_default_id = 0;
-            $stmt_default_addr = $conn->prepare("SELECT id FROM addresses WHERE member_id = ? AND is_default = 1 LIMIT 1");
-            $stmt_default_addr->bind_param("i", $member_id);
-            $stmt_default_addr->execute();
-            $default_addr_res = $stmt_default_addr->get_result()->fetch_assoc();
-            if ($default_addr_res) {
-                $existing_default_id = (int) $default_addr_res['id'];
-            }
-            $stmt_default_addr->close();
-
-            $new_is_default = $existing_default_id > 0 ? 0 : 1;
-
-            $stmt_insert_addr = $conn->prepare("INSERT INTO addresses (member_id, full_address, city, district, is_default) VALUES (?, ?, ?, ?, ?)");
-            if (!$stmt_insert_addr) {
-                throw new Exception("Không thể lưu địa chỉ giao hàng mới.");
-            }
-            $stmt_insert_addr->bind_param("isssi", $member_id, $full_address, $city, $district, $new_is_default);
-            $stmt_insert_addr->execute();
-            $address_id = (int) $conn->insert_id;
-            $stmt_insert_addr->close();
-        } else {
-            $posted_address_id = isset($_POST['address_id']) ? (int) $_POST['address_id'] : 0;
-
-            if ($posted_address_id > 0) {
-                $stmt_check_addr = $conn->prepare("SELECT id FROM addresses WHERE id = ? AND member_id = ? LIMIT 1");
-                $stmt_check_addr->bind_param("ii", $posted_address_id, $member_id);
-                $stmt_check_addr->execute();
-                $checked_addr = $stmt_check_addr->get_result()->fetch_assoc();
-                $stmt_check_addr->close();
-
-                if (!$checked_addr) {
-                    throw new Exception("Địa chỉ giao hàng đã chọn không hợp lệ.");
-                }
-                $address_id = (int) $checked_addr['id'];
-            } else {
-                $stmt_default_or_latest = $conn->prepare("SELECT id FROM addresses WHERE member_id = ? ORDER BY is_default DESC, id DESC LIMIT 1");
-                $stmt_default_or_latest->bind_param("i", $member_id);
-                $stmt_default_or_latest->execute();
-                $fallback_addr = $stmt_default_or_latest->get_result()->fetch_assoc();
-                $stmt_default_or_latest->close();
-
-                if (!$fallback_addr) {
-                    throw new Exception("Bạn chưa có địa chỉ giao hàng. Vui lòng nhập địa chỉ mới.");
-                }
-                $address_id = (int) $fallback_addr['id'];
-            }
-        }
-    }
-    
-    // ==========================================================
-    // LOGIC TÍNH TIỀN CHÍNH XÁC THEO YÊU CẦU CỦA BẠN
-    // ==========================================================
-    $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
-    $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
-    
-    // 1. Tạm tính (tổng tiền các sản phẩm dựa trên giá gốc, chưa trừ voucher/hạng)
-    $subtotal_items = $cart_total['subtotal_original'];
-
-    // 2. Phí vận chuyển (30k nếu có sản phẩm vật lý, ngược lại là 0)
-    $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
-
-    // 3. Tổng các khoản giảm giá (Giảm hạng thành viên + Giảm mã khuyến mãi)
-    $total_discount = $cart_total['base_discount_amount'] + $cart_total['promotion_discount'];
-
-    // 4. Total Amount = Tạm tính - Tổng giảm giá + Phí vận chuyển
-    $total_amount = $subtotal_items - $total_discount + $shipping_fee;
-    $status = 'pending';
-    // ==========================================================
-
-    $order_note = trim($_POST['note'] ?? '');
-    if ($order_note !== '') {
-        $order_note = mb_substr($order_note, 0, 2000, 'UTF-8');
-    } else {
-        $order_note = null;
-    }
-
-    $transfer_code = null;
-    $proof_img = null;
-
-    if ($payment_method === 'bank_transfer') {
-        $transfer_code = trim($_POST['transfer_code'] ?? '');
-
-        if (empty($transfer_code)) {
-            throw new Exception("Nội dung chuyển khoản không được để trống.");
-        }
-
-        if (!isset($_FILES['proof_image']) || $_FILES['proof_image']['error'] !== UPLOAD_ERR_OK) {
-            throw new Exception("Vui lòng upload ảnh biên lai thanh toán.");
-        }
-
-        $file = $_FILES['proof_image'];
-        $allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-        if (!in_array($file['type'], $allowed_types)) {
-            throw new Exception("Chỉ chấp nhận file ảnh JPG, JPEG, PNG, WEBP.");
-        }
-
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $new_name = 'order_' . time() . '_' . uniqid() . '.' . $ext;
-        $upload_dir = 'assets/uploads/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
-        }
-
-        $upload_path = $upload_dir . $new_name;
-        if (!move_uploaded_file($file['tmp_name'], $upload_path)) {
-            throw new Exception("Lỗi upload file ảnh.");
-        }
-        $proof_img = $new_name;
-    }
-
-    $stmt_order = $conn->prepare(
-           "INSERT INTO orders (member_id, address_id, total_amount, payment_method, status, transfer_code, proof_img, note) 
-            VALUES (?, NULLIF(?, 0), ?, ?, ?, ?, ?, ?)"
-    );
-        $stmt_order->bind_param("iidsssss", $member_id, $address_id, $total_amount, $payment_method, $status, $transfer_code, $proof_img, $order_note);
-    $stmt_order->execute();
-    $order_id = $conn->insert_id;
-    $stmt_order->close();
-
-    $stmt_item = $conn->prepare("
-        INSERT INTO order_items (order_id, item_type, item_id, item_name, price, quantity, discount) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)
-    ");
-    
-    $stmt_update_stock = $conn->prepare("UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?");
-    
-    foreach ($cart_items as $item) {
-        $item_type = $item['item_type'];
-        $item_id = (int) $item['item_id'];
-        $item_name = $item['item_name'];
-        $item_quantity = (int) $item['quantity'];
-        
-        // Lấy giá GỐC để lưu vào DB (Khớp với logic hiển thị của invoice.php)
-        $original_price = 0;
-        if ($item_type === 'product') {
-            $original_price = isset($item['selling_price']) ? (float) $item['selling_price'] : 0;
-        } elseif ($item_type === 'package') {
-            $original_price = (float) $item['package_price'];
-        } elseif ($item_type === 'class') {
-            $original_price = (float) $item['class_price'];
-        } else {
-            $original_price = (float) $item['service_price'];
-        }
-
-        // Tính % giảm giá để đưa vào cột discount (Nếu có áp dụng tier discount ở từng sản phẩm)
-        $discount_percent = 0;
-        if ($item_type === 'product' && $original_price > 0 && $item['final_price'] < $original_price) {
-            $discount_percent = round((($original_price - $item['final_price']) / $original_price) * 100);
-        }
-
-        $stmt_item->bind_param("isisdid", $order_id, $item_type, $item_id, $item_name, $original_price, $item_quantity, $discount_percent);
-        $stmt_item->execute();
-
-        if ($item_type === 'product') {
-            $stmt_update_stock->bind_param("ii", $item_quantity, $item_id);
-            $stmt_update_stock->execute();
-            continue;
-        }
-
-        if ($item_type === 'package') {
-            $startDate = new DateTime('today');
-            $endDate = (clone $startDate)->modify('+' . (int) $item['duration_months'] . ' month');
-
-            $stmt_package = $conn->prepare("INSERT INTO member_packages (member_id, package_id, start_date, end_date, status) VALUES (?, ?, ?, ?, 'active')");
-            $startDateString = $startDate->format('Y-m-d');
-            $endDateString = $endDate->format('Y-m-d');
-            $stmt_package->bind_param("iiss", $member_id, $item_id, $startDateString, $endDateString);
-            $stmt_package->execute();
-            $stmt_package->close();
-            continue;
-        }
-
-        if ($item_type === 'service') {
-            $startDate = (new DateTime('today'))->format('Y-m-d');
-            $stmt_service = $conn->prepare("INSERT INTO member_services (member_id, service_id, start_date, end_date, status) VALUES (?, ?, ?, NULL, 'còn hiệu lực')");
-            $stmt_service->bind_param("iis", $member_id, $item_id, $startDate);
-            $stmt_service->execute();
-            $stmt_service->close();
-            continue;
-        }
-
-        if ($item_type === 'class') {
-            continue;
-        }
-    }
-    $stmt_item->close();
-    $stmt_update_stock->close();
-
-    $stmt_del_cart = $conn->prepare("UPDATE carts SET status = 'checked_out' WHERE id = ?");
-    $stmt_del_cart->bind_param("i", $cart_id);
-    $stmt_del_cart->execute();
-    $stmt_del_cart->close();
-    
-    // Lưu promotion usage (nếu có dùng promotion)
-    if ($selected_promotion_id > 0 && $cart_total['has_promotion']) {
-        $applied_amount = $cart_total['promotion_discount'];
-        $stmt_promo_usage = $conn->prepare("
-            INSERT INTO promotion_usage (member_id, promotion_id, order_id, applied_amount, applied_at) 
-            VALUES (?, ?, ?, ?, NOW())
-        ");
-        $stmt_promo_usage->bind_param("iiid", $member_id, $selected_promotion_id, $order_id, $applied_amount);
-        $stmt_promo_usage->execute();
-        $stmt_promo_usage->close();
-    }
-
-    // Cập nhật total_spent cho member
-    $stmt_update_spent = $conn->prepare("UPDATE members SET total_spent = total_spent + ? WHERE id = ?");
-    $stmt_update_spent->bind_param("di", $total_amount, $member_id);
-    $stmt_update_spent->execute();
-    $stmt_update_spent->close();
-
-    // Lấy total_spent mới để check nâng hạng
-    $stmt_check_tier = $conn->prepare("SELECT total_spent, tier_id FROM members WHERE id = ?");
-    $stmt_check_tier->bind_param("i", $member_id);
-    $stmt_check_tier->execute();
-    $member_info = $stmt_check_tier->get_result()->fetch_assoc();
-    $stmt_check_tier->close();
-
-    // Tự động nâng hạng dựa trên total_spent
-    if ($member_info) {
-        $new_total_spent = $member_info['total_spent'];
-        
-        // Lấy hạng phù hợp với total_spent (hạng cao nhất mà member đủ điều kiện)
-        $stmt_tier = $conn->prepare("
-            SELECT id, name, level FROM member_tiers 
-            WHERE min_spent <= ? AND status = 'active'
-            ORDER BY level DESC LIMIT 1
-        ");
-        $stmt_tier->bind_param("d", $new_total_spent);
-        $stmt_tier->execute();
-        $tier_result = $stmt_tier->get_result();
-        
-        if ($tier_result->num_rows > 0) {
-            $new_tier = $tier_result->fetch_assoc();
-            
-            // Nếu hạng mới khác hạng hiện tại thì cập nhật
-            if ($new_tier['id'] != $member_info['tier_id']) {
-                $stmt_update_tier = $conn->prepare("UPDATE members SET tier_id = ? WHERE id = ?");
-                $stmt_update_tier->bind_param("ii", $new_tier['id'], $member_id);
-                $stmt_update_tier->execute();
-                $stmt_update_tier->close();
-            }
-        }
-        $stmt_tier->close();
-    }
-
-    $conn->commit();
-    
-    // Xóa promotion khỏi session sau khi đặt hàng thành công
-    unset($_SESSION['selected_promotion']);
-    
-    header("Location: invoice.php?order_id=" . $order_id);
-    exit();
-
-} catch (Exception $e) {
-    $conn->rollback(); 
-    
-    $error_msg = $e->getMessage();
-    echo "<script>alert('Lỗi đặt hàng: " . addslashes($error_msg) . "'); window.location.href='cart.php';</script>";
-    exit();
+function generateTransferCode($orderId) {
+    $lastThree = str_pad($orderId % 1000, 3, '0', STR_PAD_LEFT);
+    $random = chr(rand(65, 90)) . chr(rand(65, 90));
+    return 'TT' . $lastThree . $random;
 }
+
+$nextOrderId = 1;
+$nextSql = "SELECT AUTO_INCREMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders'";
+$nextResult = $conn->query($nextSql);
+if ($nextResult && $nextRow = $nextResult->fetch_assoc()) {
+    $nextOrderId = (int) $nextRow['AUTO_INCREMENT'];
+} else {
+    $maxOrderSql = "SELECT MAX(id) AS max_id FROM orders";
+    $maxOrderRes = $conn->query($maxOrderSql);
+    $maxOrderId = ($maxOrderRes && $row = $maxOrderRes->fetch_assoc()) ? (int)$row['max_id'] : 0;
+    $nextOrderId = $maxOrderId + 1;
+}
+$plannedTransferCode = generateTransferCode($nextOrderId);
+
+
+$cart_sql = "
+    SELECT ci.item_type,
+           ci.quantity,
+           p.id,
+           p.name,
+           p.selling_price,
+           mp.id AS package_id,
+           mp.package_name,
+           mp.price AS package_price,
+           mp.duration_months,
+           s.id AS service_id,
+           s.name AS service_name,
+           s.price AS service_price,
+            s.type AS service_type,
+            cs.id AS class_id,
+            cs.class_name,
+            cs.price_per_session AS class_price,
+            cs.schedule_days AS class_schedule_days,
+            cs.schedule_start_time AS class_start_time,
+            cs.schedule_end_time AS class_end_time
+    FROM members m
+    JOIN carts c ON m.id = c.member_id AND c.status = 'active'
+    JOIN cart_items ci ON c.id = ci.cart_id
+    LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
+    LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
+    LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+        LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
+    WHERE m.users_id = ?
+";
+$stmt_cart = $conn->prepare($cart_sql);
+$stmt_cart->bind_param("i", $user_id);
+$stmt_cart->execute();
+$cart_result = $stmt_cart->get_result();
+
+if ($cart_result->num_rows === 0) {
+    echo "<script>alert('Giỏ hàng của bạn đang trống. Hãy mua sắm thêm nhé!'); window.location.href='products.php';</script>";
+    exit;
+}
+
+$cart_items = [];
+$subtotal = 0;
+$subtotal_original = 0;
+$total_discount = 0;
+
+while ($row = $cart_result->fetch_assoc()) {
+    if ($row['item_type'] === 'product') {
+        $hasPhysicalProducts = true;
+
+        $price_info = calculateDiscountedPrice($row['selling_price'], $user_id, $conn);
+        $row['display_name'] = $row['name'];
+        $row['final_price'] = $price_info['final_price'];
+        $row['original_price'] = $price_info['original_price'];
+        $row['discount_percent'] = $price_info['discount_percent'];
+        $row['has_discount'] = $price_info['has_discount'];
+    } elseif ($row['item_type'] === 'package') {
+        $hasPackageItems = true;
+
+        $row['display_name'] = $row['package_name'];
+        $row['final_price'] = (float) $row['package_price'];
+        $row['original_price'] = (float) $row['package_price'];
+        $row['discount_percent'] = 0;
+        $row['has_discount'] = false;
+    } elseif ($row['item_type'] === 'class') {
+        $row['display_name'] = $row['class_name'];
+        $row['final_price'] = (float) $row['class_price'];
+        $row['original_price'] = (float) $row['class_price'];
+        $row['discount_percent'] = 0;
+        $row['has_discount'] = false;
+    } else {
+        $row['display_name'] = $row['service_name'];
+        $row['final_price'] = (float) $row['service_price'];
+        $row['original_price'] = (float) $row['service_price'];
+        $row['discount_percent'] = 0;
+        $row['has_discount'] = false;
+    }
+    
+    $cart_items[] = $row;
+    
+    $subtotal += ($row['final_price'] * $row['quantity']);
+    $subtotal_original += ($row['original_price'] * $row['quantity']);
+}
+$stmt_cart->close();
+
+$selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
+$tier_info = getMemberTierDiscount($user_id, $conn);
+$cart_subtotal = $subtotal;
+$base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
+$base_discount_amount = round($cart_subtotal * $base_discount_percent / 100, 0);
+$subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
+$promotion_discount = 0;
+$promotion_info = null;
+
+if ($selected_promotion_id > 0) {
+    $promotion_info = getPromotionById($selected_promotion_id, $conn);
+    if ($promotion_info && (int) $promotion_info['tier_id'] === (int) $tier_info['tier_id']) {
+        if ($promotion_info['discount_type'] === 'percentage') {
+            $promotion_discount = round(($subtotal_after_base * (float) $promotion_info['discount_value']) / 100, 0);
+        } elseif ($promotion_info['discount_type'] === 'fixed') {
+            $promotion_discount = round((float) $promotion_info['discount_value'], 0);
+        }
+
+        if ($promotion_discount > $subtotal_after_base) {
+            $promotion_discount = $subtotal_after_base;
+        }
+    } else {
+        $promotion_info = null;
+    }
+}
+
+$subtotal = max($subtotal_after_base - $promotion_discount, 0);
+$shipping_fee = $hasPhysicalProducts ? 30000 : 0;
+$total = $subtotal + $shipping_fee;
+$total_discount = $base_discount_amount + $promotion_discount;
+
+
+$user_sql = "SELECT m.id AS member_id, m.full_name, m.phone, u.email 
+             FROM members m 
+             JOIN users u ON m.users_id = u.id 
+             WHERE u.id = ?";
+$stmt_user = $conn->prepare($user_sql);
+$stmt_user->bind_param("i", $user_id);
+$stmt_user->execute();
+$user_info = $stmt_user->get_result()->fetch_assoc();
+$stmt_user->close();
+
+$member_id = (int) ($user_info['member_id'] ?? 0);
+$member_addresses = [];
+$default_address_id = 0;
+
+if ($hasPhysicalProducts && $member_id > 0) {
+    $address_sql = "SELECT id, full_address, district, city, is_default
+                    FROM addresses
+                    WHERE member_id = ?
+                    ORDER BY is_default DESC, id DESC";
+    $stmt_address = $conn->prepare($address_sql);
+    $stmt_address->bind_param("i", $member_id);
+    $stmt_address->execute();
+    $address_result = $stmt_address->get_result();
+
+    while ($address_row = $address_result->fetch_assoc()) {
+        $member_addresses[] = $address_row;
+        if ($default_address_id === 0 && (int) $address_row['is_default'] === 1) {
+            $default_address_id = (int) $address_row['id'];
+        }
+    }
+    $stmt_address->close();
+
+    if ($default_address_id === 0 && !empty($member_addresses)) {
+        $default_address_id = (int) $member_addresses[0]['id'];
+    }
+}
+
+$has_saved_addresses = !empty($member_addresses);
+
+include 'layout/header.php'; 
 ?>
+
+<section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-12 text-center">
+                <div class="breadcrumb-text">
+                    <h2>Thanh toán</h2>
+                    <div class="bt-option">
+                        <a href="index.php">Trang chủ</a>
+                        <span>Thanh toán</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<section class="checkout-section spad">
+    <style>
+    .checkout-section { background: #f5f8fb; padding: 40px 0; }
+    .checkout-card { background: #fff; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.08); border: 1px solid #e8ecf1; padding: 25px; }
+    .checkout-card h4, .checkout-card h5 { color: #1f2937; }
+    .user-info-box {background: #f8fafc; border: 1px solid #dbe6ef; border-radius: 10px; padding: 18px; margin-bottom: 20px;}
+    .user-info-box h5 { font-weight: 600; color: #0f172a; }
+    .user-info-box p { margin: 4px 0; color: #334155; }
+    .checkout-form .form-group label { font-weight: 600; color: #334155; }
+    .checkout-form .form-control { border: 1px solid #d1d5db; background: #fff; border-radius: 8px; }
+    .checkout-form .form-control:focus { border-color: #60a5fa; box-shadow: 0 0 0 4px rgba(96,165,250,0.12); }
+    .checkout-cart { background: #fff; border: 1px solid #dbe6ef; border-radius: 12px; padding: 22px; margin-top: 0; }
+    .checkout-cart h5 { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 18px; }
+    #order-summary li { margin-bottom: 10px; }
+    .total-cost li span { font-weight: 600; }
+    .site-btn.place-order-btn { width: 100%; background: linear-gradient(135deg, #0ea5e9, #0d9488); color: #fff; border: 0; border-radius: 8px; padding: 12px 16px; font-weight: 700; text-transform: uppercase; }
+    .site-btn.place-order-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(14,165,233,0.3); }
+    .form-check .form-check-input { accent-color: #0ea5e9; }
+    .alert-info { background: #ecfeff; border-color: #7dd3fc; color: #0c4a6e; }
+    @media (max-width: 991px) {
+        .checkout-card { padding: 18px; }
+        .col-lg-8, .col-lg-4 { max-width: 100%; flex: 0 0 100%; }
+        .checkout-cart { margin-top: 20px; }
+    }
+    </style>
+    <div class="container">
+        <form id="checkout-form" action="checkout-process.php" method="POST" enctype="multipart/form-data">
+            <div class="row checkout-card">
+                <div class="col-lg-8">
+                    <h4 style="color:#111827; font-weight: 700; margin-bottom: 16px;">Thông tin đặt hàng</h4>
+                    
+                    <div class="user-info-box mb-4" style="background: #f9f9f9; padding: 20px; border-radius: 5px;">
+                        <h5>Thông tin người mua</h5>
+                        <p class="mb-1"><strong>Họ tên:</strong> <span><?php echo htmlspecialchars($user_info['full_name'] ?? 'Chưa cập nhật'); ?></span></p>
+                        <p class="mb-1"><strong>Email:</strong> <span><?php echo htmlspecialchars($user_info['email'] ?? 'Chưa cập nhật'); ?></span></p>
+                        <p class="mb-0"><strong>Số điện thoại:</strong> <span><?php echo htmlspecialchars($user_info['phone'] ?? 'Chưa cập nhật'); ?></span></p>
+                    </div>
+
+                    <div class="checkout-form">
+                        <?php if ($hasPhysicalProducts): ?>
+                        <h5>Địa chỉ giao hàng</h5>
+                        <div class="form-group">
+                            <label>Chọn địa chỉ có sẵn</label>
+                            <select id="address-select" name="address_id" class="form-control" <?php echo $has_saved_addresses ? '' : 'disabled'; ?>>
+                                <?php if ($has_saved_addresses): ?>
+                                    <?php foreach ($member_addresses as $address): ?>
+                                        <?php
+                                            $address_id = (int) $address['id'];
+                                            $full_address_text = trim((string) ($address['full_address'] ?? ''));
+                                            $district_text = trim((string) ($address['district'] ?? ''));
+                                            $city_text = trim((string) ($address['city'] ?? ''));
+                                            $address_parts = array_filter([$full_address_text, $district_text, $city_text], function ($part) {
+                                                return $part !== '';
+                                            });
+                                            $address_label = implode(', ', $address_parts);
+                                        ?>
+                                        <option value="<?php echo $address_id; ?>" <?php echo $address_id === $default_address_id ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($address_label); ?><?php echo (int) $address['is_default'] === 1 ? ' (Mặc định)' : ''; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <option value="">-- Bạn chưa có địa chỉ đã lưu --</option>
+                                <?php endif; ?>
+                            </select>
+                            <small class="form-text text-muted mt-1">Địa chỉ mặc định sẽ được chọn sẵn. Bạn có thể quản lý tại <a href="addresses.php">Sổ địa chỉ</a>.</small>
+                        </div>
+                        <input type="hidden" id="has-saved-addresses" value="<?php echo $has_saved_addresses ? '1' : '0'; ?>">
+                        
+                        <div class="form-check mb-3 mt-3">
+                            <input type="checkbox" class="form-check-input" id="use-new-address" name="use_new_address" value="1" <?php echo !$has_saved_addresses ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="use-new-address" style="font-weight: bold; cursor: pointer;">
+                                Sử dụng địa chỉ mới
+                            </label>
+                        </div>
+
+                        <div id="new-address-form" style="display: <?php echo !$has_saved_addresses ? 'block' : 'none'; ?>; background: #fff; padding: 15px; border: 1px solid #e1e1e1; border-radius: 5px;">
+                            <div class="row">
+                                <div class="col-lg-12">
+                                    <div class="form-group">
+                                        <label>Địa chỉ chi tiết <span>*</span></label>
+                                        <input type="text" name="new_address" class="form-control" placeholder="Số nhà, tên đường...">
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <div class="form-group">
+                                        <label>Thành phố <span>*</span></label>
+                                        <input type="text" name="city" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <div class="form-group">
+                                        <label>Quận/Huyện <span>*</span></label>
+                                        <input type="text" name="district" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php else: ?>
+                        <div class="alert alert-info mb-4">
+                            Đơn hàng này chỉ gồm gói tập/dịch vụ, nên không cần địa chỉ giao hàng.
+                        </div>
+                        <?php endif; ?>
+
+                        <div class="form-group mt-4">
+                            <label>Ghi chú đơn hàng (tùy chọn)</label>
+                            <textarea name="note" class="form-control" rows="3" placeholder="Ghi chú về đơn hàng, ví dụ: Giao giờ hành chính..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="checkout-cart" style="background: #f5f5f5; padding: 30px; border-radius: 5px;">
+                        <h5 style="border-bottom: 1px solid #e1e1e1; padding-bottom: 15px; margin-bottom: 20px;">Đơn hàng của bạn</h5>
+                            <input type="hidden" name="selected_promotion_id" id="selected-promotion-id" value="<?php echo (int) $selected_promotion_id; ?>">
+                        
+                        <?php 
+                        $total_saved = $total_discount;
+                        
+                        if ($total_saved > 0): 
+                        ?>
+                        <div class="alert alert-success" style="padding: 10px 15px; font-size: 13px; margin-bottom: 20px;">
+                            <i class="fa fa-gift"></i> <strong>Hạng <?php echo $tier_info['tier_name']; ?></strong><br>
+                            Tổng tiết kiệm: <strong><?php echo number_format($total_saved, 0, ',', '.'); ?>đ</strong>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <ul id="order-summary" style="list-style: none; padding: 0;">
+                            <?php foreach ($cart_items as $item): ?>
+                                <li style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 14px;">
+                                    <span style="color: #444; width: 70%;">
+                                        <?php echo htmlspecialchars($item['display_name']); ?> 
+                                        <strong style="color: #e7ab3c;">x <?php echo $item['quantity']; ?></strong>
+                                        <?php if ($item['has_discount']): ?>
+                                            <br><small style="color: #28a745; font-weight: bold;">-<?php echo number_format($item['discount_percent'], 0); ?>%</small>
+                                        <?php elseif ($item['item_type'] === 'package'): ?>
+                                            <br><small style="color: #777; font-weight: bold;">Gói <?php echo (int) $item['duration_months']; ?> tháng</small>
+                                        <?php elseif ($item['item_type'] === 'service'): ?>
+                                            <br><small style="color: #777; font-weight: bold;">Dịch vụ <?php echo htmlspecialchars((string) $item['service_type']); ?></small>
+                                        <?php endif; ?>
+                                    </span>
+                                    <span style="font-weight: bold;"><?php echo number_format($item['final_price'] * $item['quantity'], 0, ',', '.'); ?>đ</span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        
+                        <ul class="total-cost mt-3" style="list-style: none; padding: 0; border-top: 1px solid #e1e1e1; padding-top: 20px;">
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
+                                Giá gốc 
+                                <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_subtotal, 0, ',', '.'); ?>đ</span>
+                            </li>
+                            <?php if ($base_discount_amount > 0): ?>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #28a745;">
+                                Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%)
+                                <span>-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
+                            </li>
+                            <?php endif; ?>
+                            <?php if ($promotion_discount > 0 && $promotion_info): ?>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #ff4444; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 4px;">
+                                <span><i class="fa fa-gift"></i> <?php echo htmlspecialchars($promotion_info['name']); ?></span>
+                                <span>-<?php echo number_format($promotion_discount, 0, ',', '.'); ?>đ</span>
+                            </li>
+                            <?php endif; ?>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px;"><?php echo $hasPhysicalProducts ? 'Phí vận chuyển' : 'Phí giao hàng'; ?> <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
+                            <li style="display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; color: #e7ab3c; border-top: 1px solid #e1e1e1; padding-top: 15px;">Tổng cộng <span><?php echo number_format($total, 0, ',', '.'); ?>đ</span></li>
+                        </ul>
+
+                        <div class="payment-method mt-4">
+                            <h5 style="font-size: 16px; margin-bottom: 15px;">Phương thức thanh toán</h5>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="payment_method" id="payment-cash" value="cash" checked>
+                                <label class="form-check-label" for="payment-cash" style="cursor: pointer;">
+                                    Tiền mặt khi nhận hàng (COD)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payment_method" id="payment-bank" value="bank_transfer">
+                                <label class="form-check-label" for="payment-bank" style="cursor: pointer;">
+                                    Chuyển khoản ngân hàng
+                                </label>
+                            </div>
+                            <div id="bank-transfer-info" style="display: none; margin: 0 auto; max-width: 450px;" class="mt-3">
+                                <div class="alert alert-info" style="font-size: 13px; padding: 10px;">
+                                    <strong>Thông tin chuyển khoản:</strong><br>
+                                    Ngân hàng: Vietcombank<br>
+                                    Số tài khoản: 123456789<br>
+                                    Chủ tài khoản: GYM CENTER<br>
+                                    Số tiền: <span id="transfer-amount"><?php echo number_format($total, 0, ',', '.'); ?>đ</span><br>
+                                    Nội dung chuyển khoản: <strong id="transfer-code-display"><?php echo htmlspecialchars($plannedTransferCode); ?></strong><br>
+                                    <span class="text-danger">Vui lòng nhập đúng 100% nội dung chuyển khoản để hệ thống đối soát.</span>
+                                </div>
+                                <input type="hidden" name="transfer_code" value="<?php echo htmlspecialchars($plannedTransferCode); ?>">
+                                <div class="form-group">
+                                    <label for="proof-image">Ảnh biên lai (bằng chứng thanh toán) <span class="text-danger">*</span></label>
+                                    <input type="file" name="proof_image" id="proof-image" class="form-control" accept=".jpg,.jpeg,.png,.webp">
+                                    <small class="form-text text-muted">Chỉ chấp nhận file JPG, JPEG, PNG, WEBP.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="site-btn place-order-btn mt-4">ĐẶT HÀNG</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<script>
+var useNewAddress = document.getElementById('use-new-address');
+if (useNewAddress) {
+    var addressSelect = document.getElementById('address-select');
+    var hasSavedAddressesInput = document.getElementById('has-saved-addresses');
+
+    useNewAddress.addEventListener('change', function() {
+        var newAddressForm = document.getElementById('new-address-form');
+        var hasSavedAddresses = hasSavedAddressesInput && hasSavedAddressesInput.value === '1';
+        
+        if (this.checked) {
+            newAddressForm.style.display = 'block';
+            if (addressSelect) {
+                addressSelect.disabled = true;
+            }
+        } else {
+            if (!hasSavedAddresses) {
+                this.checked = true;
+                alert('Bạn chưa có địa chỉ đã lưu. Vui lòng nhập địa chỉ mới.');
+                return;
+            }
+            newAddressForm.style.display = 'none';
+            if (addressSelect) {
+                addressSelect.disabled = false;
+            }
+        }
+    });
+}
+
+document.querySelectorAll('input[name="payment_method"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var bankInfo = document.getElementById('bank-transfer-info');
+        var proofInput = document.getElementById('proof-image');
+        if (this.value === 'bank_transfer') {
+            bankInfo.style.display = 'block';
+        } else {
+            bankInfo.style.display = 'none';
+            proofInput.value = "";
+        }
+    });
+});
+
+document.querySelectorAll('.promotion-radio').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var hiddenPromotion = document.getElementById('selected-promotion-id');
+        if (hiddenPromotion) {
+            hiddenPromotion.value = this.value;
+        }
+    });
+});
+
+document.getElementById('checkout-form').addEventListener('submit', function(e) {
+    var useNewAddressCheckbox = document.getElementById('use-new-address');
+    var useNewAddress = useNewAddressCheckbox ? useNewAddressCheckbox.checked : false;
+    var addressSelect = document.getElementById('address-select');
+    
+    if (useNewAddress) {
+        var newAddress = document.querySelector('input[name="new_address"]').value.trim();
+        var city = document.querySelector('input[name="city"]').value.trim();
+        var district = document.querySelector('input[name="district"]').value.trim();
+        
+        if (!newAddress || !city || !district) {
+            e.preventDefault(); 
+            alert('Vui lòng nhập đầy đủ: Địa chỉ, Thành phố và Quận/Huyện!');
+        }
+    } else if (addressSelect && !addressSelect.value) {
+        e.preventDefault();
+        alert('Vui lòng chọn địa chỉ giao hàng có sẵn hoặc nhập địa chỉ mới!');
+        return;
+    }
+
+    var paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+    if (paymentMethod === 'bank_transfer') {
+        var proofImage = document.getElementById('proof-image').files[0];
+
+        if (!proofImage) {
+            e.preventDefault();
+            alert('Vui lòng upload ảnh biên lai thanh toán!');
+            return;
+        }
+
+        var allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(proofImage.type)) {
+            e.preventDefault();
+            alert('Chỉ chấp nhận file ảnh JPG, JPEG, PNG, WEBP!');
+            return;
+        }
+    }
+});
+</script>
+
+<?php include 'layout/footer.php'; ?>

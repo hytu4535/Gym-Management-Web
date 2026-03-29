@@ -86,7 +86,7 @@ include 'layout/header.php';
                             <i class="fa fa-user-circle fa-5x text-primary"></i>
                         </div>
                         <h5 class="mt-3"><?php echo $_SESSION['full_name']; ?></h5>
-                        <p class="text-muted"><?php echo $_SESSION['email']; ?></p>
+                        <p class="text-muted"><?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?></p>
                     </div>
                     <hr>
                     <div class="sidebar-menu">

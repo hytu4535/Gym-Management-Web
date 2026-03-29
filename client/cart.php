@@ -267,7 +267,8 @@ include 'layout/header.php';
                                             $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
                                             $tier_info = getMemberTierDiscount($user_id, $conn);
                                             $subtotal_original = $totalAmount;
-                                            $base_discount_amount = round($subtotal_original * 0.10, 0);
+                                            $base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
+                                            $base_discount_amount = round($subtotal_original * $base_discount_percent / 100, 0);
                                             $subtotal_after_base = max($subtotal_original - $base_discount_amount, 0);
                                             $promotion_discount = 0;
                                             $promotion_info = null;
@@ -294,7 +295,7 @@ include 'layout/header.php';
                                         <?php if ($base_discount_amount > 0 || $promotion_discount > 0): ?>
                                             <li class="subtotal" style="color: #ffffff;">Giá gốc: <span style="text-decoration: line-through; color: #999;"><?php echo number_format($subtotal_original, 0, ',', '.'); ?>đ</span></li>
                                             <?php if ($base_discount_amount > 0): ?>
-                                            <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (10%)
+                                            <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (<?php echo number_format($base_discount_percent, 0); ?>%)
                                                 <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
                                             </li>
                                             <?php endif; ?>

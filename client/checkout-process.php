@@ -164,7 +164,8 @@ try {
     // Tính tổng theo cùng công thức với trang checkout/cart
     $selected_promotion_id = isset($_POST['promotion']) ? (int)$_POST['promotion'] : (isset($_POST['selected_promotion_id']) ? (int)$_POST['selected_promotion_id'] : (isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0));
     $tier_info = getMemberTierDiscount($user_id, $conn);
-    $base_discount_amount = round($subtotal * 0.10, 0);
+    $base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
+    $base_discount_amount = round($subtotal * $base_discount_percent / 100, 0);
     $subtotal_after_base = max($subtotal - $base_discount_amount, 0);
     $promotion_discount = 0;
 

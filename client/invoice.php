@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once '../config/db.php';
+require_once '../includes/discount_helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -77,7 +78,9 @@ $stmt_promo->close();
 $promotion_discount_amount = (float)($promo_row['applied_amount'] ?? 0);
 $promotion_name = $promo_row['promotion_name'] ?? 'Ưu đãi';
 $cart_subtotal = $total_items_cost;
-$base_discount_amount = round($cart_subtotal * 0.10, 0);
+$tier_info = getMemberTierDiscount($user_id, $conn);
+$base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
+$base_discount_amount = round($cart_subtotal * $base_discount_percent / 100, 0);
 $subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
 $shipping_fee = $has_physical_products ? 30000 : 0;
 $total_discount_amount = $base_discount_amount + $promotion_discount_amount;
@@ -183,7 +186,7 @@ include 'layout/header.php';
                                             <td class="text-right"><strong style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_subtotal, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                         <tr>
-                                            <td colspan="4" class="text-right"><strong>Giảm hạng (10%):</strong></td>
+                                            <td colspan="4" class="text-right"><strong>Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
                                             <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                         <tr>

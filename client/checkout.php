@@ -121,7 +121,8 @@ $stmt_cart->close();
 $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
 $tier_info = getMemberTierDiscount($user_id, $conn);
 $cart_subtotal = $subtotal;
-$base_discount_amount = round($cart_subtotal * 0.10, 0);
+$base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
+$base_discount_amount = round($cart_subtotal * $base_discount_percent / 100, 0);
 $subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
 $promotion_discount = 0;
 $promotion_info = null;
@@ -358,7 +359,7 @@ include 'layout/header.php';
                             </li>
                             <?php if ($base_discount_amount > 0): ?>
                             <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #28a745;">
-                                Giảm hạng (10%)
+                                Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%)
                                 <span>-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
                             </li>
                             <?php endif; ?>

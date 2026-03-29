@@ -12,7 +12,7 @@ require_once __DIR__ . '/../config/db.php';
 $user_id = $_SESSION['user_id'];
 
 // 2. Lấy thông tin từ bảng users
-$sql_user = "SELECT id, username, email, status FROM users WHERE id = ?";
+$sql_user = "SELECT id, username, email, status, avatar FROM users WHERE id = ?";
 $stmt_user = $conn->prepare($sql_user);
 if (!$stmt_user) {
     die("SQL error (users): " . $conn->error);
@@ -38,6 +38,13 @@ $stmt_member->close();
 $user = array_merge($user_data ?? [], $member_data ?? []);
 
 include 'layout/header.php'; 
+
+$avatarPath = trim((string)($user['avatar'] ?? ''));
+$avatarUrl = '';
+if ($avatarPath !== '') {
+    $normalizedAvatarPath = ltrim(str_replace('\\', '/', $avatarPath), '/');
+    $avatarUrl = '../' . $normalizedAvatarPath;
+}
 ?>
 
 
@@ -64,7 +71,22 @@ include 'layout/header.php';
 .sidebar-item:hover, .sidebar-item.active { background:#f36100; color:#fff; text-decoration:none; }
 .sidebar-item i { margin-right:8px; width:16px; }
 .profile-sidebar { background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.08); position:sticky; top:20px; }
-.user-avatar { color:#f36100; margin-bottom:15px; }
+.user-avatar { margin-bottom:15px; }
+.user-avatar-image,
+.user-avatar-placeholder {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 4px solid #f36100;
+    background: #fff;
+    object-fit: cover;
+}
+.user-avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f36100;
+}
 </style>
 
 <!-- Profile Section Begin -->
@@ -75,7 +97,14 @@ include 'layout/header.php';
                 <div class="profile-sidebar">
                     <div class="user-info text-center">
                         <div class="user-avatar">
-                            <i class="fa fa-user-circle fa-5x" style="color:#f36100;"></i>
+                            <?php if ($avatarUrl !== ''): ?>
+                                <img id="avatar-preview" src="<?php echo htmlspecialchars($avatarUrl); ?>" alt="Avatar" class="user-avatar-image">
+                            <?php else: ?>
+                                <div id="avatar-placeholder" class="user-avatar-placeholder">
+                                    <i class="fa fa-user-circle fa-5x"></i>
+                                </div>
+                                <img id="avatar-preview" src="" alt="Avatar" class="user-avatar-image" style="display:none;">
+                            <?php endif; ?>
                         </div>
                         <h5 class="mt-3"><?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Hội viên'); ?></h5>
                         <p style="color:#888;font-size:13px;"><?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?></p>
@@ -110,8 +139,16 @@ include 'layout/header.php';
                 <div class="profile-content" style="background-color: aliceblue; padding: 30px">
                     <h4>Thông tin tài khoản & cá nhân</h4>
                     <div id="message-container"></div>
-                    <form id="profile-form">
+                    <form id="profile-form" enctype="multipart/form-data">
                         <div class="row">
+                            <!-- Avatar -->
+                            <div class="col-12">
+                                <div class="form-group">
+                                    <label>Upload avatar</label>
+                                    <input type="file" name="avatar" id="avatar-input" class="form-control" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif">
+                                    <small class="text-muted d-block mt-2">Chỉ hỗ trợ JPG, PNG, WEBP, GIF. Tối đa 5MB.</small>
+                                </div>
+                            </div>
                             <!-- Họ tên -->
                             <div class="col-lg-6">
                                 <div class="form-group">
@@ -235,8 +272,43 @@ document.addEventListener('DOMContentLoaded', function() {
             if (document.querySelector('[name="weight"]')) {
                 document.querySelector('[name="weight"]').value = u.weight;
             }
+            if (u.avatar_url) {
+                const avatarPreview = document.getElementById('avatar-preview');
+                const avatarPlaceholder = document.getElementById('avatar-placeholder');
+                if (avatarPreview) {
+                    avatarPreview.src = u.avatar_url;
+                    avatarPreview.style.display = 'inline-block';
+                }
+                if (avatarPlaceholder) {
+                    avatarPlaceholder.style.display = 'none';
+                }
+            }
         }
     });
+
+    const avatarInput = document.getElementById('avatar-input');
+    if (avatarInput) {
+        avatarInput.addEventListener('change', function() {
+            const file = this.files && this.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const avatarPreview = document.getElementById('avatar-preview');
+                const avatarPlaceholder = document.getElementById('avatar-placeholder');
+                if (avatarPreview) {
+                    avatarPreview.src = event.target.result;
+                    avatarPreview.style.display = 'inline-block';
+                }
+                if (avatarPlaceholder) {
+                    avatarPlaceholder.style.display = 'none';
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
 });
 
 // Cập nhật thông tin (tài khoản + cá nhân)
@@ -250,6 +322,21 @@ document.getElementById('profile-form').addEventListener('submit', function(e) {
     .then(res => res.json())
     .then(data => {
         showMessage(data.message, data.success ? 'success' : 'error');
+        if (data.success && data.avatar_url) {
+            const avatarPreview = document.getElementById('avatar-preview');
+            const avatarPlaceholder = document.getElementById('avatar-placeholder');
+            if (avatarPreview) {
+                avatarPreview.src = data.avatar_url + '?v=' + Date.now();
+                avatarPreview.style.display = 'inline-block';
+            }
+            if (avatarPlaceholder) {
+                avatarPlaceholder.style.display = 'none';
+            }
+            const avatarInput = document.getElementById('avatar-input');
+            if (avatarInput) {
+                avatarInput.value = '';
+            }
+        }
     })
     .catch(err => {
         console.error(err);

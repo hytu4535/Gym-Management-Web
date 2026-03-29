@@ -52,24 +52,30 @@ include 'layout/header.php';
                             
                             if ($is_logged_in) {
                                 $query = "
-                                    SELECT ci.item_type,
-                                           ci.quantity,
-                                           ci.item_id,
-                                           p.name AS product_name,
-                                           p.selling_price,
-                                           p.stock_quantity,
-                                           mp.package_name,
-                                           mp.price AS package_price,
-                                         mp.duration_months,
-                                         s.name AS service_name,
-                                         s.price AS service_price,
-                                         s.type AS service_type
+                                                                        SELECT ci.item_type,
+                                                                                     ci.quantity,
+                                                                                     ci.item_id,
+                                                                                     p.name AS product_name,
+                                                                                     p.selling_price,
+                                                                                     p.stock_quantity,
+                                                                                     mp.package_name,
+                                                                                     mp.price AS package_price,
+                                                                                 mp.duration_months,
+                                                                                 s.name AS service_name,
+                                                                                 s.price AS service_price,
+                                                                                 s.type AS service_type,
+                                                                                 cs.class_name,
+                                                                                 cs.price_per_session AS class_price,
+                                                                                 cs.schedule_days AS class_schedule_days,
+                                                                                 cs.schedule_start_time AS class_start_time,
+                                                                                 cs.schedule_end_time AS class_end_time
                                     FROM members m
                                     JOIN carts c ON m.id = c.member_id AND c.status = 'active'
                                     JOIN cart_items ci ON c.id = ci.cart_id
                                     LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
                                     LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
                                      LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+                                                                         LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
                                     WHERE m.users_id = ?
                                     ORDER BY ci.created_at DESC, ci.id DESC
                                 ";
@@ -90,7 +96,8 @@ include 'layout/header.php';
                                             $isProduct = $itemType === 'product';
                                             $isPackage = $itemType === 'package';
                                             $isService = $itemType === 'service';
-                                            $itemName = $isProduct ? $item['product_name'] : ($isPackage ? $item['package_name'] : $item['service_name']);
+                                            $isClass = $itemType === 'class';
+                                            $itemName = $isProduct ? $item['product_name'] : ($isPackage ? $item['package_name'] : ($isService ? $item['service_name'] : $item['class_name']));
                                             $itemQuantity = (int) $item['quantity'];
 
                                             if ($isProduct) {
@@ -104,8 +111,8 @@ include 'layout/header.php';
                                                 ];
                                             } else {
                                                 $price_info = [
-                                                    'original_price' => (float) $item['service_price'],
-                                                    'final_price' => (float) $item['service_price'],
+                                                    'original_price' => $isService ? (float) $item['service_price'] : (float) $item['class_price'],
+                                                    'final_price' => $isService ? (float) $item['service_price'] : (float) $item['class_price'],
                                                     'discount_percent' => 0,
                                                     'has_discount' => false,
                                                 ];
@@ -122,6 +129,8 @@ include 'layout/header.php';
                                                 $imgPath = '../assets/uploads/products/default-product.jpg';
                                             } elseif ($isPackage) {
                                                 $imgPath = 'assets/img/logo.png';
+                                            } elseif ($isClass) {
+                                                $imgPath = 'assets/img/classes/class-1.jpg';
                                             } else {
                                                 $imgPath = 'assets/img/services/services-1.jpg';
                                             }
@@ -144,6 +153,10 @@ include 'layout/header.php';
                                                         <small style="color: #777; font-weight: bold;">
                                                             <i class="fa fa-heartbeat"></i> Dịch vụ <?php echo htmlspecialchars((string) $item['service_type']); ?>
                                                         </small>
+                                                    <?php elseif ($isClass): ?>
+                                                        <small style="color: #777; font-weight: bold;">
+                                                            <i class="fa fa-calendar"></i> <?php echo htmlspecialchars((string) $item['class_schedule_days']); ?>
+                                                        </small>
                                                     <?php endif; ?>
                                                 </td>
                                                 <td class="p-price first-row">
@@ -162,7 +175,7 @@ include 'layout/header.php';
                                                     <div class="quantity">
                                                         <div class="custom-pro-qty">
                                                             <?php if ($isProduct): ?>
-                                                                <input type="number" value="<?php echo $itemQuantity; ?>" min="0" max="<?php echo (int) $item['stock_quantity']; ?>" onchange="updateQuantity('product', <?php echo $id; ?>, this.value)" style="width: 70px; height: 35px; text-align: center; border: 1px solid #ebebeb; border-radius: 4px; outline: none;">
+                                                                <input type="number" value="<?php echo $itemQuantity; ?>" min="1" max="<?php echo (int) $item['stock_quantity']; ?>" onchange="updateQuantity('product', <?php echo $id; ?>, this.value)" style="width: 70px; height: 35px; text-align: center; border: 1px solid #ebebeb; border-radius: 4px; outline: none;">
                                                             <?php else: ?>
                                                                 <input type="number" value="1" min="1" max="1" readonly style="width: 70px; height: 35px; text-align: center; border: 1px solid #ebebeb; border-radius: 4px; outline: none; background: #f3f3f3; cursor: not-allowed;">
                                                             <?php endif; ?>
@@ -310,14 +323,31 @@ include 'layout/header.php';
 </style>
 
 <script>
+function refreshCartUI() {
+    fetch(window.location.href)
+    .then(res => res.text())
+    .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const currentCartSection = document.querySelector('.shopping-cart-section .container');
+        const newCartSection = doc.querySelector('.shopping-cart-section .container');
+        
+        if(currentCartSection && newCartSection) {
+            currentCartSection.innerHTML = newCartSection.innerHTML;
+        }
+    })
+    .catch(error => console.error('Lỗi khi tải lại giao diện:', error));
+}
+
 function updateQuantity(itemType, itemId, newQuantity) {
-    if (newQuantity < 1) {
-        removeFromCart(itemType, itemId);
-        window.location.reload();
+    newQuantity = parseInt(newQuantity);
+
+    if (isNaN(newQuantity) || newQuantity < 1) {
+        alert("Số lượng phải >= 1");
+        refreshCartUI(); 
         return;
     }
-    if (itemType === 'package' || itemType === 'service') return;
-    
+
     var formData = new FormData();
     formData.append('item_type', itemType);
     formData.append('product_id', itemId);
@@ -330,10 +360,10 @@ function updateQuantity(itemType, itemId, newQuantity) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            window.location.reload(); 
+            refreshCartUI();
         } else {
             alert(data.message);
-            window.location.reload(); 
+            refreshCartUI();
         }
     })
     .catch(error => console.error('Error:', error));
@@ -359,46 +389,40 @@ function removeFromCart(itemType, itemId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                window.location.reload(); 
+                refreshCartUI();
             } else {
                 alert(data.message);
+                refreshCartUI(); 
             }
         })
         .catch(error => console.error('Error:', error));
     }
 }
 
-// Xử lý chọn promotion
-document.addEventListener('DOMContentLoaded', function() {
-    const promotionRadios = document.querySelectorAll('.promotion-radio');
-    
-    promotionRadios.forEach(function(radio) {
-        radio.addEventListener('change', function() {
-            const promotionId = this.value;
-            
-            var formData = new FormData();
-            formData.append('promotion_id', promotionId);
-            
-            fetch('ajax/apply-promotion.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Reload để cập nhật giá
-                    window.location.reload();
-                } else {
-                    alert(data.message);
-                    window.location.reload();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Có lỗi xảy ra!');
-            });
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('promotion-radio')) {
+        const promotionId = e.target.value;
+        var formData = new FormData();
+        formData.append('promotion_id', promotionId);
+        
+        fetch('ajax/apply-promotion.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                refreshCartUI();
+            } else {
+                alert(data.message);
+                refreshCartUI();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Có lỗi xảy ra!');
         });
-    });
+    }
 });
 </script>
 

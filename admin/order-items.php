@@ -41,6 +41,34 @@ $sql_items = "SELECT oi.id AS item_id, oi.item_type, oi.item_name, oi.quantity, 
               FROM order_items oi
               WHERE oi.order_id = $order_id";
 $result_items = $conn->query($sql_items);
+
+$order_items = [];
+$total_items_cost = 0;
+$base_discount_amount = 0;
+$has_physical_products = false;
+
+if ($result_items && $result_items->num_rows > 0) {
+  while ($row = $result_items->fetch_assoc()) {
+    $row['subtotal'] = (float) ($row['subtotal'] ?? ($row['price'] * $row['quantity']));
+    $order_items[] = $row;
+    $total_items_cost += $row['subtotal'];
+    $base_discount_amount += (float) ($row['discount'] ?? 0);
+    if (($row['item_type'] ?? '') === 'product') {
+      $has_physical_products = true;
+    }
+  }
+}
+
+$stmt_promo = $conn->prepare("SELECT COALESCE(SUM(applied_amount), 0) AS promo_discount FROM promotion_usage WHERE order_id = ?");
+$stmt_promo->bind_param("i", $order_id);
+$stmt_promo->execute();
+$promo_row = $stmt_promo->get_result()->fetch_assoc();
+$stmt_promo->close();
+
+$promotion_discount_amount = (float) ($promo_row['promo_discount'] ?? 0);
+$total_discount_amount = $base_discount_amount + $promotion_discount_amount;
+$shipping_fee = $has_physical_products ? 30000 : 0;
+$subtotal_before_discount = $total_items_cost + $total_discount_amount;
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -87,10 +115,10 @@ $result_items = $conn->query($sql_items);
                   </thead>
                   <tbody>
                   <?php 
-                    if ($result_items && $result_items->num_rows > 0) {
+                    if (!empty($order_items)) {
                         $orderCode = "#ORD" . str_pad($order_id, 3, "0", STR_PAD_LEFT);
 
-                        while($item = $result_items->fetch_assoc()) {
+                      foreach ($order_items as $item) {
                             $item_type = $item['item_type'];
                             $item_type_label = '';
                             $badge_class = '';
@@ -112,8 +140,13 @@ $result_items = $conn->query($sql_items);
                             
                             $price = $item['price'];
                             $quantity = $item['quantity'];
-                            $discount = (float) ($item['discount'] ?? 0);
                             $subtotal = $item['subtotal'];
+                            $base_item_discount = (float) ($item['discount'] ?? 0);
+                            $promotion_share = 0;
+                            if ($promotion_discount_amount > 0 && $total_items_cost > 0) {
+                              $promotion_share = round(($subtotal / $total_items_cost) * $promotion_discount_amount, 0);
+                            }
+                            $discount = $base_item_discount + $promotion_share;
                             
                             echo "<tr>";
                             echo "  <td>{$item['item_id']}</td>";                                    
@@ -131,6 +164,24 @@ $result_items = $conn->query($sql_items);
                     }
                     ?>
                   </tbody>
+                  <tfoot>
+                    <tr>
+                      <th colspan="6" class="text-right">Tạm tính:</th>
+                      <th colspan="2" class="text-right"><?php echo number_format($subtotal_before_discount, 0, ',', '.'); ?>đ</th>
+                    </tr>
+                    <tr>
+                      <th colspan="6" class="text-right">Tổng số tiền đã giảm:</th>
+                      <th colspan="2" class="text-right text-success">-<?php echo number_format($total_discount_amount, 0, ',', '.'); ?>đ</th>
+                    </tr>
+                    <tr>
+                      <th colspan="6" class="text-right">Phí vận chuyển:</th>
+                      <th colspan="2" class="text-right"><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</th>
+                    </tr>
+                    <tr>
+                      <th colspan="6" class="text-right">Tổng cộng:</th>
+                      <th colspan="2" class="text-right text-danger"><?php echo number_format($order['total_amount'], 0, ',', '.'); ?>đ</th>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>

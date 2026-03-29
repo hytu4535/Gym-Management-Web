@@ -48,13 +48,20 @@ $cart_sql = "
            s.id AS service_id,
            s.name AS service_name,
            s.price AS service_price,
-           s.type AS service_type
+            s.type AS service_type,
+            cs.id AS class_id,
+            cs.class_name,
+            cs.price_per_session AS class_price,
+            cs.schedule_days AS class_schedule_days,
+            cs.schedule_start_time AS class_start_time,
+            cs.schedule_end_time AS class_end_time
     FROM members m
     JOIN carts c ON m.id = c.member_id AND c.status = 'active'
     JOIN cart_items ci ON c.id = ci.cart_id
     LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
     LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
     LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+        LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
     WHERE m.users_id = ?
 ";
 $stmt_cart = $conn->prepare($cart_sql);
@@ -88,6 +95,12 @@ while ($row = $cart_result->fetch_assoc()) {
         $row['display_name'] = $row['package_name'];
         $row['final_price'] = (float) $row['package_price'];
         $row['original_price'] = (float) $row['package_price'];
+        $row['discount_percent'] = 0;
+        $row['has_discount'] = false;
+    } elseif ($row['item_type'] === 'class') {
+        $row['display_name'] = $row['class_name'];
+        $row['final_price'] = (float) $row['class_price'];
+        $row['original_price'] = (float) $row['class_price'];
         $row['discount_percent'] = 0;
         $row['has_discount'] = false;
     } else {

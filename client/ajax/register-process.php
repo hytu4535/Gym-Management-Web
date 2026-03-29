@@ -1,5 +1,6 @@
 <?php
 header('Content-Type: application/json');
+require_once '../../includes/functions.php';
 require_once '../../config/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -50,8 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 6. Insert vào bảng users (không truyền created_at, để DB tự thêm)
         $role_id = 6; // mặc định role user
         $status = 'active';
+        $hashed_password = hashPassword($password);
         $stmt = $conn->prepare("INSERT INTO users (username, full_name, email, password, role_id, status) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssssis", $username, $full_name, $email, $password, $role_id, $status);
+        $stmt->bind_param("ssssis", $username, $full_name, $email, $hashed_password, $role_id, $status);
         if (!$stmt->execute()) {
             echo json_encode(['success' => false, 'message' => 'Lỗi khi thêm user: ' . $stmt->error]);
             exit();

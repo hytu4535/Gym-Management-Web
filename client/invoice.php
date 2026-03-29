@@ -47,7 +47,7 @@ $display_address = $order['full_address'] ?? $order['default_full_address'] ?? $
 $display_district = $order['district'] ?? $order['default_district'] ?? '';
 $display_city = $order['city'] ?? $order['default_city'] ?? '';
 
-$sql_items = "SELECT item_name, price, quantity FROM order_items WHERE order_id = ?";
+$sql_items = "SELECT item_type, item_name, price, quantity, discount FROM order_items WHERE order_id = ?";
 $stmt_items = $conn->prepare($sql_items);
 $stmt_items->bind_param("i", $order_id);
 $stmt_items->execute();
@@ -55,15 +55,30 @@ $res_items = $stmt_items->get_result();
 
 $order_items = [];
 $total_items_cost = 0;
+$tier_discount_amount = 0;
+$has_physical_products = false;
 while($row = $res_items->fetch_assoc()) {
     $subtotal = $row['price'] * $row['quantity'];
     $row['subtotal'] = $subtotal;
     $order_items[] = $row;
     $total_items_cost += $subtotal;
+    $tier_discount_amount += (float)($row['discount'] ?? 0);
+    if (($row['item_type'] ?? '') === 'product') {
+        $has_physical_products = true;
+    }
 }
 $stmt_items->close();
 
-$shipping_fee = $order['total_amount'] - $total_items_cost;
+$stmt_promo = $conn->prepare("SELECT COALESCE(SUM(applied_amount), 0) AS promo_discount FROM promotion_usage WHERE order_id = ?");
+$stmt_promo->bind_param("i", $order_id);
+$stmt_promo->execute();
+$promo_row = $stmt_promo->get_result()->fetch_assoc();
+$stmt_promo->close();
+
+$promotion_discount_amount = (float)($promo_row['promo_discount'] ?? 0);
+$total_discount_amount = $tier_discount_amount + $promotion_discount_amount;
+$shipping_fee = $has_physical_products ? 30000 : 0;
+$subtotal_before_discount = $total_items_cost + $total_discount_amount;
 
 include 'layout/header.php'; 
 ?>
@@ -162,7 +177,19 @@ include 'layout/header.php';
                                     <tfoot>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong>Tạm tính:</strong></td>
-                                            <td class="text-right"><strong><?php echo number_format($total_items_cost, 0, ',', '.'); ?>đ</strong></td>
+                                            <td class="text-right"><strong><?php echo number_format($subtotal_before_discount, 0, ',', '.'); ?>đ</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="4" class="text-right"><strong>Giảm giá theo hạng:</strong></td>
+                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($tier_discount_amount, 0, ',', '.'); ?>đ</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="4" class="text-right"><strong>Giảm giá theo phiếu sử dụng:</strong></td>
+                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="4" class="text-right"><strong>Tổng Số tiền đã giảm:</strong></td>
+                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($total_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong>Phí vận chuyển:</strong></td>

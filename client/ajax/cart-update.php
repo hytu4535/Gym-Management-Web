@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $quantity = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
     $user_id = $_SESSION['user_id'];
     
-    if (!in_array($item_type, ['product', 'package', 'service'], true) || $item_id <= 0) {
+    if (!in_array($item_type, ['product', 'package', 'service', 'class'], true) || $item_id <= 0) {
         echo json_encode([
             'success' => false,
             'message' => 'Dữ liệu không hợp lệ!'
@@ -63,6 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 JOIN membership_packages mp ON ci.item_id = mp.id
                 WHERE ci.cart_id = ? AND ci.item_type = ? AND ci.item_id = ?
             ");
+        } elseif ($item_type === 'class') {
+            $stmt_info = $conn->prepare("
+                SELECT ci.quantity as cart_qty, NULL as stock_quantity, cs.price_per_session as selling_price
+                FROM cart_items ci
+                JOIN class_schedules cs ON ci.item_id = cs.id
+                WHERE ci.cart_id = ? AND ci.item_type = ? AND ci.item_id = ?
+            ");
         } else {
             $stmt_info = $conn->prepare("
                 SELECT ci.quantity as cart_qty, NULL as stock_quantity, s.price as selling_price
@@ -97,6 +104,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode([
                 'success' => false,
                 'message' => 'Dịch vụ chỉ được mua một lần trong mỗi đơn. Bạn chỉ có thể xóa khỏi giỏ nếu không muốn mua.'
+            ]);
+            exit();
+        }
+
+        if ($item_type === 'class') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Lớp tập chỉ được mua một lần trong mỗi đơn. Bạn chỉ có thể xóa khỏi giỏ nếu không muốn mua.'
             ]);
             exit();
         }
@@ -136,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     WHEN ci.item_type = 'product' THEN ci.quantity * p.selling_price
                     WHEN ci.item_type = 'package' THEN ci.quantity * mp.price
                     WHEN ci.item_type = 'service' THEN ci.quantity * s.price
+                    WHEN ci.item_type = 'class' THEN ci.quantity * cs.price_per_session
                     ELSE 0
                 END
             ), 0) as total
@@ -143,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
             LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
             LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+            LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
             WHERE ci.cart_id = ?
         ");
         $stmt_total->bind_param("i", $cart_id);

@@ -42,12 +42,18 @@ try {
                mp.duration_months,
                s.name AS service_name,
                s.price AS service_price,
+               cs.class_name,
+               cs.price_per_session AS class_price,
+               cs.schedule_days AS class_schedule_days,
+               cs.schedule_start_time AS class_start_time,
+               cs.schedule_end_time AS class_end_time,
                c.id as cart_id
         FROM carts c 
         JOIN cart_items ci ON c.id = ci.cart_id
         LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id 
         LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
         LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+        LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
         WHERE c.member_id = ? AND c.status = 'active' FOR UPDATE
     ");
     $stmt_cart->bind_param("i", $member_id); 
@@ -78,6 +84,10 @@ try {
             $row['quantity'] = 1;
             $row['final_price'] = (float) $row['package_price'];
             $row['item_name'] = $row['package_name'];
+        } elseif ($row['item_type'] === 'class') {
+            $row['quantity'] = 1;
+            $row['final_price'] = (float) $row['class_price'];
+            $row['item_name'] = $row['class_name'];
         } else {
             $row['quantity'] = 1;
             $row['final_price'] = (float) $row['service_price'];
@@ -257,6 +267,11 @@ try {
             $stmt_service->bind_param("iis", $member_id, $item_id, $startDate);
             $stmt_service->execute();
             $stmt_service->close();
+            continue;
+        }
+
+        if ($item_type === 'class') {
+            continue;
         }
     }
     $stmt_item->close();

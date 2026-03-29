@@ -8,8 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     $db = getDB();
 
-    // Lấy thông tin user + role
-    $sql = "SELECT u.id, u.username, u.password, r.id AS role_id, r.name AS role_name
+    $sql = "SELECT u.id, u.username, u.password, u.status, r.id AS role_id, r.name AS role_name
             FROM users u
             JOIN roles r ON u.role_id = r.id
             WHERE u.username = ?
@@ -18,26 +17,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
-    // So sánh mật khẩu plain text
-    if ($user && $password === $user['password']) {
-        // Lấy danh sách quyền từ bảng role_permissions
-        $sql = "SELECT p.code 
-                FROM role_permissions rp
-                JOIN permission p ON rp.permission_id = p.id
-                WHERE rp.role_id = ?";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([$user['role_id']]);
-        $permissions = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if ($user && $user['status'] === 'active' && $password === $user['password']) {
+        $permissions = [];
+        $userActionPermissions = [];
 
-        // Lưu vào session
+        $isAdminRole = ((int) $user['role_id'] === 4) || (strtolower((string) ($user['role_name'] ?? '')) === 'admin');
+        if ($isAdminRole) {
+            $permissions = ['MANAGE_ALL'];
+        } else {
+            $stmt = $db->prepare("SELECT permission_code, can_view, can_add, can_edit, can_delete FROM user_permissions WHERE user_id = ?");
+            $stmt->execute([$user['id']]);
+            $permissionRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($permissionRows as $row) {
+                $code = (string) ($row['permission_code'] ?? '');
+                if ($code === '') {
+                    continue;
+                }
+
+                $actionSet = [
+                    'view' => (int) ($row['can_view'] ?? 0) === 1,
+                    'add' => (int) ($row['can_add'] ?? 0) === 1,
+                    'edit' => (int) ($row['can_edit'] ?? 0) === 1,
+                    'delete' => (int) ($row['can_delete'] ?? 0) === 1,
+                ];
+
+                $userActionPermissions[$code] = $actionSet;
+                if ($actionSet['view'] || $actionSet['add'] || $actionSet['edit'] || $actionSet['delete']) {
+                    $permissions[] = $code;
+                }
+            }
+        }
+
         $_SESSION['admin_logged_in'] = true;
+        $_SESSION['admin_user_id'] = $user['id'];
         $_SESSION['admin_username'] = $user['username'];
         $_SESSION['role'] = $user['role_name'];
-        $_SESSION['role_id'] = $user['role_id']; // thêm dòng này để lưu role_id
+            $_SESSION['role_id'] = $user['role_id'];
         $_SESSION['permissions'] = $permissions;
+        $_SESSION['user_action_permissions'] = $userActionPermissions;
 
         header("Location: index.php");
         exit();
+      } elseif ($user && $user['status'] !== 'active') {
+        $error = "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.";
     } else {
         $error = "Sai tên đăng nhập hoặc mật khẩu!";
     }

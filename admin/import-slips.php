@@ -1,5 +1,14 @@
 <?php
+require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/auth_permission.php';
+
+checkPermission('MANAGE_INVENTORY', 'view');
+
+$hasManageAll = in_array('MANAGE_ALL', $_SESSION['permissions'] ?? [], true);
+$inventoryActionSet = $_SESSION['user_action_permissions']['MANAGE_INVENTORY'] ?? [];
+$canAddImport = $hasManageAll || !empty($inventoryActionSet['add']);
+$canEditImport = $hasManageAll || !empty($inventoryActionSet['edit']);
 
 $db = getDB();
 
@@ -17,6 +26,11 @@ function importStatusLabelByIndex($statusIndex) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_id'])) {
+  if (!$canEditImport) {
+    header('Location: no_permission.php');
+    exit;
+  }
+
   $importSlipId = intval($_POST['update_import_status_id']);
   $newStatusAction = sanitize($_POST['new_status_action'] ?? '');
   $newStatusIndex = null;
@@ -98,6 +112,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
+  if (!$canAddImport) {
+    header('Location: no_permission.php');
+    exit;
+  }
+
   $supplierId = intval($_POST['supplier_id']);
   $staffId = intval($_POST['staff_id']);
   $importDateInput = sanitize($_POST['import_date']);
@@ -225,7 +244,23 @@ $products = $productsStmt->fetchAll();
 $equipmentStmt = $db->query("SELECT id, name FROM equipment ORDER BY name ASC");
 $equipmentList = $equipmentStmt->fetchAll();
 
-$importSlipsStmt = $db->query("SELECT i.id, i.total_amount, i.import_date, i.note, i.status, (i.status + 0) AS status_idx, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id ORDER BY i.id DESC");
+$filterSupplierId = trim((string) ($_GET['supplier_id'] ?? ''));
+$filterStaffId = trim((string) ($_GET['staff_id'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+$filterFromDate = trim((string) ($_GET['from_date'] ?? ''));
+$filterToDate = trim((string) ($_GET['to_date'] ?? ''));
+
+$importSlipWhereClauses = [];
+$importSlipParams = [];
+if ($filterSupplierId !== '') { $importSlipWhereClauses[] = 'i.supplier_id = ?'; $importSlipParams[] = (int) $filterSupplierId; }
+if ($filterStaffId !== '') { $importSlipWhereClauses[] = 'i.staff_id = ?'; $importSlipParams[] = (int) $filterStaffId; }
+if ($filterStatus !== '' && is_numeric($filterStatus)) { $importSlipWhereClauses[] = '(i.status + 0) = ?'; $importSlipParams[] = (int) $filterStatus; }
+if ($filterFromDate !== '') { $importSlipWhereClauses[] = 'DATE(i.import_date) >= ?'; $importSlipParams[] = $filterFromDate; }
+if ($filterToDate !== '') { $importSlipWhereClauses[] = 'DATE(i.import_date) <= ?'; $importSlipParams[] = $filterToDate; }
+$importSlipWhereSql = !empty($importSlipWhereClauses) ? ' WHERE ' . implode(' AND ', $importSlipWhereClauses) : '';
+
+$importSlipsStmt = $db->prepare("SELECT i.id, i.total_amount, i.import_date, i.note, i.status, (i.status + 0) AS status_idx, s.name AS supplier_name, st.full_name AS staff_name FROM import_slips i INNER JOIN suppliers s ON i.supplier_id = s.id INNER JOIN staff st ON i.staff_id = st.id" . $importSlipWhereSql . " ORDER BY i.id DESC");
+$importSlipsStmt->execute($importSlipParams);
 $importSlips = $importSlipsStmt->fetchAll();
 
 $importSlipDetailsMap = [];
@@ -313,19 +348,43 @@ include 'layout/sidebar.php';
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'import-slips.php';
+          $filterFieldsHtml = '
+            <div class="col-md-3"><div class="form-group mb-0"><label>Nhà cung cấp</label><select name="supplier_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($suppliers as $supplier) {
+            $selected = (string) $filterSupplierId === (string) $supplier['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $supplier['id'] . '" ' . $selected . '>' . htmlspecialchars($supplier['name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-3"><div class="form-group mb-0"><label>Nhân viên</label><select name="staff_id" class="form-control"><option value="">-- Tất cả --</option>';
+          foreach ($staffs as $staff) {
+            $selected = (string) $filterStaffId === (string) $staff['id'] ? 'selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $staff['id'] . '" ' . $selected . '>' . htmlspecialchars($staff['full_name']) . '</option>';
+          }
+          $filterFieldsHtml .= '</select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="2" ' . ($filterStatus === '2' ? 'selected' : '') . '>Đang chờ duyệt</option><option value="1" ' . ($filterStatus === '1' ? 'selected' : '') . '>Đã nhập</option><option value="3" ' . ($filterStatus === '3' ? 'selected' : '') . '>Đã hủy</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Từ ngày</label><input type="date" name="from_date" class="form-control" value="' . htmlspecialchars($filterFromDate) . '"></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Đến ngày</label><input type="date" name="to_date" class="form-control" value="' . htmlspecialchars($filterToDate) . '"></div></div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
               <div class="card-header">
                 <h3 class="card-title">Danh sách Phiếu Nhập Kho</h3>
                 <div class="card-tools">
+                  <?php if ($canAddImport): ?>
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addImportModal">
                     <i class="fas fa-plus"></i> Tạo Phiếu Nhập
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>Mã Phiếu</th>
@@ -364,7 +423,7 @@ include 'layout/sidebar.php';
                       <button type="button" class="btn btn-primary btn-sm print-import-btn" data-id="<?= (int) $importSlip['id'] ?>" title="In phiếu nhập">
                         <i class="fas fa-print"></i>
                       </button>
-                      <?php if ($displayStatus === 'Đang chờ duyệt'): ?>
+                      <?php if ($displayStatus === 'Đang chờ duyệt' && $canEditImport): ?>
                         <form method="POST" action="import-slips.php" style="display:inline-block;">
                           <input type="hidden" name="update_import_status_id" value="<?= $importSlip['id'] ?>">
                           <input type="hidden" name="new_status_action" value="approve">
@@ -414,13 +473,9 @@ include 'layout/sidebar.php';
             <div class="alert alert-warning mb-3">Chưa có sản phẩm hoặc thiết bị để nhập kho. Vui lòng tạo dữ liệu trước khi lập phiếu.</div>
           <?php endif; ?>
 
-          <div id="importFormErrors" class="alert alert-danger" style="display:none;">
-            <ul id="importFormErrorsList" class="mb-0 pl-3"></ul>
-          </div>
-
           <div class="form-group">
             <label for="supplier_id">Nhà Cung Cấp <span class="text-danger">*</span></label>
-            <select class="form-control" id="supplier_id" name="supplier_id" <?= empty($suppliers) ? 'disabled' : '' ?>>
+            <select class="form-control" id="supplier_id" name="supplier_id" <?= (empty($suppliers) || !$canAddImport) ? 'disabled' : '' ?>>
               <option value="">-- Chọn nhà cung cấp --</option>
               <?php foreach ($suppliers as $supplier): ?>
                 <option value="<?= $supplier['id'] ?>"><?= htmlspecialchars($supplier['name']) ?></option>
@@ -431,7 +486,7 @@ include 'layout/sidebar.php';
 
           <div class="form-group">
             <label for="staff_id">Nhân Viên <span class="text-danger">*</span></label>
-            <select class="form-control" id="staff_id" name="staff_id" <?= empty($staffs) ? 'disabled' : '' ?>>
+            <select class="form-control" id="staff_id" name="staff_id" <?= (empty($staffs) || !$canAddImport) ? 'disabled' : '' ?>>
               <option value="">-- Chọn nhân viên --</option>
               <?php foreach ($staffs as $staff): ?>
                 <option value="<?= $staff['id'] ?>"><?= htmlspecialchars($staff['full_name']) ?></option>
@@ -457,7 +512,7 @@ include 'layout/sidebar.php';
                 <tbody id="import_detail_body"></tbody>
               </table>
             </div>
-            <button type="button" class="btn btn-outline-primary btn-sm" id="add_import_detail_row">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="add_import_detail_row" <?= !$canAddImport ? 'disabled' : '' ?>>
               <i class="fas fa-plus"></i> Thêm dòng
             </button>
             <div><small id="importDetailError" class="text-danger" style="display:none;"></small></div>
@@ -470,7 +525,7 @@ include 'layout/sidebar.php';
 
           <div class="form-group">
             <label for="import_date">Ngày Nhập <span class="text-danger">*</span></label>
-            <input type="datetime-local" class="form-control" id="import_date" name="import_date">
+            <input type="datetime-local" class="form-control" id="import_date" name="import_date" <?= !$canAddImport ? 'disabled' : '' ?>>
             <small id="importDateError" class="text-danger" style="display:none;"></small>
           </div>
 
@@ -487,7 +542,7 @@ include 'layout/sidebar.php';
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || empty($staffs) || (empty($products) && empty($equipmentList))) ? 'disabled' : '' ?>>Tạo phiếu</button>
+          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || empty($staffs) || (empty($products) && empty($equipmentList)) || !$canAddImport) ? 'disabled' : '' ?>>Tạo phiếu</button>
         </div>
       </form>
     </div>

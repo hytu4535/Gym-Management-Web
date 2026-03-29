@@ -11,7 +11,7 @@ include '../includes/database.php';
 include '../includes/auth_permission.php';
 
 // chỉ cho phép user có quyền MANAGE_PACKAGES
-checkPermission('MANAGE_PACKAGES');
+checkPermission('MANAGE_PACKAGES', 'view');
 
 // layout chung
 include 'layout/header.php'; 
@@ -20,11 +20,54 @@ include 'layout/sidebar.php';
 // kết nối DB (nếu bạn dùng file config riêng thì giữ nguyên)
 require_once '../config/db.php';
 
-$sql = "SELECT id, package_name, duration_months, price, description, status 
-        FROM membership_packages 
-        ORDER BY id DESC";
+$userActionPermissions = $_SESSION['user_action_permissions'] ?? [];
+$hasManageAll = in_array('MANAGE_ALL', $_SESSION['permissions'] ?? [], true);
+$packageActionSet = is_array($userActionPermissions) ? ($userActionPermissions['MANAGE_PACKAGES'] ?? []) : [];
+$canAddPackage = $hasManageAll || !empty($packageActionSet['add']);
+$canEditPackage = $hasManageAll || !empty($packageActionSet['edit']);
+$canDeletePackage = $hasManageAll || !empty($packageActionSet['delete']);
 
-$result = $conn->query($sql);
+$filterName = trim((string) ($_GET['package_name'] ?? ''));
+$filterDurationMin = trim((string) ($_GET['duration_min'] ?? ''));
+$filterDurationMax = trim((string) ($_GET['duration_max'] ?? ''));
+$filterPriceMin = trim((string) ($_GET['price_min'] ?? ''));
+$filterPriceMax = trim((string) ($_GET['price_max'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+
+$whereClauses = [];
+$whereParams = [];
+if ($filterName !== '') {
+  $whereClauses[] = 'package_name LIKE ?';
+  $whereParams[] = '%' . $filterName . '%';
+}
+if ($filterDurationMin !== '' && is_numeric($filterDurationMin)) {
+  $whereClauses[] = 'duration_months >= ?';
+  $whereParams[] = (int) $filterDurationMin;
+}
+if ($filterDurationMax !== '' && is_numeric($filterDurationMax)) {
+  $whereClauses[] = 'duration_months <= ?';
+  $whereParams[] = (int) $filterDurationMax;
+}
+if ($filterPriceMin !== '' && is_numeric($filterPriceMin)) {
+  $whereClauses[] = 'price >= ?';
+  $whereParams[] = (float) $filterPriceMin;
+}
+if ($filterPriceMax !== '' && is_numeric($filterPriceMax)) {
+  $whereClauses[] = 'price <= ?';
+  $whereParams[] = (float) $filterPriceMax;
+}
+if ($filterStatus !== '') {
+  $whereClauses[] = 'status = ?';
+  $whereParams[] = $filterStatus;
+}
+$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
+$sql = "SELECT id, package_name, duration_months, price, description, status 
+        FROM membership_packages" . $whereSql . " ORDER BY id DESC";
+
+$stmt = $conn->prepare($sql);
+$stmt->execute($whereParams);
+$result = $stmt->get_result();
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -49,19 +92,68 @@ $result = $conn->query($sql);
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php
+          $filterMode = 'server';
+          $filterAction = 'packages.php';
+          $filterFieldsHtml = '
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Tên gói</label>
+                <input type="text" name="package_name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Nhập tên gói">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Thời hạn từ</label>
+                <input type="number" name="duration_min" class="form-control" min="0" value="' . htmlspecialchars($filterDurationMin) . '" placeholder=">=">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Thời hạn đến</label>
+                <input type="number" name="duration_max" class="form-control" min="0" value="' . htmlspecialchars($filterDurationMax) . '" placeholder="<=">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Giá từ</label>
+                <input type="number" name="price_min" class="form-control" min="0" value="' . htmlspecialchars($filterPriceMin) . '" placeholder=">=">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Giá đến</label>
+                <input type="number" name="price_max" class="form-control" min="0" value="' . htmlspecialchars($filterPriceMax) . '" placeholder="<=">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Trạng thái</label>
+                <select name="status" class="form-control">
+                  <option value="">-- Tất cả trạng thái --</option>
+                  <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option>
+                  <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option>
+                </select>
+              </div>
+            </div>
+          ';
+          include 'layout/filter-card.php';
+        ?>
         <div class="row">
           <div class="col-12">
             <div class="card">
               <div class="card-header">
                 <h3 class="card-title">Danh sách Gói tập</h3>
                 <div class="card-tools">
+                  <?php if ($canAddPackage): ?>
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addPackageModal">
                     <i class="fas fa-plus"></i> Thêm Gói tập
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped data-table">
+                <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
                   <tr>
                     <th>ID</th>
@@ -94,16 +186,23 @@ $result = $conn->query($sql);
                             echo "  <td class='text-danger font-weight-bold'>{$formattedPrice}</td>";
                             echo "  <td><small>{$shortDesc}</small></td>";
                             echo "  <td>{$statusBadge}</td>";
-                            echo "  <td>
-                                      <a href='package_edit.php?id={$row['id']}' class='btn btn-warning btn-sm' title='Sửa thông tin'>
-                                          <i class='fas fa-edit'></i>
-                                      </a>
-                                      <a href='process/package_delete.php?id={$row['id']}' 
-                                         class='btn btn-danger btn-sm' title='Xóa gói tập' 
-                                         onclick=\"return confirm('Bạn có chắc chắn muốn xóa gói tập này không?');\">
-                                          <i class='fas fa-trash'></i>
-                                      </a>
-                                    </td>";
+                            echo "  <td>";
+                            if ($canEditPackage) {
+                              echo "<a href='package_edit.php?id={$row['id']}' class='btn btn-warning btn-sm' title='Sửa thông tin'>
+                                    <i class='fas fa-edit'></i>
+                                  </a> ";
+                            }
+                            if ($canDeletePackage) {
+                              echo "<a href='process/package_delete.php?id={$row['id']}' 
+                                   class='btn btn-danger btn-sm' title='Xóa gói tập' 
+                                   onclick=\"return confirm('Bạn có chắc chắn muốn xóa gói tập này không?');\">
+                                    <i class='fas fa-trash'></i>
+                                  </a>";
+                            }
+                            if (!$canEditPackage && !$canDeletePackage) {
+                              echo "<span class='text-muted'>Chỉ xem</span>";
+                            }
+                            echo "</td>";
                             echo "</tr>";
                         }
                     } else {
@@ -120,6 +219,7 @@ $result = $conn->query($sql);
     </section>
   </div>
 
+  <?php if ($canAddPackage): ?>
   <div class="modal fade" id="addPackageModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
@@ -129,23 +229,26 @@ $result = $conn->query($sql);
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
-      <form action="process/package_add.php" method="POST">
+      <form action="process/package_add.php" method="POST" novalidate id="packageAddForm">
         <div class="modal-body">
           <div class="row">
             <div class="col-md-6">
               <div class="form-group">
                 <label>Tên Gói Tập <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" name="package_name" required placeholder="VD: Gói Gym 1 Tháng">
+                <input type="text" class="form-control" name="package_name" data-field="package_name" placeholder="VD: Gói Gym 1 Tháng">
+                <small class="text-danger d-none">Vui lòng nhập tên gói tập.</small>
               </div>
               <div class="form-group">
                 <label>Thời Hạn (Tháng) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="duration_months" required min="1" value="1">
+                <input type="number" class="form-control" name="duration_months" data-field="duration_months" min="1" value="1">
+                <small class="text-danger d-none">Vui lòng nhập thời hạn gói tập.</small>
               </div>
             </div>
             <div class="col-md-6">
               <div class="form-group">
                 <label>Giá Tiền (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="price" required min="0" value="0">
+                <input type="number" class="form-control" name="price" data-field="price" min="0" value="0">
+                <small class="text-danger d-none">Vui lòng nhập giá tiền.</small>
               </div>
               <div class="form-group">
                 <label>Trạng Thái</label>
@@ -169,5 +272,48 @@ $result = $conn->query($sql);
     </div>
   </div>
 </div>
+<?php endif; ?>
 
 <?php include 'layout/footer.php'; ?>
+
+<script>
+function packageValidateField(input) {
+  var formGroup = input.closest('.form-group');
+  var errorBox = formGroup ? formGroup.querySelector('small.text-danger') : null;
+  var value = String(input.value || '').trim();
+
+  if (!errorBox) return true;
+
+  if (!value) {
+    errorBox.classList.remove('d-none');
+    input.classList.add('is-invalid');
+    return false;
+  }
+
+  errorBox.classList.add('d-none');
+  input.classList.remove('is-invalid');
+  return true;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var form = document.getElementById('packageAddForm');
+  if (!form) return;
+
+  form.querySelectorAll('[data-field]').forEach(function(field) {
+    field.addEventListener('input', function() { packageValidateField(field); });
+    field.addEventListener('blur', function() { packageValidateField(field); });
+  });
+
+  form.addEventListener('submit', function(event) {
+    var isValid = true;
+    form.querySelectorAll('[data-field]').forEach(function(field) {
+      if (!packageValidateField(field)) isValid = false;
+    });
+
+    if (!isValid) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+});
+</script>

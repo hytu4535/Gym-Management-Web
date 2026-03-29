@@ -61,13 +61,28 @@ $res_items = $stmt_items->get_result();
 
 $order_items = [];
 $total_items_cost = 0;
+$tier_discount_amount = 0;
+$has_physical_products = false;
 while($row = $res_items->fetch_assoc()) {
     $order_items[] = $row;
     $total_items_cost += $row['subtotal'];
+    $tier_discount_amount += (float)($row['discount'] ?? 0);
+    if (($row['item_type'] ?? '') === 'product') {
+        $has_physical_products = true;
+    }
 }
 $stmt_items->close();
 
-$shipping_fee = $order['total_amount'] - $total_items_cost;
+$stmt_promo = $conn->prepare("SELECT COALESCE(SUM(applied_amount), 0) AS promo_discount FROM promotion_usage WHERE order_id = ?");
+$stmt_promo->bind_param("i", $order_id);
+$stmt_promo->execute();
+$promo_row = $stmt_promo->get_result()->fetch_assoc();
+$stmt_promo->close();
+
+$promotion_discount_amount = (float)($promo_row['promo_discount'] ?? 0);
+$total_discount_amount = $tier_discount_amount + $promotion_discount_amount;
+$shipping_fee = $has_physical_products ? 30000 : 0;
+$subtotal_before_discount = $total_items_cost + $total_discount_amount;
 
 $status = $order['status'];
 $is_cancelled = ($status === 'cancelled');
@@ -182,7 +197,10 @@ include 'layout/header.php';
             <div class="row justify-content-end mt-4">
                 <div class="col-lg-4">
                     <div class="summary-box">
-                        <p class="d-flex justify-content-between">Tạm tính: <span><?php echo number_format($total_items_cost, 0, ',', '.'); ?>đ</span></p>
+                        <p class="d-flex justify-content-between">Tạm tính: <span><?php echo number_format($subtotal_before_discount, 0, ',', '.'); ?>đ</span></p>
+                        <p class="d-flex justify-content-between">Giảm giá theo hạng: <span style="color:#28a745;">-<?php echo number_format($tier_discount_amount, 0, ',', '.'); ?>đ</span></p>
+                        <p class="d-flex justify-content-between">Giảm giá theo phiếu sử dụng: <span style="color:#ff4444;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</span></p>
+                        <p class="d-flex justify-content-between">Số tiền đã giảm: <span style="color:#28a745;">-<?php echo number_format($total_discount_amount, 0, ',', '.'); ?>đ</span></p>
                         <p class="d-flex justify-content-between">Phí vận chuyển: <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></p>
                         <h5 class="d-flex justify-content-between mt-2 pt-2 border-top" style="color:#f36100;">Tổng cộng: <span><?php echo number_format($order['total_amount'], 0, ',', '.'); ?>đ</span></h5>
                     </div>

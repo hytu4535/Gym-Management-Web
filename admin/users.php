@@ -75,14 +75,14 @@ $totalPages = ceil($totalRecords / $itemsPerPage);
 
 // Lấy danh sách users
 if ($hasPhoneColumn) {
-  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.phone, u.password, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.phone, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 } else {
-  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.password, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, u.full_name, u.email, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
@@ -232,7 +232,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <th>Tên đăng nhập</th>
                 <th>Email</th>
                 <th>Số điện thoại</th>
-                <th>Mật khẩu</th>
                 <th>Vai trò</th>
                 <th>Trạng thái</th>
                 <th>Ngày tạo</th>
@@ -246,15 +245,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <td><?= $u['username'] ?></td>
                 <td><?= $u['email'] ?></td>
                 <td><?= htmlspecialchars($u['phone'] ?? '') ?></td>
-                <td>
-                  <div class="password-display-group" data-id="<?= $u['id'] ?>">
-                    <span class="password-masked">••••••••</span>
-                    <span class="password-actual" style="display: none;"><?= htmlspecialchars(substr($u['password'], 0, 15)) . (strlen($u['password']) > 15 ? '...' : '') ?></span>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="togglePasswordDisplay(<?= $u['id'] ?>)" style="padding: 2px 8px; margin-left: 5px;">
-                      <i class="fas fa-eye"></i>
-                    </button>
-                  </div>
-                </td>
                 <td><span class="badge badge-info"><?= $u['role'] ?></span></td>
                 <td>
                   <?php if($u['status']=='active'): ?>
@@ -764,26 +754,7 @@ function togglePasswordVisibilityForToggleEl(toggleEl) {
 }
 
 function togglePasswordDisplay(userId) {
-  const group = document.querySelector(`.password-display-group[data-id="${userId}"]`);
-  if (!group) return;
-
-  const masked = group.querySelector('.password-masked');
-  const actual = group.querySelector('.password-actual');
-  const btn = group.querySelector('button');
-  const icon = btn ? btn.querySelector('i') : null;
-  if (!masked || !actual || !btn || !icon) return;
-
-  if (masked.style.display !== 'none') {
-    masked.style.display = 'none';
-    actual.style.display = 'inline';
-    icon.classList.remove('fa-eye');
-    icon.classList.add('fa-eye-slash');
-  } else {
-    masked.style.display = 'inline';
-    actual.style.display = 'none';
-    icon.classList.remove('fa-eye-slash');
-    icon.classList.add('fa-eye');
-  }
+  return;
 }
 
 function getErrorContainer(input) {

@@ -9,13 +9,19 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$sql = "SELECT u.email, m.full_name, m.phone, m.birthdate, m.gender, m.address
+$sql = "SELECT u.email, u.avatar, m.full_name, m.phone, m.birthdate, m.gender, m.address
         FROM users u
-        JOIN members m ON u.id = m.users_id
+    LEFT JOIN members m ON u.id = m.users_id
         WHERE u.id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
 
-echo json_encode(['success'=>true,'data'=>$user]);
+$avatarUrl = '';
+if (!empty($user['avatar'])) {
+    $normalizedAvatarPath = ltrim(str_replace('\\', '/', $user['avatar']), '/');
+    $avatarUrl = '../' . $normalizedAvatarPath;
+}
+
+echo json_encode(['success'=>true,'data'=>array_merge($user, ['avatar_url' => $avatarUrl])]);

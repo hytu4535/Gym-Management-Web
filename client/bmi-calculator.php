@@ -1,4 +1,30 @@
-<?php include 'layout/header.php'; ?>
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once __DIR__ . '/../config/db.php';
+
+$memberHeight = '';
+$memberWeight = '';
+
+if (!empty($_SESSION['user_id'])) {
+    $userId = (int) $_SESSION['user_id'];
+    $stmtMember = $conn->prepare("SELECT height, weight FROM members WHERE users_id = ? LIMIT 1");
+    if ($stmtMember) {
+        $stmtMember->bind_param("i", $userId);
+        $stmtMember->execute();
+        $memberData = $stmtMember->get_result()->fetch_assoc();
+        $stmtMember->close();
+
+        if (!empty($memberData)) {
+            $memberHeight = $memberData['height'] !== null ? $memberData['height'] : '';
+            $memberWeight = $memberData['weight'] !== null ? $memberData['weight'] : '';
+        }
+    }
+}
+
+include 'layout/header.php'; ?>
 
 <!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
@@ -74,13 +100,14 @@
                     <form id="bmiForm">
                         <div class="row">
                             <div class="col-sm-6">
-                                <input type="number" id="height" placeholder="Chiều cao / cm" required step="0.1">
+                                <input type="number" id="height" placeholder="Chiều cao / cm" required step="0.1" value="<?php echo htmlspecialchars((string) $memberHeight); ?>" <?php echo $memberHeight !== '' ? 'readonly' : ''; ?>>
                             </div>
                             <div class="col-sm-6">
-                                <input type="number" id="weight" placeholder="Cân nặng / kg" required step="0.1">
+                                <input type="number" id="weight" placeholder="Cân nặng / kg" required step="0.1" value="<?php echo htmlspecialchars((string) $memberWeight); ?>" <?php echo $memberWeight !== '' ? 'readonly' : ''; ?>>
                             </div>
                             <div class="col-sm-6">
-                                <input type="number" id="age" placeholder="Tuổi" required>
+                                <input type="number" id="age" placeholder="Tuổi" required min="0" step="1">
+                                <small id="ageError" class="text-danger" style="display:none;"></small>
                             </div>
                             <div class="col-sm-6">
                                 <select id="gender">
@@ -110,16 +137,46 @@
 <!-- BMI Calculator Section End -->
 
 <script>
+function showAgeError(message) {
+    const ageError = document.getElementById('ageError');
+    ageError.textContent = message;
+    ageError.style.display = message ? 'block' : 'none';
+}
+
+document.getElementById('age').addEventListener('input', function () {
+    const ageValue = this.value.trim();
+    if (ageValue === '') {
+        showAgeError('');
+        return;
+    }
+
+    if (Number(ageValue) < 0) {
+        showAgeError('Tuổi không được âm.');
+        return;
+    }
+
+    showAgeError('');
+});
+
 function calculateBMI() {
     const height = parseFloat(document.getElementById('height').value);
     const weight = parseFloat(document.getElementById('weight').value);
     const age = parseInt(document.getElementById('age').value);
     const gender = document.getElementById('gender').value;
+    const ageInput = document.getElementById('age');
     
     if (!height || !weight || !age || !gender) {
         alert('Vui lòng điền đầy đủ thông tin!');
         return;
     }
+
+    if (age < 0) {
+        showAgeError('Tuổi không được âm.');
+        ageInput.focus();
+        return;
+    }
+
+    showAgeError('');
     
     // Chuyển đổi chiều cao từ cm sang m
     const heightInMeters = height / 100;

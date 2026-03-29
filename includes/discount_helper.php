@@ -184,13 +184,15 @@ function calculateCartTotal($user_id, $conn, $promotion_id = 0) {
         SELECT ci.item_type, ci.quantity,
                p.selling_price,
                mp.price AS package_price,
-               s.price AS service_price
+               s.price AS service_price,
+               cs.price_per_session AS class_price
         FROM members m
         JOIN carts c ON m.id = c.member_id AND c.status = 'active'
         JOIN cart_items ci ON c.id = ci.cart_id
         LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
         LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
         LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+        LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
         WHERE m.users_id = ?
     ";
     
@@ -216,6 +218,8 @@ function calculateCartTotal($user_id, $conn, $promotion_id = 0) {
 
         if ($item['item_type'] === 'service') {
             $original_price = (float) $item['service_price'];
+        } elseif ($item['item_type'] === 'class') {
+            $original_price = (float) $item['class_price'];
         } else {
             $original_price = (float) $item['package_price'];
         }

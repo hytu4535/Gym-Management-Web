@@ -52,24 +52,30 @@ include 'layout/header.php';
                             
                             if ($is_logged_in) {
                                 $query = "
-                                    SELECT ci.item_type,
-                                           ci.quantity,
-                                           ci.item_id,
-                                           p.name AS product_name,
-                                           p.selling_price,
-                                           p.stock_quantity,
-                                           mp.package_name,
-                                           mp.price AS package_price,
-                                         mp.duration_months,
-                                         s.name AS service_name,
-                                         s.price AS service_price,
-                                         s.type AS service_type
+                                                                        SELECT ci.item_type,
+                                                                                     ci.quantity,
+                                                                                     ci.item_id,
+                                                                                     p.name AS product_name,
+                                                                                     p.selling_price,
+                                                                                     p.stock_quantity,
+                                                                                     mp.package_name,
+                                                                                     mp.price AS package_price,
+                                                                                 mp.duration_months,
+                                                                                 s.name AS service_name,
+                                                                                 s.price AS service_price,
+                                                                                 s.type AS service_type,
+                                                                                 cs.class_name,
+                                                                                 cs.price_per_session AS class_price,
+                                                                                 cs.schedule_days AS class_schedule_days,
+                                                                                 cs.schedule_start_time AS class_start_time,
+                                                                                 cs.schedule_end_time AS class_end_time
                                     FROM members m
                                     JOIN carts c ON m.id = c.member_id AND c.status = 'active'
                                     JOIN cart_items ci ON c.id = ci.cart_id
                                     LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
                                     LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
                                      LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+                                                                         LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
                                     WHERE m.users_id = ?
                                     ORDER BY ci.created_at DESC, ci.id DESC
                                 ";
@@ -90,7 +96,8 @@ include 'layout/header.php';
                                             $isProduct = $itemType === 'product';
                                             $isPackage = $itemType === 'package';
                                             $isService = $itemType === 'service';
-                                            $itemName = $isProduct ? $item['product_name'] : ($isPackage ? $item['package_name'] : $item['service_name']);
+                                            $isClass = $itemType === 'class';
+                                            $itemName = $isProduct ? $item['product_name'] : ($isPackage ? $item['package_name'] : ($isService ? $item['service_name'] : $item['class_name']));
                                             $itemQuantity = (int) $item['quantity'];
 
                                             if ($isProduct) {
@@ -104,8 +111,8 @@ include 'layout/header.php';
                                                 ];
                                             } else {
                                                 $price_info = [
-                                                    'original_price' => (float) $item['service_price'],
-                                                    'final_price' => (float) $item['service_price'],
+                                                    'original_price' => $isService ? (float) $item['service_price'] : (float) $item['class_price'],
+                                                    'final_price' => $isService ? (float) $item['service_price'] : (float) $item['class_price'],
                                                     'discount_percent' => 0,
                                                     'has_discount' => false,
                                                 ];
@@ -122,6 +129,8 @@ include 'layout/header.php';
                                                 $imgPath = '../assets/uploads/products/default-product.jpg';
                                             } elseif ($isPackage) {
                                                 $imgPath = 'assets/img/logo.png';
+                                            } elseif ($isClass) {
+                                                $imgPath = 'assets/img/classes/class-1.jpg';
                                             } else {
                                                 $imgPath = 'assets/img/services/services-1.jpg';
                                             }
@@ -143,6 +152,10 @@ include 'layout/header.php';
                                                     <?php elseif ($isService): ?>
                                                         <small style="color: #777; font-weight: bold;">
                                                             <i class="fa fa-heartbeat"></i> Dịch vụ <?php echo htmlspecialchars((string) $item['service_type']); ?>
+                                                        </small>
+                                                    <?php elseif ($isClass): ?>
+                                                        <small style="color: #777; font-weight: bold;">
+                                                            <i class="fa fa-calendar"></i> <?php echo htmlspecialchars((string) $item['class_schedule_days']); ?>
                                                         </small>
                                                     <?php endif; ?>
                                                 </td>

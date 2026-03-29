@@ -1,6 +1,7 @@
 <?php
 session_start();
 include '../includes/database.php';
+include '../includes/functions.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = trim($_POST['username']);
@@ -18,8 +19,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
-    // So sánh mật khẩu plain text
-    if ($user && $user['status'] === 'active' && $password === $user['password']) {
+    $isPasswordValid = $user ? password_verify($password, $user['password']) : false;
+    $isLegacyPasswordValid = $user && !$isPasswordValid && $password === $user['password'];
+
+    // Xác thực bằng bcrypt, vẫn hỗ trợ dữ liệu cũ chưa hash
+    if ($user && $user['status'] === 'active' && ($isPasswordValid || $isLegacyPasswordValid)) {
         // Lấy danh sách quyền từ bảng role_permissions
         $sql = "SELECT p.code 
                 FROM role_permissions rp

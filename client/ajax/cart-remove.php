@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : $product_id);
     $user_id = $_SESSION['user_id'];
     
-    if (!in_array($item_type, ['product', 'package', 'service'], true) || $item_id <= 0) {
+    if (!in_array($item_type, ['product', 'package', 'service', 'class'], true) || $item_id <= 0) {
         echo json_encode([
             'success' => false,
             'message' => 'Dữ liệu không hợp lệ!'
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         echo json_encode([
             'success' => true,
-            'message' => $item_type === 'package' ? 'Đã xóa gói tập khỏi giỏ hàng!' : ($item_type === 'service' ? 'Đã xóa dịch vụ khỏi giỏ hàng!' : 'Đã xóa sản phẩm khỏi giỏ hàng!'),
+            'message' => $item_type === 'package' ? 'Đã xóa gói tập khỏi giỏ hàng!' : ($item_type === 'service' ? 'Đã xóa dịch vụ khỏi giỏ hàng!' : ($item_type === 'class' ? 'Đã xóa lớp tập khỏi giỏ hàng!' : 'Đã xóa sản phẩm khỏi giỏ hàng!')),
             'cart_count' => (int)$cart_count,
             'cart_total' => (float)$cart_total
         ]);

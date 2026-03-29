@@ -1,6 +1,7 @@
 <?php
 session_start();
 include '../../includes/database.php';
+require_once '../../includes/functions.php';
 $db = getDB();
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
@@ -87,15 +88,17 @@ if ($action == 'add') {
     $checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
     
     if (!empty($checkColumn)) {
+        $hashedPassword = hashPassword($password);
         $sql = "INSERT INTO users (username, full_name, password, email, phone, role_id, status, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())";
         $stmt = $db->prepare($sql);
-        $stmt->execute([$username, $full_name, $password, $email, $phone, $role_id, 'active']);
+        $stmt->execute([$username, $full_name, $hashedPassword, $email, $phone, $role_id, 'active']);
     } else {
+        $hashedPassword = hashPassword($password);
         $sql = "INSERT INTO users (username, full_name, password, email, role_id, status, created_at)
             VALUES (?, ?, ?, ?, ?, ?, NOW())";
         $stmt = $db->prepare($sql);
-        $stmt->execute([$username, $full_name, $password, $email, $role_id, 'active']);
+        $stmt->execute([$username, $full_name, $hashedPassword, $email, $role_id, 'active']);
     }
 
     unset($_SESSION['validation_errors']);
@@ -236,9 +239,10 @@ if ($action == 'edit') {
 
     if (!empty($checkColumn)) {
         if (!empty($password)) {
+            $hashedPassword = hashPassword($password);
             $sql = "UPDATE users SET username=?, full_name=?, email=?, phone=?, role_id=?, password=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $phone, $role_id, $password, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $phone, $role_id, $hashedPassword, $id]);
         } else {
             $sql = "UPDATE users SET username=?, full_name=?, email=?, phone=?, role_id=? WHERE id=?";
             $stmt = $db->prepare($sql);
@@ -246,9 +250,10 @@ if ($action == 'edit') {
         }
     } else {
         if (!empty($password)) {
+            $hashedPassword = hashPassword($password);
             $sql = "UPDATE users SET username=?, full_name=?, email=?, role_id=?, password=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $role_id, $password, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $role_id, $hashedPassword, $id]);
         } else {
             $sql = "UPDATE users SET username=?, full_name=?, email=?, role_id=? WHERE id=?";
             $stmt = $db->prepare($sql);

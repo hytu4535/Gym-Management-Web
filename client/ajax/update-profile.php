@@ -20,6 +20,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone     = trim($_POST['phone'] ?? '');
     $height    = $_POST['height'] ?? '';
     $weight    = $_POST['weight'] ?? '';
+    $avatarRelativePath = null;
+    $avatarFile = $_FILES['avatar'] ?? null;
+    $uploadedAvatarFullPath = null;
 
     // Kiểm tra dữ liệu đầu vào
     if (empty($full_name) || empty($email) || empty($username) || empty($phone)) {
@@ -48,12 +51,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $weight = $weight === '' ? null : (float)$weight;
 
     try {
+        $stmtCurrent = $conn->prepare("SELECT avatar FROM users WHERE id=? LIMIT 1");
+        if (!$stmtCurrent) { throw new Exception("SQL error (users current): ".$conn->error); }
+        $stmtCurrent->bind_param("i", $user_id);
+        $stmtCurrent->execute();
+        $currentUser = $stmtCurrent->get_result()->fetch_assoc();
+        $stmtCurrent->close();
+
+        if ($avatarFile && ($avatarFile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            if ($avatarFile['error'] !== UPLOAD_ERR_OK) {
+                echo json_encode(['success'=>false,'message'=>'Tải avatar thất bại!']);
+                exit();
+            }
+
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+            $avatarExtension = strtolower(pathinfo($avatarFile['name'], PATHINFO_EXTENSION));
+
+            if (!in_array($avatarExtension, $allowedExtensions, true)) {
+                echo json_encode(['success'=>false,'message'=>'Avatar chỉ chấp nhận JPG, PNG, WEBP, GIF!']);
+                exit();
+            }
+
+            if ($avatarFile['size'] > 5 * 1024 * 1024) {
+                echo json_encode(['success'=>false,'message'=>'Avatar không được vượt quá 5MB!']);
+                exit();
+            }
+
+            $imageInfo = @getimagesize($avatarFile['tmp_name']);
+            if ($imageInfo === false || empty($imageInfo['mime']) || !in_array($imageInfo['mime'], $allowedMimeTypes, true)) {
+                echo json_encode(['success'=>false,'message'=>'File tải lên không phải là ảnh hợp lệ!']);
+                exit();
+            }
+
+            $avatarUploadDir = __DIR__ . '/../../assets/uploads/avatars/';
+            if (!is_dir($avatarUploadDir)) {
+                if (!mkdir($avatarUploadDir, 0777, true) && !is_dir($avatarUploadDir)) {
+                    throw new Exception('Không thể tạo thư mục upload avatar!');
+                }
+            }
+
+            $avatarFileName = 'avatar_' . $user_id . '_' . time() . '.' . $avatarExtension;
+            $uploadedAvatarFullPath = $avatarUploadDir . $avatarFileName;
+            if (!move_uploaded_file($avatarFile['tmp_name'], $uploadedAvatarFullPath)) {
+                echo json_encode(['success'=>false,'message'=>'Không thể lưu avatar!']);
+                exit();
+            }
+
+            $avatarRelativePath = 'assets/uploads/avatars/' . $avatarFileName;
+        }
+
         // Update bảng users (username, email)
-        $stmt = $conn->prepare("UPDATE users SET username=?, email=? WHERE id=?");
+        if ($avatarRelativePath !== null) {
+            $stmt = $conn->prepare("UPDATE users SET username=?, email=?, avatar=? WHERE id=?");
+        } else {
+            $stmt = $conn->prepare("UPDATE users SET username=?, email=? WHERE id=?");
+        }
         if(!$stmt){ throw new Exception("SQL error (users): ".$conn->error); }
-        $stmt->bind_param("ssi", $username, $email, $user_id);
+        if ($avatarRelativePath !== null) {
+            $stmt->bind_param("sssi", $username, $email, $avatarRelativePath, $user_id);
+        } else {
+            $stmt->bind_param("ssi", $username, $email, $user_id);
+        }
         $stmt->execute();
         $stmt->close();
+
+        if ($avatarRelativePath !== null && !empty($currentUser['avatar'])) {
+            $oldAvatarPath = __DIR__ . '/../../' . ltrim(str_replace('\\', '/', $currentUser['avatar']), '/');
+            if (is_file($oldAvatarPath)) {
+                @unlink($oldAvatarPath);
+            }
+        }
 
         // Update bảng members (full_name, phone, height, weight)
         $stmt2 = $conn->prepare("UPDATE members SET full_name=?, phone=?, height=?, weight=? WHERE users_id=?");
@@ -70,9 +138,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['phone']     = $phone;
         $_SESSION['height']    = $height;
         $_SESSION['weight']    = $weight;
+        if ($avatarRelativePath !== null) {
+            $_SESSION['avatar'] = $avatarRelativePath;
+        }
 
-        echo json_encode(['success'=>true,'message'=>'Cập nhật thông tin thành công!']);
+        $avatarUrl = '';
+        if ($avatarRelativePath !== null) {
+            $avatarUrl = '../' . $avatarRelativePath;
+        } elseif (!empty($currentUser['avatar'])) {
+            $avatarUrl = '../' . ltrim(str_replace('\\', '/', $currentUser['avatar']), '/');
+        }
+
+        echo json_encode(['success'=>true,'message'=>'Cập nhật thông tin thành công!','avatar_url'=>$avatarUrl]);
     } catch (Exception $e) {
+        if ($uploadedAvatarFullPath !== null && is_file($uploadedAvatarFullPath)) {
+            @unlink($uploadedAvatarFullPath);
+        }
         echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
     }
 } else {

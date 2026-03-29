@@ -105,6 +105,112 @@ function supportsStructuredScheduleTime(mysqli $conn)
     return $supportsStructured;
 }
 
+function normalizeWeekdayLabels($schedule_days)
+{
+    $normalized = mb_strtolower(trim((string) $schedule_days), 'UTF-8');
+    if ($normalized === '') {
+        return [];
+    }
+
+    $weekdayMap = [
+        'chủ nhật' => 0,
+        'chu nhat' => 0,
+        'thứ 2' => 1,
+        'thu 2' => 1,
+        'thứ 3' => 2,
+        'thu 3' => 2,
+        'thứ 4' => 3,
+        'thu 4' => 3,
+        'thứ 5' => 4,
+        'thu 5' => 4,
+        'thứ 6' => 5,
+        'thu 6' => 5,
+        'thứ 7' => 6,
+        'thu 7' => 6,
+    ];
+
+    $days = [];
+    foreach ($weekdayMap as $label => $dayNum) {
+        if (mb_strpos($normalized, $label, 0, 'UTF-8') !== false) {
+            $days[$dayNum] = true;
+        }
+    }
+
+    return array_keys($days);
+}
+
+function parseScheduleMinutes($startTime, $endTime)
+{
+    $startTime = trim((string) $startTime);
+    $endTime = trim((string) $endTime);
+    if ($startTime === '' || $endTime === '') {
+        return null;
+    }
+
+    $startTimestamp = strtotime(substr($startTime, 0, 5));
+    $endTimestamp = strtotime(substr($endTime, 0, 5));
+    if ($startTimestamp === false || $endTimestamp === false) {
+        return null;
+    }
+
+    $startMinutes = ((int) date('H', $startTimestamp)) * 60 + (int) date('i', $startTimestamp);
+    $endMinutes = ((int) date('H', $endTimestamp)) * 60 + (int) date('i', $endTimestamp);
+
+    if ($startMinutes >= $endMinutes) {
+        return null;
+    }
+
+    return [$startMinutes, $endMinutes];
+}
+
+function schedulesOverlap($currentClass, $existingClass)
+{
+    $currentDays = normalizeWeekdayLabels($currentClass['schedule_days'] ?? '');
+    $existingDays = normalizeWeekdayLabels($existingClass['schedule_days'] ?? '');
+    if (empty($currentDays) || empty($existingDays)) {
+        return false;
+    }
+
+    if (empty(array_intersect($currentDays, $existingDays))) {
+        return false;
+    }
+
+    $currentRange = parseScheduleMinutes($currentClass['schedule_start_time'] ?? '', $currentClass['schedule_end_time'] ?? '');
+    $existingRange = parseScheduleMinutes($existingClass['schedule_start_time'] ?? '', $existingClass['schedule_end_time'] ?? '');
+    if ($currentRange === null || $existingRange === null) {
+        return false;
+    }
+
+    return max($currentRange[0], $existingRange[0]) < min($currentRange[1], $existingRange[1]);
+}
+
+function getOrCreateActiveCart(mysqli $conn, $memberId)
+{
+    $cartStmt = $conn->prepare('SELECT id FROM carts WHERE member_id = ? AND status = "active" LIMIT 1');
+    if (!$cartStmt) {
+        throw new Exception('Không thể xử lý giỏ hàng.');
+    }
+    $cartStmt->bind_param('i', $memberId);
+    $cartStmt->execute();
+    $cart = $cartStmt->get_result()->fetch_assoc();
+    $cartStmt->close();
+
+    if ($cart) {
+        return (int) $cart['id'];
+    }
+
+    $createStmt = $conn->prepare('INSERT INTO carts (member_id, status) VALUES (?, "active")');
+    if (!$createStmt) {
+        throw new Exception('Không thể tạo giỏ hàng.');
+    }
+    $createStmt->bind_param('i', $memberId);
+    $createStmt->execute();
+    $cartId = (int) $conn->insert_id;
+    $createStmt->close();
+
+    return $cartId;
+}
+
 if (!isset($_SESSION['user_id'])) {
     json_response(false, 'Vui lòng đăng nhập.');
 }
@@ -142,15 +248,15 @@ try {
 
     $structuredScheduleTime = supportsStructuredScheduleTime($conn);
 
-    if ($structuredScheduleTime) {
-        $classSql =
-            'SELECT id, class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, capacity, enrolled_count, status
+        if ($structuredScheduleTime) {
+            $classSql =
+                'SELECT id, class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, price_per_session, capacity, enrolled_count, status
              FROM class_schedules
              WHERE id = ?
              FOR UPDATE';
     } else {
         $classSql =
-            'SELECT id, class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, capacity, enrolled_count, status
+                'SELECT id, class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, price_per_session, capacity, enrolled_count, status
              FROM class_schedules
              WHERE id = ?
              FOR UPDATE';
@@ -193,6 +299,28 @@ try {
         if ($registration && $registration['status'] === 'active') {
             throw new Exception('Bạn đã đăng ký lớp này rồi.');
         }
+
+        $conflictStmt = $conn->prepare(
+            'SELECT cs.id, cs.class_name, cs.schedule_days, cs.schedule_start_time, cs.schedule_end_time
+             FROM class_registrations cr
+             INNER JOIN class_schedules cs ON cs.id = cr.class_id
+             WHERE cr.member_id = ?
+               AND cr.status = "active"
+               AND cr.class_id <> ?'
+        );
+        if (!$conflictStmt) {
+            throw new Exception('Không thể kiểm tra lịch trùng.');
+        }
+        $conflictStmt->bind_param('ii', $memberId, $classId);
+        $conflictStmt->execute();
+        $conflictResult = $conflictStmt->get_result();
+        while ($conflictClass = $conflictResult->fetch_assoc()) {
+            if (schedulesOverlap($class, $conflictClass)) {
+                $conflictStmt->close();
+                throw new Exception('Bạn đã đăng ký lớp trùng lịch với "' . $conflictClass['class_name'] . '".');
+            }
+        }
+        $conflictStmt->close();
 
         if ((int) $class['enrolled_count'] >= (int) $class['capacity']) {
             throw new Exception('Lớp tập đã đầy.');
@@ -292,8 +420,32 @@ try {
             $insertScheduleStmt->close();
         }
 
+        $cartId = getOrCreateActiveCart($conn, $memberId);
+        $classCartStmt = $conn->prepare(
+            'SELECT id FROM cart_items WHERE cart_id = ? AND item_type = "class" AND item_id = ? LIMIT 1'
+        );
+        if (!$classCartStmt) {
+            throw new Exception('Không thể kiểm tra giỏ hàng lớp tập.');
+        }
+        $classCartStmt->bind_param('ii', $cartId, $classId);
+        $classCartStmt->execute();
+        $existingCartItem = $classCartStmt->get_result()->fetch_assoc();
+        $classCartStmt->close();
+
+        if (!$existingCartItem) {
+            $insertCartStmt = $conn->prepare(
+                'INSERT INTO cart_items (cart_id, item_type, item_id, quantity) VALUES (?, "class", ?, 1)'
+            );
+            if (!$insertCartStmt) {
+                throw new Exception('Không thể thêm lớp tập vào giỏ hàng.');
+            }
+            $insertCartStmt->bind_param('ii', $cartId, $classId);
+            $insertCartStmt->execute();
+            $insertCartStmt->close();
+        }
+
         $conn->commit();
-        json_response(true, 'Đăng ký lớp tập thành công và đã thêm vào lịch tập cá nhân.');
+        json_response(true, 'Đăng ký lớp tập thành công, đã thêm vào giỏ hàng và lịch tập cá nhân.');
     }
 
     if (!$registration || $registration['status'] !== 'active') {
@@ -337,6 +489,25 @@ try {
     $cancelScheduleStmt->bind_param('is', $memberId, $noteLike);
     $cancelScheduleStmt->execute();
     $cancelScheduleStmt->close();
+
+    $cancelCartStmt = $conn->prepare('SELECT id FROM carts WHERE member_id = ? AND status = "active" LIMIT 1');
+    if ($cancelCartStmt) {
+        $cancelCartStmt->bind_param('i', $memberId);
+        $cancelCartStmt->execute();
+        $cancelCart = $cancelCartStmt->get_result()->fetch_assoc();
+        $cancelCartStmt->close();
+
+        if ($cancelCart) {
+            $cartId = (int) $cancelCart['id'];
+            $deleteCartItemStmt = $conn->prepare('DELETE FROM cart_items WHERE cart_id = ? AND item_type = "class" AND item_id = ?');
+            if (!$deleteCartItemStmt) {
+                throw new Exception('Không thể xóa lớp tập khỏi giỏ hàng.');
+            }
+            $deleteCartItemStmt->bind_param('ii', $cartId, $classId);
+            $deleteCartItemStmt->execute();
+            $deleteCartItemStmt->close();
+        }
+    }
 
     $conn->commit();
     json_response(true, 'Hủy đăng ký lớp tập thành công.');

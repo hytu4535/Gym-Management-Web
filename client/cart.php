@@ -46,36 +46,34 @@ include 'layout/header.php';
                         </thead>
                         <tbody id="cart-items">
                             <?php 
-                            $totalAmount = 0;
-                            $totalDiscount = 0;
-                            $originalTotal = 0;
+                            $has_items = false;
                             
                             if ($is_logged_in) {
                                 $query = "
-                                                                        SELECT ci.item_type,
-                                                                                     ci.quantity,
-                                                                                     ci.item_id,
-                                                                                     p.name AS product_name,
-                                                                                     p.selling_price,
-                                                                                     p.stock_quantity,
-                                                                                     mp.package_name,
-                                                                                     mp.price AS package_price,
-                                                                                 mp.duration_months,
-                                                                                 s.name AS service_name,
-                                                                                 s.price AS service_price,
-                                                                                 s.type AS service_type,
-                                                                                 cs.class_name,
-                                                                                 cs.price_per_session AS class_price,
-                                                                                 cs.schedule_days AS class_schedule_days,
-                                                                                 cs.schedule_start_time AS class_start_time,
-                                                                                 cs.schedule_end_time AS class_end_time
+                                    SELECT ci.item_type,
+                                           ci.quantity,
+                                           ci.item_id,
+                                           p.name AS product_name,
+                                           p.selling_price,
+                                           p.stock_quantity,
+                                           mp.package_name,
+                                           mp.price AS package_price,
+                                           mp.duration_months,
+                                           s.name AS service_name,
+                                           s.price AS service_price,
+                                           s.type AS service_type,
+                                           cs.class_name,
+                                           cs.price_per_session AS class_price,
+                                           cs.schedule_days AS class_schedule_days,
+                                           cs.schedule_start_time AS class_start_time,
+                                           cs.schedule_end_time AS class_end_time
                                     FROM members m
                                     JOIN carts c ON m.id = c.member_id AND c.status = 'active'
                                     JOIN cart_items ci ON c.id = ci.cart_id
                                     LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
                                     LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
-                                     LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
-                                                                         LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
+                                    LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+                                    LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
                                     WHERE m.users_id = ?
                                     ORDER BY ci.created_at DESC, ci.id DESC
                                 ";
@@ -90,6 +88,7 @@ include 'layout/header.php';
                                     $result = $stmt->get_result();
 
                                     if ($result->num_rows > 0) {
+                                        $has_items = true;
                                         while ($item = $result->fetch_assoc()) {
                                             $id = (int) $item['item_id'];
                                             $itemType = $item['item_type'];
@@ -119,11 +118,6 @@ include 'layout/header.php';
                                             }
 
                                             $itemTotal = $price_info['final_price'] * $itemQuantity;
-                                            $itemOriginal = $price_info['original_price'] * $itemQuantity;
-                                            
-                                            $totalAmount += $itemTotal;
-                                            $originalTotal += $itemOriginal;
-                                            $totalDiscount += ($itemOriginal - $itemTotal);
                                             
                                             if ($isProduct) {
                                                 $imgPath = '../assets/uploads/products/default-product.jpg';
@@ -201,9 +195,10 @@ include 'layout/header.php';
                         </tbody>
                     </table>
                 </div>
+                
                 <div class="row">
                     <div class="col-lg-4">
-                        <?php if ($is_logged_in && $totalAmount > 0): ?>
+                        <?php if ($is_logged_in && $has_items): ?>
                             <?php
                             $tier_info = getMemberTierDiscount($user_id, $conn);
                             $available_promotions = getAvailablePromotions($tier_info['tier_id'], $conn);
@@ -260,56 +255,44 @@ include 'layout/header.php';
                             <?php endif; ?>
                         <?php endif; ?>
                     </div>
+                    
                     <div class="col-lg-4 offset-lg-4">
                         <div class="proceed-checkout">
                             <ul>
-                                <?php
-                                            $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
-                                            $tier_info = getMemberTierDiscount($user_id, $conn);
-                                            $subtotal_original = $totalAmount;
-                                            $base_discount_amount = round($subtotal_original * 0.10, 0);
-                                            $subtotal_after_base = max($subtotal_original - $base_discount_amount, 0);
-                                            $promotion_discount = 0;
-                                            $promotion_info = null;
-
-                                            if ($selected_promotion_id > 0) {
-                                                $promotion_info = getPromotionById($selected_promotion_id, $conn);
-                                                if ($promotion_info && (int) $promotion_info['tier_id'] === (int) $tier_info['tier_id']) {
-                                                    if ($promotion_info['discount_type'] === 'percentage') {
-                                                        $promotion_discount = round(($subtotal_after_base * (float) $promotion_info['discount_value']) / 100, 0);
-                                                    } elseif ($promotion_info['discount_type'] === 'fixed') {
-                                                        $promotion_discount = round((float) $promotion_info['discount_value'], 0);
-                                                    }
-
-                                                    if ($promotion_discount > $subtotal_after_base) {
-                                                        $promotion_discount = $subtotal_after_base;
-                                                    }
-                                                } else {
-                                                    $promotion_info = null;
-                                                }
-                                            }
-
-                                            $final_total = max($subtotal_after_base - $promotion_discount, 0);
-                                        ?>
-                                        <?php if ($base_discount_amount > 0 || $promotion_discount > 0): ?>
-                                            <li class="subtotal" style="color: #ffffff;">Giá gốc: <span style="text-decoration: line-through; color: #999;"><?php echo number_format($subtotal_original, 0, ',', '.'); ?>đ</span></li>
-                                            <?php if ($base_discount_amount > 0): ?>
-                                            <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (10%)
-                                                <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
-                                            </li>
-                                            <?php endif; ?>
-                                            <?php if ($promotion_discount > 0 && $promotion_info): ?>
-                                            <li class="subtotal" style="background: #e7f3ff; padding: 8px; margin: 5px -10px; border-radius: 4px;">
-                                                <i class="fa fa-gift" style="color: #e7ab3c;"></i> Ưu đãi: <?php echo htmlspecialchars($promotion_info['name']); ?>
-                                                <span style="color: #ff4444; font-weight: bold;">-<?php echo number_format($promotion_discount, 0, ',', '.'); ?>đ</span>
-                                            </li>
-                                            <?php endif; ?>
-                                            <li class="cart-total" style="color: #ffffff;">Tổng cộng:   <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($final_total, 0, ',', '.'); ?>đ</span></li>
-                                        <?php else: ?>
-                                            <li class="cart-total" style="color: #ffffff;">Tổng cộng <span style="color: #ffffff;"><?php echo number_format($subtotal_original, 0, ',', '.'); ?>đ</span></li>
-                                        <?php endif; ?>
+                                <?php if ($is_logged_in && $has_items): ?>
+                                    <?php
+                                        // GỌI HÀM CALCULATE CART TOTAL (Sạch sẽ và đồng bộ logic với checkout-process.php)
+                                        $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
+                                        $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
+                                        $tier_info = getMemberTierDiscount($user_id, $conn);
+                                    ?>
+                                    
+                                    <li class="subtotal" style="color: #ffffff;">Giá gốc: 
+                                        <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span>
+                                    </li>
+                                    
+                                    <?php if ($cart_total['base_discount_amount'] > 0): ?>
+                                        <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (<?php echo $tier_info['tier_name']; ?> - <?php echo number_format($tier_info['base_discount'], 0); ?>%)
+                                            <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($cart_total['base_discount_amount'], 0, ',', '.'); ?>đ</span>
+                                        </li>
+                                    <?php endif; ?>
+                                    
+                                    <?php if ($cart_total['has_promotion']): ?>
+                                        <li class="subtotal" style="background: #e7f3ff; padding: 8px; margin: 5px -10px; border-radius: 4px;">
+                                            <i class="fa fa-gift" style="color: #e7ab3c;"></i> Ưu đãi: <?php echo htmlspecialchars($cart_total['promotion_info']['name']); ?>
+                                            <span style="color: #ff4444; font-weight: bold;">-<?php echo number_format($cart_total['promotion_discount'], 0, ',', '.'); ?>đ</span>
+                                        </li>
+                                    <?php endif; ?>
+                                    
+                                    <li class="cart-total" style="color: #ffffff;">Tạm tính: 
+                                        <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($cart_total['final_subtotal'], 0, ',', '.'); ?>đ</span>
+                                    </li>
+                                <?php else: ?>
+                                    <li class="cart-total" style="color: #ffffff;">Tổng cộng <span style="color: #ffffff;">0đ</span></li>
+                                <?php endif; ?>
                             </ul>
-                            <?php if ($totalAmount > 0): ?>
+                            
+                            <?php if ($is_logged_in && $has_items): ?>
                                 <a href="checkout.php" class="proceed-btn">Tiến hành thanh toán</a>
                             <?php else: ?>
                                 <a href="#" class="proceed-btn disabled-btn" onclick="return false;">Tiến hành thanh toán</a>
@@ -323,7 +306,7 @@ include 'layout/header.php';
 </section>
 
 <style>
-/* Phục hồi phần CSS bị thiếu */
+/* CSS cho nút thanh toán */
 .proceed-checkout .proceed-btn {
     background: #e7ab3c !important;
     color: #ffffff !important;

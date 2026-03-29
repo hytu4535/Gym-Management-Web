@@ -1,5 +1,21 @@
 <?php
+
+session_start();
+
 require_once '../../config/db.php';
+
+if (!isset($_SESSION['admin_logged_in']) || (int) ($_SESSION['admin_user_id'] ?? 0) <= 0) {
+  header("Location: ../login.php");
+  exit();
+}
+
+$hasManageAll = in_array('MANAGE_ALL', $_SESSION['permissions'] ?? [], true);
+$packageActionSet = $_SESSION['user_action_permissions']['MANAGE_PACKAGES'] ?? [];
+$canDeletePackage = $hasManageAll || !empty($packageActionSet['delete']);
+if (!$canDeletePackage) {
+  header("Location: ../no_permission.php");
+  exit();
+}
 
 if (isset($_GET['id'])) {
     $id = (int)$_GET['id'];

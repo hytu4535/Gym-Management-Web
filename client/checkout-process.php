@@ -96,6 +96,8 @@ try {
         
         $cart_items[] = $row;
         $cart_id = $row['cart_id']; 
+
+        $subtotal += ($row['final_price'] * $row['quantity']);
     }
     $stmt_cart->close();
 
@@ -159,11 +161,31 @@ try {
         }
     }
     
-    // Tính tổng có áp dụng promotion (nếu có)
-    $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
-    $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
+    // Tính tổng theo cùng công thức với trang checkout/cart
+    $selected_promotion_id = isset($_POST['promotion']) ? (int)$_POST['promotion'] : (isset($_POST['selected_promotion_id']) ? (int)$_POST['selected_promotion_id'] : (isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0));
+    $tier_info = getMemberTierDiscount($user_id, $conn);
+    $base_discount_amount = round($subtotal * 0.10, 0);
+    $subtotal_after_base = max($subtotal - $base_discount_amount, 0);
+    $promotion_discount = 0;
+
+    if ($selected_promotion_id > 0) {
+        $promotion_info = getPromotionById($selected_promotion_id, $conn);
+        if ($promotion_info && (int) $promotion_info['tier_id'] === (int) $tier_info['tier_id']) {
+            if ($promotion_info['discount_type'] === 'percentage') {
+                $promotion_discount = round(($subtotal_after_base * (float) $promotion_info['discount_value']) / 100, 0);
+            } elseif ($promotion_info['discount_type'] === 'fixed') {
+                $promotion_discount = round((float) $promotion_info['discount_value'], 0);
+            }
+
+            if ($promotion_discount > $subtotal_after_base) {
+                $promotion_discount = $subtotal_after_base;
+            }
+        }
+    }
+
+    $subtotal = max($subtotal_after_base - $promotion_discount, 0);
     $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
-    $total_amount = $cart_total['final_subtotal'] + $shipping_fee;
+    $total_amount = $subtotal + $shipping_fee;
     $status = 'pending';
 
     $order_note = trim($_POST['note'] ?? '');
@@ -280,8 +302,8 @@ try {
     $stmt_del_cart->close();
     
     // Lưu promotion usage (nếu có dùng promotion)
-    if ($selected_promotion_id > 0 && $cart_total['has_promotion']) {
-        $applied_amount = $cart_total['promotion_discount'];
+    if ($selected_promotion_id > 0 && isset($promotion_info) && $promotion_info) {
+        $applied_amount = (float) $promotion_discount;
         $stmt_promo_usage = $conn->prepare("
             INSERT INTO promotion_usage (member_id, promotion_id, order_id, applied_amount, applied_at) 
             VALUES (?, ?, ?, ?, NOW())

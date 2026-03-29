@@ -264,28 +264,50 @@ include 'layout/header.php';
                         <div class="proceed-checkout">
                             <ul>
                                 <?php
-                                    $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
-                                    $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
-                                    $tier_info = getMemberTierDiscount($user_id, $conn);
-                                ?>
-                                <?php if ($cart_total['base_discount_amount'] > 0 || $cart_total['has_promotion']): ?>
-                                    <li class="subtotal" style="color: #ffffff;">Giá gốc: <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span></li>
-                                    <?php if ($cart_total['base_discount_amount'] > 0): ?>
-                                    <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (<?php echo $tier_info['tier_name']; ?> <?php echo number_format($tier_info['base_discount'], 0); ?>%)
-                                        <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($cart_total['base_discount_amount'], 0, ',', '.'); ?>đ</span>
-                                    </li>
-                                    <?php endif; ?>
-                                    <?php if ($cart_total['has_promotion']): ?>
-                                    <li class="subtotal" style="background: #e7f3ff; padding: 8px; margin: 5px -10px; border-radius: 4px;">
-                                        <i class="fa fa-gift" style="color: #e7ab3c;"></i> Ưu đãi: <?php echo $cart_total['promotion_info']['name']; ?>
-                                        <span style="color: #ff4444; font-weight: bold;">-<?php echo number_format($cart_total['promotion_discount'], 0, ',', '.'); ?>đ</span>
-                                    </li>
-                                    <?php endif; ?>
-                                    <li class="cart-total" style="color: #ffffff;">Tổng cộng:   <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($cart_total['final_subtotal'], 0, ',', '.'); ?>đ</span></li>
-                                <?php else: ?>
-                                    <li class="subtotal" style="color: #ffffff;">Tạm tính <span style="color: #ffffff;"><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
-                                    <li class="cart-total" style="color: #ffffff;">Tổng cộng <span style="color: #ffffff;"><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
-                                <?php endif; ?>
+                                            $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
+                                            $tier_info = getMemberTierDiscount($user_id, $conn);
+                                            $subtotal_original = $totalAmount;
+                                            $base_discount_amount = round($subtotal_original * 0.10, 0);
+                                            $subtotal_after_base = max($subtotal_original - $base_discount_amount, 0);
+                                            $promotion_discount = 0;
+                                            $promotion_info = null;
+
+                                            if ($selected_promotion_id > 0) {
+                                                $promotion_info = getPromotionById($selected_promotion_id, $conn);
+                                                if ($promotion_info && (int) $promotion_info['tier_id'] === (int) $tier_info['tier_id']) {
+                                                    if ($promotion_info['discount_type'] === 'percentage') {
+                                                        $promotion_discount = round(($subtotal_after_base * (float) $promotion_info['discount_value']) / 100, 0);
+                                                    } elseif ($promotion_info['discount_type'] === 'fixed') {
+                                                        $promotion_discount = round((float) $promotion_info['discount_value'], 0);
+                                                    }
+
+                                                    if ($promotion_discount > $subtotal_after_base) {
+                                                        $promotion_discount = $subtotal_after_base;
+                                                    }
+                                                } else {
+                                                    $promotion_info = null;
+                                                }
+                                            }
+
+                                            $final_total = max($subtotal_after_base - $promotion_discount, 0);
+                                        ?>
+                                        <?php if ($base_discount_amount > 0 || $promotion_discount > 0): ?>
+                                            <li class="subtotal" style="color: #ffffff;">Giá gốc: <span style="text-decoration: line-through; color: #999;"><?php echo number_format($subtotal_original, 0, ',', '.'); ?>đ</span></li>
+                                            <?php if ($base_discount_amount > 0): ?>
+                                            <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (10%)
+                                                <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
+                                            </li>
+                                            <?php endif; ?>
+                                            <?php if ($promotion_discount > 0 && $promotion_info): ?>
+                                            <li class="subtotal" style="background: #e7f3ff; padding: 8px; margin: 5px -10px; border-radius: 4px;">
+                                                <i class="fa fa-gift" style="color: #e7ab3c;"></i> Ưu đãi: <?php echo htmlspecialchars($promotion_info['name']); ?>
+                                                <span style="color: #ff4444; font-weight: bold;">-<?php echo number_format($promotion_discount, 0, ',', '.'); ?>đ</span>
+                                            </li>
+                                            <?php endif; ?>
+                                            <li class="cart-total" style="color: #ffffff;">Tổng cộng:   <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($final_total, 0, ',', '.'); ?>đ</span></li>
+                                        <?php else: ?>
+                                            <li class="cart-total" style="color: #ffffff;">Tổng cộng <span style="color: #ffffff;"><?php echo number_format($subtotal_original, 0, ',', '.'); ?>đ</span></li>
+                                        <?php endif; ?>
                             </ul>
                             <?php if ($totalAmount > 0): ?>
                                 <a href="checkout.php" class="proceed-btn">Tiến hành thanh toán</a>

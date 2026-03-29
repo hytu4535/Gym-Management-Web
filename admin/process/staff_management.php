@@ -7,11 +7,23 @@ checkPermission('MANAGE_STAFF');
 
 $db = getDB();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
+$hasDepartmentIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff' AND COLUMN_NAME = 'department_id' LIMIT 1")->fetchColumn();
+$hasUserFullNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'full_name' LIMIT 1")->fetchColumn();
+$userProfileSql = $hasUserFullNameColumn
+    ? 'SELECT full_name, phone FROM users WHERE id = ?'
+    : 'SELECT username AS full_name, phone FROM users WHERE id = ?';
 
 function failAndGoBack($message)
 {
     echo "<script>alert('" . addslashes($message) . "'); window.history.back();</script>";
     exit();
+}
+
+function getRoleIdByPosition(PDO $db, $position)
+{
+    $stmt = $db->prepare("SELECT id FROM roles WHERE name = ? LIMIT 1");
+    $stmt->execute([$position]);
+    return (int) $stmt->fetchColumn();
 }
 
 try {
@@ -25,13 +37,13 @@ try {
             failAndGoBack('Vui lòng chọn tài khoản / email hợp lệ.');
         }
 
-        $duplicateStmt = $db->prepare('SELECT COUNT(*) FROM staff WHERE users_id = ?');
+        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE user_id = ?");
         $duplicateStmt->execute([$usersId]);
         if ((int) $duplicateStmt->fetchColumn() > 0) {
             failAndGoBack('Tài khoản / email này đã được dùng trong bảng staff.');
         }
 
-        $userStmt = $db->prepare('SELECT full_name, phone FROM users WHERE id = ?');
+        $userStmt = $db->prepare($userProfileSql);
         $userStmt->execute([$usersId]);
         $user = $userStmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
@@ -52,14 +64,38 @@ try {
             failAndGoBack('Vui lòng chọn chức vụ.');
         }
 
-        if ($departmentId <= 0) {
+        $roleId = getRoleIdByPosition($db, $position);
+        if ($roleId <= 0) {
+            failAndGoBack('Chức vụ đã chọn không hợp lệ.');
+        }
+
+        if ($hasDepartmentIdColumn && $departmentId <= 0) {
             failAndGoBack('Vui lòng chọn phòng ban.');
         }
 
-        $stmt = $db->prepare(
-            'INSERT INTO staff (users_id, full_name, position, department_id, status) VALUES (?, ?, ?, ?, ?)'
-        );
-        $stmt->execute([$usersId, $fullName, $position, $departmentId, $status]);
+        $db->beginTransaction();
+
+        if ($hasDepartmentIdColumn) {
+            $stmt = $db->prepare(
+                "INSERT INTO staff (user_id, full_name, position, department_id, status) VALUES (?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([$usersId, $fullName, $position, $departmentId, $status]);
+        } else {
+            $stmt = $db->prepare(
+                "INSERT INTO staff (user_id, full_name, position, status) VALUES (?, ?, ?, ?)"
+            );
+            $stmt->execute([$usersId, $fullName, $position, $status]);
+        }
+
+        $syncUserRoleStmt = $db->prepare('UPDATE users SET role_id = ? WHERE id = ?');
+        $syncUserRoleStmt->execute([$roleId, $usersId]);
+
+        if ((int) ($_SESSION['admin_user_id'] ?? 0) === $usersId) {
+            $_SESSION['role_id'] = $roleId;
+            $_SESSION['role'] = $position;
+        }
+
+        $db->commit();
 
         echo "<script>alert('Thêm staff thành công!'); window.location.href='../staff.php';</script>";
         exit();
@@ -76,7 +112,7 @@ try {
             failAndGoBack('Thiếu thông tin staff cần cập nhật.');
         }
 
-        $currentStmt = $db->prepare('SELECT users_id FROM staff WHERE id = ?');
+        $currentStmt = $db->prepare("SELECT user_id FROM staff WHERE id = ?");
         $currentStmt->execute([$id]);
         $currentUsersId = (int) $currentStmt->fetchColumn();
 
@@ -92,7 +128,12 @@ try {
             failAndGoBack('Vui lòng chọn chức vụ.');
         }
 
-        if ($departmentId <= 0) {
+        $roleId = getRoleIdByPosition($db, $position);
+        if ($roleId <= 0) {
+            failAndGoBack('Chức vụ đã chọn không hợp lệ.');
+        }
+
+        if ($hasDepartmentIdColumn && $departmentId <= 0) {
             failAndGoBack('Vui lòng chọn phòng ban.');
         }
 
@@ -100,7 +141,7 @@ try {
             $status = 'active';
         }
 
-        $userStmt = $db->prepare('SELECT full_name, phone FROM users WHERE id = ?');
+        $userStmt = $db->prepare($userProfileSql);
         $userStmt->execute([$currentUsersId]);
         $user = $userStmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
@@ -112,10 +153,29 @@ try {
             failAndGoBack('Tài khoản liên kết chưa có họ tên.');
         }
 
-        $stmt = $db->prepare(
-            'UPDATE staff SET full_name = ?, position = ?, department_id = ?, status = ? WHERE id = ?'
-        );
-        $stmt->execute([$fullName, $position, $departmentId, $status, $id]);
+        $db->beginTransaction();
+
+        if ($hasDepartmentIdColumn) {
+            $stmt = $db->prepare(
+                'UPDATE staff SET full_name = ?, position = ?, department_id = ?, status = ? WHERE id = ?'
+            );
+            $stmt->execute([$fullName, $position, $departmentId, $status, $id]);
+        } else {
+            $stmt = $db->prepare(
+                'UPDATE staff SET full_name = ?, position = ?, status = ? WHERE id = ?'
+            );
+            $stmt->execute([$fullName, $position, $status, $id]);
+        }
+
+        $syncUserRoleStmt = $db->prepare('UPDATE users SET role_id = ? WHERE id = ?');
+        $syncUserRoleStmt->execute([$roleId, $currentUsersId]);
+
+        if ((int) ($_SESSION['admin_user_id'] ?? 0) === $currentUsersId) {
+            $_SESSION['role_id'] = $roleId;
+            $_SESSION['role'] = $position;
+        }
+
+        $db->commit();
 
         echo "<script>alert('Cập nhật staff thành công!'); window.location.href='../staff.php';</script>";
         exit();
@@ -134,5 +194,8 @@ try {
         exit();
     }
 } catch (Exception $e) {
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
     failAndGoBack('Lỗi: ' . $e->getMessage());
 }

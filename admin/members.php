@@ -28,8 +28,27 @@ function getTierByTotalSpent($db, $total_spent) {
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
     try {
+        $member_id = $_GET['id'];
+        
+        // Gọi API xóa face profile
+        $face_service_url = "http://localhost:8000/unenroll";
+        $payload = json_encode(["member_id" => $member_id]);
+        
+        $context = stream_context_create([
+            "http" => [
+                "method" => "POST",
+                "header" => "Content-Type: application/json\r\n",
+                "content" => $payload,
+                "timeout" => 5
+            ]
+        ]);
+        
+        $response = @file_get_contents($face_service_url, false, $context);
+        // Tiếp tục xóa dù API xóa face thất bại
+        
+        // Xóa hội viên từ database
         $stmt = $db->prepare("DELETE FROM members WHERE id = ?");
-        $stmt->execute([$_GET['id']]);
+        $stmt->execute([$member_id]);
         $message = "Xóa hội viên thành công!";
         $messageType = "success";
     } catch (PDOException $e) {

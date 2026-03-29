@@ -41,11 +41,12 @@ class FaceDatabase:
 	def upsert_face_profile(self, member_id, face_vector, image_path=None):
 		vector_json = json.dumps(face_vector)
 		query = (
-			"INSERT INTO face_profiles (member_id, face_vector, image_path) "
-			"VALUES (%s, %s, %s) "
+			"INSERT INTO face_profiles (member_id, face_vector, image_path, status) "
+			"VALUES (%s, %s, %s, 'active') "
 			"ON DUPLICATE KEY UPDATE "
 			"face_vector = VALUES(face_vector), "
 			"image_path = VALUES(image_path), "
+			"status = 'active', "
 			"updated_at = CURRENT_TIMESTAMP"
 		)
 
@@ -66,6 +67,46 @@ class FaceDatabase:
 			rows = cursor.fetchall()
 			return [
 				{"member_id": row[0], "face_vector": json.loads(row[1])}
+				for row in rows
+			]
+		finally:
+			conn.close()
+
+	def delete_face_profile(self, member_id):
+		"""Xóa face profile của hội viên (đánh dấu là deleted)"""
+		query = "UPDATE face_profiles SET status = 'deleted' WHERE member_id = %s"
+		conn = self._connect()
+		try:
+			cursor = conn.cursor()
+			cursor.execute(query, (member_id,))
+			conn.commit()
+		finally:
+			conn.close()
+
+	def fetch_face_profiles(self):
+		query = "SELECT member_id, face_vector FROM face_profiles WHERE status = 'active'"
+		conn = self._connect()
+		try:
+			cursor = conn.cursor()
+			cursor.execute(query)
+			rows = cursor.fetchall()
+			return [
+				{"member_id": row[0], "face_vector": json.loads(row[1])}
+				for row in rows
+			]
+		finally:
+			conn.close()
+
+	def fetch_all_profiles(self):
+		"""Lấy tất cả face profiles (bao gồm inactive/deleted)"""
+		query = "SELECT member_id, status FROM face_profiles"
+		conn = self._connect()
+		try:
+			cursor = conn.cursor()
+			cursor.execute(query)
+			rows = cursor.fetchall()
+			return [
+				{"member_id": row[0], "status": row[1]}
 				for row in rows
 			]
 		finally:

@@ -1320,9 +1320,11 @@ CREATE TABLE IF NOT EXISTS `face_profiles` (
   `member_id` int NOT NULL,
   `face_vector` longtext NOT NULL,
   `image_path` varchar(255) DEFAULT NULL,
+  `status` enum('active','inactive','deleted') DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  KEY `idx_status` (`status`),
   UNIQUE KEY `uq_face_profiles_member_id` (`member_id`),
   CONSTRAINT `fk_face_profiles_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

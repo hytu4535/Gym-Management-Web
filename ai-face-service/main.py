@@ -134,5 +134,31 @@ def verify():
 	), 200
 
 
+@app.post("/unenroll")
+def unenroll():
+	"""Xóa face profile của hội viên"""
+	payload = request.get_json(silent=True) or {}
+	member_id = payload.get("member_id")
+
+	if not member_id:
+		return jsonify({"error": "member_id is required"}), 400
+
+	try:
+		db.delete_face_profile(member_id)
+		return jsonify({"success": True, "message": "Face profile deleted successfully"}), 200
+	except Exception as e:
+		return jsonify({"error": str(e)}), 500
+
+
+@app.get("/profiles")
+def get_profiles():
+	"""Lấy danh sách tất cả face profiles"""
+	try:
+		profiles = db.fetch_all_profiles()
+		return jsonify({"success": True, "data": profiles}), 200
+	except Exception as e:
+		return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
 	app.run(host="0.0.0.0", port=8000, debug=True)

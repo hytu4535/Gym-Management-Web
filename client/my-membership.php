@@ -59,17 +59,19 @@ $bmi_history = $bmi_history_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 // Tính BMI từ height/weight hiện tại nếu không có đo lường
 $current_bmi = null;
 $current_body_type = 'Chưa xác định';
-if ($member['height'] && $member['weight']) {
-    $height_m = $member['height'] / 100;
-    $current_bmi = $member['weight'] / ($height_m * $height_m);
+if (!empty($member['height']) && !empty($member['weight'])) {
+    $height_m = ((float) $member['height']) / 100;
+    if ($height_m > 0) {
+        $current_bmi = ((float) $member['weight']) / ($height_m * $height_m);
+    }
     
-    if ($current_bmi < 18.5) {
+    if ($current_bmi !== null && $current_bmi < 18.5) {
         $current_body_type = 'Gầy';
-    } elseif ($current_bmi < 25) {
+    } elseif ($current_bmi !== null && $current_bmi < 25) {
         $current_body_type = 'Bình thường';
-    } elseif ($current_bmi < 30) {
+    } elseif ($current_bmi !== null && $current_bmi < 30) {
         $current_body_type = 'Thừa cân';
-    } else {
+    } elseif ($current_bmi !== null) {
         $current_body_type = 'Béo phì';
     }
 }

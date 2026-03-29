@@ -118,15 +118,35 @@ while ($row = $cart_result->fetch_assoc()) {
 }
 $stmt_cart->close();
 
-$total_discount = $subtotal_original - $subtotal;
-
-// Áp dụng promotion (nếu có chọn trong session)
 $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
-$cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
+$tier_info = getMemberTierDiscount($user_id, $conn);
+$cart_subtotal = $subtotal;
+$base_discount_amount = round($cart_subtotal * 0.10, 0);
+$subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
+$promotion_discount = 0;
+$promotion_info = null;
 
-$subtotal = $cart_total['final_subtotal']; // Tổng sau base + promotion
+if ($selected_promotion_id > 0) {
+    $promotion_info = getPromotionById($selected_promotion_id, $conn);
+    if ($promotion_info && (int) $promotion_info['tier_id'] === (int) $tier_info['tier_id']) {
+        if ($promotion_info['discount_type'] === 'percentage') {
+            $promotion_discount = round(($subtotal_after_base * (float) $promotion_info['discount_value']) / 100, 0);
+        } elseif ($promotion_info['discount_type'] === 'fixed') {
+            $promotion_discount = round((float) $promotion_info['discount_value'], 0);
+        }
+
+        if ($promotion_discount > $subtotal_after_base) {
+            $promotion_discount = $subtotal_after_base;
+        }
+    } else {
+        $promotion_info = null;
+    }
+}
+
+$subtotal = max($subtotal_after_base - $promotion_discount, 0);
 $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
 $total = $subtotal + $shipping_fee;
+$total_discount = $base_discount_amount + $promotion_discount;
 
 
 $user_sql = "SELECT m.id AS member_id, m.full_name, m.phone, u.email 
@@ -299,10 +319,10 @@ include 'layout/header.php';
                 <div class="col-lg-4">
                     <div class="checkout-cart" style="background: #f5f5f5; padding: 30px; border-radius: 5px;">
                         <h5 style="border-bottom: 1px solid #e1e1e1; padding-bottom: 15px; margin-bottom: 20px;">Đơn hàng của bạn</h5>
+                            <input type="hidden" name="selected_promotion_id" id="selected-promotion-id" value="<?php echo (int) $selected_promotion_id; ?>">
                         
                         <?php 
-                        $tier_info = getMemberTierDiscount($user_id, $conn);
-                        $total_saved = $cart_total['base_discount_amount'] + $cart_total['promotion_discount'];
+                        $total_saved = $total_discount;
                         
                         if ($total_saved > 0): 
                         ?>
@@ -334,24 +354,20 @@ include 'layout/header.php';
                         <ul class="total-cost mt-3" style="list-style: none; padding: 0; border-top: 1px solid #e1e1e1; padding-top: 20px;">
                             <li style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
                                 Giá gốc 
-                                <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span>
+                                <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_subtotal, 0, ',', '.'); ?>đ</span>
                             </li>
-                            <?php if ($cart_total['base_discount_amount'] > 0): ?>
+                            <?php if ($base_discount_amount > 0): ?>
                             <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #28a745;">
-                                Giảm hạng (<?php echo $tier_info['tier_name']; ?> <?php echo number_format($tier_info['base_discount'], 0); ?>%)
-                                <span>-<?php echo number_format($cart_total['base_discount_amount'], 0, ',', '.'); ?>đ</span>
+                                Giảm hạng (10%)
+                                <span>-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
                             </li>
                             <?php endif; ?>
-                            <?php if ($cart_total['has_promotion']): ?>
+                            <?php if ($promotion_discount > 0 && $promotion_info): ?>
                             <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #ff4444; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 4px;">
-                                <span><i class="fa fa-gift"></i> <?php echo $cart_total['promotion_info']['name']; ?></span>
-                                <span>-<?php echo number_format($cart_total['promotion_discount'], 0, ',', '.'); ?>đ</span>
+                                <span><i class="fa fa-gift"></i> <?php echo htmlspecialchars($promotion_info['name']); ?></span>
+                                <span>-<?php echo number_format($promotion_discount, 0, ',', '.'); ?>đ</span>
                             </li>
                             <?php endif; ?>
-                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: bold;">
-                                Tạm tính 
-                                <span><?php echo number_format($subtotal, 0, ',', '.'); ?>đ</span>
-                            </li>
                             <li style="display: flex; justify-content: space-between; margin-bottom: 15px;"><?php echo $hasPhysicalProducts ? 'Phí vận chuyển' : 'Phí giao hàng'; ?> <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
                             <li style="display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; color: #e7ab3c; border-top: 1px solid #e1e1e1; padding-top: 15px;">Tổng cộng <span><?php echo number_format($total, 0, ',', '.'); ?>đ</span></li>
                         </ul>
@@ -435,6 +451,15 @@ document.querySelectorAll('input[name="payment_method"]').forEach(function(radio
         } else {
             bankInfo.style.display = 'none';
             proofInput.value = "";
+        }
+    });
+});
+
+document.querySelectorAll('.promotion-radio').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var hiddenPromotion = document.getElementById('selected-promotion-id');
+        if (hiddenPromotion) {
+            hiddenPromotion.value = this.value;
         }
     });
 });

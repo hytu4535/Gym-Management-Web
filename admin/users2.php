@@ -43,7 +43,7 @@ $permissionActions = [
 $userPermissionModalData = [];
 
 // Kiểm tra cột phone tồn tại
-$checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
+$checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
 $hasPhoneColumn = !empty($checkColumn);
 
 // Bộ lọc
@@ -97,15 +97,17 @@ $totalRecords = (int) ($countStmt->fetch()['total'] ?? 0);
 $totalPages = ceil($totalRecords / $itemsPerPage);
 
 // Lấy danh sách users
+$fullNameSelect = "u.username AS full_name";
+
 if ($hasPhoneColumn) {
-  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.phone, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, $fullNameSelect, u.email, u.phone, u.password, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 } else {
-  $sql = "SELECT u.id, u.username, u.full_name, u.email, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, $fullNameSelect, u.email, u.password, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
@@ -164,15 +166,19 @@ if (!empty($validationErrors) && isset($validationErrors['general'])) {
   $generalMessage = $validationErrors['general'];
 }
 
+$flashMessage = $_SESSION['flash_message'] ?? null;
+
 // Xóa session errors sau khi lấy
 unset($_SESSION['validation_errors']);
 unset($_SESSION['form_data']);
+unset($_SESSION['flash_message']);
 
 // Kiểm tra nếu có validation error trên từng user cụ thể (edit)
 $editUserId = $_GET['edit'] ?? null;
 $editUserData = null;
 if ($editUserId && !empty($validationErrors)) {
-    $editStmt = $db->prepare("SELECT u.*, r.name AS role FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
+    $editSql = "SELECT u.*, u.username AS full_name, r.name AS role FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?";
+    $editStmt = $db->prepare($editSql);
     $editStmt->execute([$editUserId]);
     $editUserData = $editStmt->fetch();
 }
@@ -274,6 +280,14 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
           </button>
         </div>
       <?php endif; ?>
+      <?php if (is_array($flashMessage) && !empty($flashMessage['text'])): ?>
+        <div class="alert alert-<?= htmlspecialchars(($flashMessage['type'] ?? 'success') === 'success' ? 'success' : 'warning') ?> alert-dismissible fade show" role="alert">
+          <?= htmlspecialchars((string) $flashMessage['text']) ?>
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      <?php endif; ?>
       <div class="card">
         <div class="card-header">
           <h3 class="card-title">Danh sách Users</h3>
@@ -291,6 +305,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <th>Tên đăng nhập</th>
                 <th>Email</th>
                 <th>Số điện thoại</th>
+                <th>Mật khẩu</th>
                 <th>Vai trò</th>
                 <th>Trạng thái</th>
                 <th>Ngày tạo</th>
@@ -304,6 +319,15 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <td><?= $u['username'] ?></td>
                 <td><?= $u['email'] ?></td>
                 <td><?= htmlspecialchars($u['phone'] ?? '') ?></td>
+                <td>
+                  <div class="password-display-group" data-id="<?= $u['id'] ?>">
+                    <span class="password-masked">••••••••</span>
+                    <span class="password-actual" style="display: none;"><?= htmlspecialchars(substr($u['password'], 0, 15)) . (strlen($u['password']) > 15 ? '...' : '') ?></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="togglePasswordDisplay(<?= $u['id'] ?>)" style="padding: 2px 8px; margin-left: 5px;">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </div>
+                </td>
                 <td><span class="badge badge-info"><?= $u['role'] ?></span></td>
                 <td>
                   <?php if($u['status']=='active'): ?>
@@ -321,9 +345,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                   <!-- Nút sửa mở modal -->
                   <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal<?= $u['id'] ?>">
                     <i class="fas fa-edit"></i>
-                  </button>
-                  <button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#userPermissionModal" onclick="openPermissionModal(<?= $u['id'] ?>)">
-                    <i class="fas fa-user-shield"></i>
                   </button>
                   <form action="process/user_management.php" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn thay đổi trạng thái user này?');">
                     <input type="hidden" name="action" value="toggle_status">
@@ -487,6 +508,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                   </div>
                 </div>
               </div>
+
               <?php endforeach; ?>
             </tbody>
           </table>
@@ -890,45 +912,6 @@ function togglePasswordDisplay(userId) {
   }
 }
 
-function openPermissionModal(userId) {
-  const modalData = userPermissionModalData[String(userId)] || userPermissionModalData[userId] || null;
-  const userIdInput = document.getElementById('permission_user_id');
-  const title = document.getElementById('userPermissionModalTitle');
-  const adminNotice = document.getElementById('userPermissionAdminNotice');
-  const submitBtn = document.getElementById('userPermissionSubmitBtn');
-  const checkboxes = document.querySelectorAll('.js-user-permission-checkbox');
-
-  if (!userIdInput || !title || !adminNotice || !submitBtn) {
-    return;
-  }
-
-  userIdInput.value = userId;
-  title.textContent = modalData ? `Phân quyền user: ${modalData.username || ''}` : 'Phân quyền user';
-
-  const isAdminRole = modalData && ((parseInt(modalData.role_id, 10) === 4) || String(modalData.role || '').toLowerCase() === 'admin');
-  adminNotice.classList.toggle('d-none', !isAdminRole);
-  submitBtn.disabled = !!isAdminRole;
-
-  checkboxes.forEach((checkbox) => {
-    checkbox.checked = false;
-    checkbox.disabled = !!isAdminRole;
-  });
-
-  if (modalData && modalData.permissions) {
-    Object.keys(modalData.permissions).forEach((permCode) => {
-      const permissionSet = modalData.permissions[permCode] || {};
-      Object.keys(permissionSet).forEach((actionKey) => {
-        if (permissionSet[actionKey]) {
-          const checkbox = document.querySelector(`.js-user-permission-checkbox[data-perm-code="${permCode}"][data-action-key="${actionKey}"]`);
-          if (checkbox) {
-            checkbox.checked = true;
-          }
-        }
-      });
-    });
-  }
-}
-
 function getErrorContainer(input) {
   return input.closest('.form-group')?.querySelector('small.text-danger') || null;
 }
@@ -958,6 +941,44 @@ function isValidEmail(email) {
 function isValidPhone(phone) {
   if (!phone) return true;
   return /^(?:\+84\d{9}|0\d{9,10})$/.test(phone);
+}
+
+function openUserPermissionModal(userId) {
+  const modalData = userPermissionModalData[String(userId)] || userPermissionModalData[userId] || null;
+  if (!modalData) {
+    return;
+  }
+
+  const isAdminUser = Number(modalData.role_id || 0) === 4 || String(modalData.role || '').toLowerCase() === 'admin';
+  const modalTitle = document.getElementById('userPermissionModalTitle');
+  const userIdInput = document.getElementById('permission_user_id');
+  const adminNotice = document.getElementById('userPermissionAdminNotice');
+  const submitBtn = document.getElementById('userPermissionSubmitBtn');
+  const checkboxes = document.querySelectorAll('#userPermissionModal .js-user-permission-checkbox');
+
+  if (modalTitle) {
+    modalTitle.textContent = 'Phân quyền: ' + (modalData.username || 'User');
+  }
+  if (userIdInput) {
+    userIdInput.value = modalData.id || '';
+  }
+  if (adminNotice) {
+    adminNotice.classList.toggle('d-none', !isAdminUser);
+  }
+  if (submitBtn) {
+    submitBtn.style.display = isAdminUser ? 'none' : 'inline-block';
+  }
+
+  checkboxes.forEach(function(checkbox) {
+    const permCode = checkbox.getAttribute('data-perm-code') || '';
+    const actionKey = checkbox.getAttribute('data-action-key') || '';
+    const currentPerm = (modalData.permissions && modalData.permissions[permCode]) ? modalData.permissions[permCode] : null;
+    const checked = isAdminUser ? true : !!(currentPerm && currentPerm[actionKey]);
+    checkbox.checked = checked;
+    checkbox.disabled = isAdminUser;
+  });
+
+  $('#userPermissionModal').modal('show');
 }
 
 function validateField(input, isAddForm = true) {
@@ -1008,6 +1029,12 @@ function validateField(input, isAddForm = true) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.js-open-user-permissions').forEach(function(button) {
+    button.addEventListener('click', function() {
+      openUserPermissionModal(this.getAttribute('data-user-id'));
+    });
+  });
+
   document.addEventListener('invalid', function(e) {
     const form = e.target && e.target.closest ? e.target.closest('form') : null;
     if (form && form.hasAttribute('novalidate')) {

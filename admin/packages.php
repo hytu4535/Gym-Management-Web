@@ -11,7 +11,7 @@ include '../includes/database.php';
 include '../includes/auth_permission.php';
 
 // chỉ cho phép user có quyền MANAGE_PACKAGES
-checkPermission('MANAGE_PACKAGES');
+checkPermission('MANAGE_PACKAGES', 'view');
 
 // layout chung
 include 'layout/header.php'; 
@@ -19,6 +19,13 @@ include 'layout/sidebar.php';
 
 // kết nối DB (nếu bạn dùng file config riêng thì giữ nguyên)
 require_once '../config/db.php';
+
+$userActionPermissions = $_SESSION['user_action_permissions'] ?? [];
+$hasManageAll = in_array('MANAGE_ALL', $_SESSION['permissions'] ?? [], true);
+$packageActionSet = is_array($userActionPermissions) ? ($userActionPermissions['MANAGE_PACKAGES'] ?? []) : [];
+$canAddPackage = $hasManageAll || !empty($packageActionSet['add']);
+$canEditPackage = $hasManageAll || !empty($packageActionSet['edit']);
+$canDeletePackage = $hasManageAll || !empty($packageActionSet['delete']);
 
 $filterName = trim((string) ($_GET['package_name'] ?? ''));
 $filterDurationMin = trim((string) ($_GET['duration_min'] ?? ''));
@@ -138,9 +145,11 @@ $result = $stmt->get_result();
               <div class="card-header">
                 <h3 class="card-title">Danh sách Gói tập</h3>
                 <div class="card-tools">
+                  <?php if ($canAddPackage): ?>
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addPackageModal">
                     <i class="fas fa-plus"></i> Thêm Gói tập
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
               <div class="card-body">
@@ -177,16 +186,23 @@ $result = $stmt->get_result();
                             echo "  <td class='text-danger font-weight-bold'>{$formattedPrice}</td>";
                             echo "  <td><small>{$shortDesc}</small></td>";
                             echo "  <td>{$statusBadge}</td>";
-                            echo "  <td>
-                                      <a href='package_edit.php?id={$row['id']}' class='btn btn-warning btn-sm' title='Sửa thông tin'>
-                                          <i class='fas fa-edit'></i>
-                                      </a>
-                                      <a href='process/package_delete.php?id={$row['id']}' 
-                                         class='btn btn-danger btn-sm' title='Xóa gói tập' 
-                                         onclick=\"return confirm('Bạn có chắc chắn muốn xóa gói tập này không?');\">
-                                          <i class='fas fa-trash'></i>
-                                      </a>
-                                    </td>";
+                            echo "  <td>";
+                            if ($canEditPackage) {
+                              echo "<a href='package_edit.php?id={$row['id']}' class='btn btn-warning btn-sm' title='Sửa thông tin'>
+                                    <i class='fas fa-edit'></i>
+                                  </a> ";
+                            }
+                            if ($canDeletePackage) {
+                              echo "<a href='process/package_delete.php?id={$row['id']}' 
+                                   class='btn btn-danger btn-sm' title='Xóa gói tập' 
+                                   onclick=\"return confirm('Bạn có chắc chắn muốn xóa gói tập này không?');\">
+                                    <i class='fas fa-trash'></i>
+                                  </a>";
+                            }
+                            if (!$canEditPackage && !$canDeletePackage) {
+                              echo "<span class='text-muted'>Chỉ xem</span>";
+                            }
+                            echo "</td>";
                             echo "</tr>";
                         }
                     } else {
@@ -203,6 +219,7 @@ $result = $stmt->get_result();
     </section>
   </div>
 
+  <?php if ($canAddPackage): ?>
   <div class="modal fade" id="addPackageModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
@@ -255,6 +272,7 @@ $result = $stmt->get_result();
     </div>
   </div>
 </div>
+<?php endif; ?>
 
 <?php include 'layout/footer.php'; ?>
 

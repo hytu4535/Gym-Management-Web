@@ -1,5 +1,9 @@
 <?php 
 $page_title = "Chỉnh sửa Gói Tập";
+include '../includes/auth.php';
+include '../includes/auth_permission.php';
+checkPermission('MANAGE_PACKAGES', 'edit');
+
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
 require_once '../config/db.php';

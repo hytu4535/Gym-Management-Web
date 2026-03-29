@@ -76,8 +76,35 @@ if (isset($_SESSION['user_id'])) {
         <div class="canvas-close">
             <i class="fa fa-close"></i>
         </div>
-        <div class="canvas-search search-switch">
-            <i class="fa fa-search"></i>
+        
+        <div class="mobile-user-options" style="display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px; padding-top: 20px;">
+            <div class="search-switch" style="cursor: pointer;">
+                <i class="fa fa-search" style="font-size: 20px; color: #111;"></i>
+            </div>
+            
+            <a href="cart.php" title="Giỏ hàng" style="position: relative;">
+                <i class="fa fa-shopping-cart" style="font-size: 20px; color: #111;"></i>
+                <?php if ($cart_count > 0): ?>
+                    <span class="cart-badge" style="position: absolute; top: -8px; right: -12px; background: #f36100; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; display: flex; align-items: center; justify-content: center;"><?php echo $cart_count; ?></span>
+                <?php endif; ?>
+            </a>
+
+            <?php if(isset($_SESSION['user_id'])): ?>
+                <a href="subscription.php#tab-notifications" title="Thông báo" style="position: relative;">
+                    <i class="fa fa-bell" style="font-size: 20px; color: #111;"></i>
+                    <span class="mobile-notification-badge" style="position: absolute; top: -8px; right: -12px; background: #f36100; color: white; border-radius: 50%; min-width: 18px; height: 18px; padding: 0 4px; font-size: 10px; display: <?php echo $unread_notification_count > 0 ? 'flex' : 'none'; ?>; align-items: center; justify-content: center;"><?php echo $unread_notification_count; ?></span>
+                </a>
+                <a href="profile.php" title="Tài khoản">
+                    <i class="fa fa-user" style="font-size: 20px; color: #111;"></i>
+                </a>
+                <a href="logout.php" title="Đăng xuất">
+                    <i class="fa fa-sign-out" style="font-size: 20px; color: #e74c3c;"></i>
+                </a>
+            <?php else: ?>
+                <a href="login.php" title="Đăng nhập">
+                    <i class="fa fa-sign-in" style="font-size: 20px; color: #111;"></i>
+                </a>
+            <?php endif; ?>
         </div>
         <nav class="canvas-menu mobile-menu">
             <ul>
@@ -228,9 +255,6 @@ if (isset($_SESSION['user_id'])) {
 })();
 
 (function () {
-    var badge = document.getElementById('notification-badge');
-    if (!badge) return;
-
     function updateNotificationBadge() {
         fetch('api.php?action=unread_notification_count', {
             method: 'GET',
@@ -243,11 +267,14 @@ if (isset($_SESSION['user_id'])) {
             }
 
             var unread = Number(result.data.unread_count || 0);
-            badge.textContent = unread;
-            badge.style.display = unread > 0 ? 'flex' : 'none';
+            
+            var badges = document.querySelectorAll('#notification-badge, .mobile-notification-badge');
+            badges.forEach(function(badge) {
+                badge.textContent = unread;
+                badge.style.display = unread > 0 ? 'flex' : 'none';
+            });
         })
         .catch(function () {
-            // Silent fail: keep current badge value on transient network issues.
         });
     }
 

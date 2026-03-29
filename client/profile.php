@@ -80,6 +80,7 @@ if ($avatarPath !== '') {
     border: 4px solid #f36100;
     background: #fff;
     object-fit: cover;
+    margin: 0 auto;
 }
 .user-avatar-placeholder {
     display: flex;

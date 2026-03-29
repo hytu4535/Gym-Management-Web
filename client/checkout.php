@@ -5,7 +5,6 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once '../config/db.php';
 require_once '../includes/discount_helper.php';
 
-
 if (!isset($_SESSION['user_id'])) {
     echo "<script>alert('Vui lòng đăng nhập để tiến hành thanh toán!'); window.location.href='login.php';</script>";
     exit;
@@ -33,7 +32,6 @@ if ($nextResult && $nextRow = $nextResult->fetch_assoc()) {
     $nextOrderId = $maxOrderId + 1;
 }
 $plannedTransferCode = generateTransferCode($nextOrderId);
-
 
 $cart_sql = "
     SELECT ci.item_type,
@@ -148,7 +146,6 @@ $subtotal = max($subtotal_after_base - $promotion_discount, 0);
 $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
 $total = $subtotal + $shipping_fee;
 $total_discount = $base_discount_amount + $promotion_discount;
-
 
 $user_sql = "SELECT m.id AS member_id, m.full_name, m.phone, u.email 
              FROM members m 
@@ -306,7 +303,7 @@ include 'layout/header.php';
                         </div>
                         <?php else: ?>
                         <div class="alert alert-info mb-4">
-                            Đơn hàng này chỉ gồm gói tập/dịch vụ, nên không cần địa chỉ giao hàng.
+                            <i class="fa fa-info-circle mr-1"></i> Đơn hàng này chỉ gồm gói tập/dịch vụ, nên không yêu cầu địa chỉ giao nhận.
                         </div>
                         <?php endif; ?>
 
@@ -369,7 +366,11 @@ include 'layout/header.php';
                                 <span>-<?php echo number_format($promotion_discount, 0, ',', '.'); ?>đ</span>
                             </li>
                             <?php endif; ?>
-                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px;"><?php echo $hasPhysicalProducts ? 'Phí vận chuyển' : 'Phí giao hàng'; ?> <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
+                            
+                            <?php if ($hasPhysicalProducts): ?>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px;">Phí vận chuyển <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
+                            <?php endif; ?>
+                            
                             <li style="display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; color: #e7ab3c; border-top: 1px solid #e1e1e1; padding-top: 15px;">Tổng cộng <span><?php echo number_format($total, 0, ',', '.'); ?>đ</span></li>
                         </ul>
 
@@ -478,6 +479,7 @@ document.getElementById('checkout-form').addEventListener('submit', function(e) 
         if (!newAddress || !city || !district) {
             e.preventDefault(); 
             alert('Vui lòng nhập đầy đủ: Địa chỉ, Thành phố và Quận/Huyện!');
+            return; 
         }
     } else if (addressSelect && !addressSelect.value) {
         e.preventDefault();

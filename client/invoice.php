@@ -78,13 +78,14 @@ $stmt_promo->close();
 $promotion_discount_amount = (float)($promo_row['applied_amount'] ?? 0);
 $promotion_name = $promo_row['promotion_name'] ?? 'Ưu đãi';
 $cart_subtotal = $total_items_cost;
-$tier_info = getMemberTierDiscount($user_id, $conn);
-$base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
-$base_discount_amount = round($cart_subtotal * $base_discount_percent / 100, 0);
-$subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
 $shipping_fee = $has_physical_products ? 30000 : 0;
+$final_total = (float)$order['total_amount']; 
+$base_discount_amount = $cart_subtotal - $promotion_discount_amount + $shipping_fee - $final_total;
+$base_discount_amount = max(0, round($base_discount_amount, 0));
+$base_discount_percent = $cart_subtotal > 0 ? ($base_discount_amount / $cart_subtotal) * 100 : 0;
+
+$subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
 $total_discount_amount = $base_discount_amount + $promotion_discount_amount;
-$final_total = max($subtotal_after_base - $promotion_discount_amount, 0) + $shipping_fee;
 
 include 'layout/header.php'; 
 ?>

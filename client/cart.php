@@ -31,7 +31,7 @@ include 'layout/header.php';
 <section class="shopping-cart-section spad">
     <div class="container">
         <div class="row">
-            <div class="col-lg-12">
+            <div class="col-lg-12" id="cart-wrapper">
                 <div class="cart-table">
                     <table>
                         <thead>
@@ -51,31 +51,33 @@ include 'layout/header.php';
                             $originalTotal = 0;
                             
                             if ($is_logged_in) {
+                                // CẬP NHẬT: Thêm p.img AS product_img vào câu truy vấn
                                 $query = "
-                                                                        SELECT ci.item_type,
-                                                                                     ci.quantity,
-                                                                                     ci.item_id,
-                                                                                     p.name AS product_name,
-                                                                                     p.selling_price,
-                                                                                     p.stock_quantity,
-                                                                                     mp.package_name,
-                                                                                     mp.price AS package_price,
-                                                                                 mp.duration_months,
-                                                                                 s.name AS service_name,
-                                                                                 s.price AS service_price,
-                                                                                 s.type AS service_type,
-                                                                                 cs.class_name,
-                                                                                 cs.price_per_session AS class_price,
-                                                                                 cs.schedule_days AS class_schedule_days,
-                                                                                 cs.schedule_start_time AS class_start_time,
-                                                                                 cs.schedule_end_time AS class_end_time
+                                    SELECT ci.item_type,
+                                           ci.quantity,
+                                           ci.item_id,
+                                           p.name AS product_name,
+                                           p.selling_price,
+                                           p.stock_quantity,
+                                           p.img AS product_img,
+                                           mp.package_name,
+                                           mp.price AS package_price,
+                                           mp.duration_months,
+                                           s.name AS service_name,
+                                           s.price AS service_price,
+                                           s.type AS service_type,
+                                           cs.class_name,
+                                           cs.price_per_session AS class_price,
+                                           cs.schedule_days AS class_schedule_days,
+                                           cs.schedule_start_time AS class_start_time,
+                                           cs.schedule_end_time AS class_end_time
                                     FROM members m
                                     JOIN carts c ON m.id = c.member_id AND c.status = 'active'
                                     JOIN cart_items ci ON c.id = ci.cart_id
                                     LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
                                     LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
-                                     LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
-                                                                         LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
+                                    LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+                                    LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
                                     WHERE m.users_id = ?
                                     ORDER BY ci.created_at DESC, ci.id DESC
                                 ";
@@ -125,8 +127,15 @@ include 'layout/header.php';
                                             $originalTotal += $itemOriginal;
                                             $totalDiscount += ($itemOriginal - $itemTotal);
                                             
+                                            // CẬP NHẬT: Logic lấy hình ảnh động giống với products.php
                                             if ($isProduct) {
-                                                $imgPath = '../assets/uploads/products/default-product.jpg';
+                                                $imageFile = $item['product_img'] ?? '';
+                                                $physicalPath = __DIR__ . "/../assets/uploads/products/" . $imageFile;
+                                                if ($imageFile !== '' && file_exists($physicalPath) && is_file($physicalPath)) {
+                                                    $imgPath = "../assets/uploads/products/" . $imageFile;
+                                                } else {
+                                                    $imgPath = "../assets/uploads/products/default-product.jpg";
+                                                }
                                             } elseif ($isPackage) {
                                                 $imgPath = 'assets/img/logo.png';
                                             } elseif ($isClass) {
@@ -324,7 +333,6 @@ include 'layout/header.php';
 </section>
 
 <style>
-/* Phục hồi phần CSS bị thiếu */
 .proceed-checkout .proceed-btn {
     background: #e7ab3c !important;
     color: #ffffff !important;
@@ -346,10 +354,30 @@ include 'layout/header.php';
 </style>
 
 <script>
+// Hàm tải lại ngầm HTML của riêng khu vực giỏ hàng
+function reloadCartData() {
+    fetch(window.location.href)
+    .then(response => response.text())
+    .then(html => {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+        
+        var newCartWrapper = doc.getElementById('cart-wrapper');
+        if (newCartWrapper) {
+            document.getElementById('cart-wrapper').innerHTML = newCartWrapper.innerHTML;
+        } else {
+            window.location.reload(); 
+        }
+    })
+    .catch(error => {
+        console.error('Lỗi khi cập nhật DOM:', error);
+        window.location.reload();
+    });
+}
+
 function updateQuantity(itemType, itemId, newQuantity) {
     if (newQuantity < 1) {
         removeFromCart(itemType, itemId);
-        window.location.reload();
         return;
     }
     if (itemType === 'package' || itemType === 'service') return;
@@ -366,10 +394,10 @@ function updateQuantity(itemType, itemId, newQuantity) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            window.location.reload(); 
+            reloadCartData(); 
         } else {
             alert(data.message);
-            window.location.reload(); 
+            reloadCartData(); 
         }
     })
     .catch(error => console.error('Error:', error));
@@ -395,7 +423,7 @@ function removeFromCart(itemType, itemId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                window.location.reload(); 
+                reloadCartData(); 
             } else {
                 alert(data.message);
             }
@@ -404,37 +432,31 @@ function removeFromCart(itemType, itemId) {
     }
 }
 
-// Xử lý chọn promotion
-document.addEventListener('DOMContentLoaded', function() {
-    const promotionRadios = document.querySelectorAll('.promotion-radio');
-    
-    promotionRadios.forEach(function(radio) {
-        radio.addEventListener('change', function() {
-            const promotionId = this.value;
-            
-            var formData = new FormData();
-            formData.append('promotion_id', promotionId);
-            
-            fetch('ajax/apply-promotion.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Reload để cập nhật giá
-                    window.location.reload();
-                } else {
-                    alert(data.message);
-                    window.location.reload();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Có lỗi xảy ra!');
-            });
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('promotion-radio')) {
+        const promotionId = e.target.value;
+        
+        var formData = new FormData();
+        formData.append('promotion_id', promotionId);
+        
+        fetch('ajax/apply-promotion.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                reloadCartData();
+            } else {
+                alert(data.message);
+                reloadCartData(); 
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Có lỗi xảy ra!');
         });
-    });
+    }
 });
 </script>
 

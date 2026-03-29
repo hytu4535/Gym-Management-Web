@@ -302,7 +302,6 @@ try {
     $stmt_del_cart->execute();
     $stmt_del_cart->close();
     
-    // Lưu promotion usage (nếu có dùng promotion)
     if ($selected_promotion_id > 0 && isset($promotion_info) && $promotion_info) {
         $applied_amount = (float) $promotion_discount;
         $stmt_promo_usage = $conn->prepare("
@@ -314,50 +313,8 @@ try {
         $stmt_promo_usage->close();
     }
 
-    // Cập nhật total_spent cho member
-    $stmt_update_spent = $conn->prepare("UPDATE members SET total_spent = total_spent + ? WHERE id = ?");
-    $stmt_update_spent->bind_param("di", $total_amount, $member_id);
-    $stmt_update_spent->execute();
-    $stmt_update_spent->close();
-
-    // Lấy total_spent mới để check nâng hạng
-    $stmt_check_tier = $conn->prepare("SELECT total_spent, tier_id FROM members WHERE id = ?");
-    $stmt_check_tier->bind_param("i", $member_id);
-    $stmt_check_tier->execute();
-    $member_info = $stmt_check_tier->get_result()->fetch_assoc();
-    $stmt_check_tier->close();
-
-    // Tự động nâng hạng dựa trên total_spent
-    if ($member_info) {
-        $new_total_spent = $member_info['total_spent'];
-        
-        // Lấy hạng phù hợp với total_spent (hạng cao nhất mà member đủ điều kiện)
-        $stmt_tier = $conn->prepare("
-            SELECT id, name, level FROM member_tiers 
-            WHERE min_spent <= ? AND status = 'active'
-            ORDER BY level DESC LIMIT 1
-        ");
-        $stmt_tier->bind_param("d", $new_total_spent);
-        $stmt_tier->execute();
-        $tier_result = $stmt_tier->get_result();
-        
-        if ($tier_result->num_rows > 0) {
-            $new_tier = $tier_result->fetch_assoc();
-            
-            // Nếu hạng mới khác hạng hiện tại thì cập nhật
-            if ($new_tier['id'] != $member_info['tier_id']) {
-                $stmt_update_tier = $conn->prepare("UPDATE members SET tier_id = ? WHERE id = ?");
-                $stmt_update_tier->bind_param("ii", $new_tier['id'], $member_id);
-                $stmt_update_tier->execute();
-                $stmt_update_tier->close();
-            }
-        }
-        $stmt_tier->close();
-    }
-
     $conn->commit();
-    
-    // Xóa promotion khỏi session sau khi đặt hàng thành công
+
     unset($_SESSION['selected_promotion']);
     
     header("Location: invoice.php?order_id=" . $order_id);

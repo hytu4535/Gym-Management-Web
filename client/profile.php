@@ -345,7 +345,7 @@ document.getElementById('profile-form').addEventListener('submit', function(e) {
         return showErrorInline('email', 'Vui lòng nhập email hợp lệ!', 'profile-form');
     }
 
-    const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/;
+    const phoneRegex = /^0[0-9]{9}$/;
     if (phoneInput.value.trim() !== '' && !phoneRegex.test(phoneInput.value.trim())) {
         return showErrorInline('phone', 'Số điện thoại không hợp lệ!', 'profile-form');
     }

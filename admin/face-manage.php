@@ -58,7 +58,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         $message = "Xóa face profile thành công!";
         $messageType = "success";
     } catch (Exception $e) {
-        $message = "Lỗi: " . $e->getMessage();
+        $message = toVietnameseDbError($e, 'Không thể cập nhật trạng thái khuôn mặt.');
         $messageType = "danger";
     }
 }
@@ -79,7 +79,7 @@ if (isset($_GET['action']) && in_array($_GET['action'], ['activate', 'deactivate
         $message = $new_status === 'active' ? "Kích hoạt thành công!" : "Vô hiệu hóa thành công!";
         $messageType = "success";
     } catch (Exception $e) {
-        $message = "Lỗi: " . $e->getMessage();
+        $message = toVietnameseDbError($e, 'Không thể xóa hồ sơ khuôn mặt.');
         $messageType = "danger";
     }
 }

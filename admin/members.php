@@ -82,11 +82,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         $message = "Xóa hội viên thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-        if ((int) $e->getCode() === 23000 || str_contains($e->getMessage(), '1451')) {
-          $message = "Không thể xóa hội viên này vì còn dữ liệu liên quan trong đơn hàng, địa chỉ hoặc bảng khác.";
-        } else {
-          $message = "Lỗi: " . $e->getMessage();
-        }
+        $message = toVietnameseDbError($e, 'Không thể xóa hội viên.');
         $messageType = "danger";
     }
 }
@@ -153,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $messageType = "success";
       } catch (Exception $e) {
-        $message = "Lỗi: " . $e->getMessage();
+        $message = toVietnameseDbError($e, 'Không thể lưu hội viên.');
         $messageType = "danger";
     }
 }

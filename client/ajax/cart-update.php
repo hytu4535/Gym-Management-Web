@@ -18,7 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $product_id = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
     $package_id = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
     $service_id = isset($_POST['service_id']) ? (int)$_POST['service_id'] : 0;
-    $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : $product_id);
+    $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
+    $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : ($item_type === 'class' ? $class_id : $product_id));
     $action = isset($_POST['action']) ? $_POST['action'] : 'set'; 
     $quantity = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
     $user_id = $_SESSION['user_id'];

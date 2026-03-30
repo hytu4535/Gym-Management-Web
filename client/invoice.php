@@ -56,36 +56,37 @@ $res_items = $stmt_items->get_result();
 
 $order_items = [];
 $total_items_cost = 0;
-$base_discount_amount = 0;
+$tier_discount_amount = 0;
 $has_physical_products = false;
 while($row = $res_items->fetch_assoc()) {
     $subtotal = $row['price'] * $row['quantity'];
     $row['subtotal'] = $subtotal;
     $order_items[] = $row;
     $total_items_cost += $subtotal;
+    $tier_discount_amount += (float)($row['discount'] ?? 0);
     if (($row['item_type'] ?? '') === 'product') {
         $has_physical_products = true;
     }
 }
 $stmt_items->close();
 
-$stmt_promo = $conn->prepare("SELECT pu.applied_amount, COALESCE(tp.name, '(Khuyến mãi đã xóa)') AS promotion_name FROM promotion_usage pu LEFT JOIN tier_promotions tp ON tp.id = pu.promotion_id WHERE pu.order_id = ? ORDER BY pu.id DESC LIMIT 1");
+$stmt_promo = $conn->prepare("SELECT COALESCE(SUM(pu.applied_amount), 0) AS promotion_discount, COALESCE(MAX(tp.name), '(Khuyến mãi đã xóa)') AS promotion_name FROM promotion_usage pu LEFT JOIN tier_promotions tp ON tp.id = pu.promotion_id WHERE pu.order_id = ?");
 $stmt_promo->bind_param("i", $order_id);
 $stmt_promo->execute();
 $promo_row = $stmt_promo->get_result()->fetch_assoc();
 $stmt_promo->close();
 
-$promotion_discount_amount = (float)($promo_row['applied_amount'] ?? 0);
+$promotion_discount_amount = (float)($promo_row['promotion_discount'] ?? 0);
 $promotion_name = $promo_row['promotion_name'] ?? 'Ưu đãi';
 $cart_subtotal = $total_items_cost;
-$shipping_fee = $has_physical_products ? 30000 : 0;
 $final_total = (float)$order['total_amount']; 
-$base_discount_amount = $cart_subtotal - $promotion_discount_amount + $shipping_fee - $final_total;
-$base_discount_amount = max(0, round($base_discount_amount, 0));
-$base_discount_percent = $cart_subtotal > 0 ? ($base_discount_amount / $cart_subtotal) * 100 : 0;
-
-$subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
-$total_discount_amount = $base_discount_amount + $promotion_discount_amount;
+$expected_total_without_shipping = $cart_subtotal - $promotion_discount_amount;
+$shipping_fee = max(0, round($final_total - $expected_total_without_shipping, 0));
+$tier_discount_amount = max(0, round($tier_discount_amount, 0));
+$original_subtotal = $cart_subtotal + $tier_discount_amount;
+$base_discount_percent = $original_subtotal > 0 ? ($tier_discount_amount / $original_subtotal) * 100 : 0;
+$subtotal_after_base = $cart_subtotal;
+$total_discount_amount = $tier_discount_amount + $promotion_discount_amount;
 
 include 'layout/header.php'; 
 ?>
@@ -184,20 +185,24 @@ include 'layout/header.php';
                                     <tfoot>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong>Giá gốc:</strong></td>
-                                            <td class="text-right"><strong style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_subtotal, 0, ',', '.'); ?>đ</strong></td>
+                                            <td class="text-right"><strong style="text-decoration: line-through; color: #999;"><?php echo number_format($original_subtotal, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong>Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
-                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</strong></td>
+                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($tier_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
+                                        <?php if ($promotion_discount_amount > 0): ?>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong><?php echo htmlspecialchars($promotion_name); ?>:</strong></td>
                                             <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
+                                        <?php endif; ?>
+                                        <?php if ($has_physical_products || $shipping_fee > 0): ?>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong>Phí vận chuyển:</strong></td>
                                             <td class="text-right"><strong><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
+                                        <?php endif; ?>
                                         <tr class="total-row" style="background: #fdfaf3;">
                                             <td colspan="4" class="text-right"><strong style="color: #e7ab3c; font-size: 1.2rem;">Tổng cộng:</strong></td>
                                             <td class="text-right"><strong style="color: #e7ab3c; font-size: 1.2rem;"><?php echo number_format($final_total, 0, ',', '.'); ?>đ</strong></td>
@@ -214,6 +219,8 @@ include 'layout/header.php';
                                     <?php 
                                         if ($order['payment_method'] === 'cash') {
                                             echo 'Thanh toán tiền mặt khi nhận hàng (COD)';
+                                        } elseif ($order['payment_method'] === 'bank_transfer') {
+                                            echo 'Chuyển khoản ngân hàng';
                                         } else {
                                             echo 'Thanh toán trực tuyến (VNPAY/MOMO)';
                                         }

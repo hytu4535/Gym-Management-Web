@@ -35,7 +35,13 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
 
 $sql = "SELECT * FROM categories" . $whereSql . " ORDER BY id DESC";
 $stmt = $conn->prepare($sql);
-$stmt->execute($whereParams);
+
+if (!empty($whereParams)) {
+  $types = str_repeat('s', count($whereParams));
+  $stmt->bind_param($types, ...$whereParams);
+}
+
+$stmt->execute();
 $result = $stmt->get_result();
 ?>
 
@@ -110,20 +116,23 @@ $result = $stmt->get_result();
                   <?php 
                     if ($result && $result->num_rows > 0) {
                         while($row = $result->fetch_assoc()) {
+                        $categoryId = (int) ($row['id'] ?? 0);
+                        $categoryName = htmlspecialchars((string) ($row['name'] ?? ''), ENT_QUOTES, 'UTF-8');
+                        $categoryDescription = htmlspecialchars((string) ($row['description'] ?? ''), ENT_QUOTES, 'UTF-8');
                             $statusBadge = ($row['status'] == 'active') 
                                 ? '<span class="badge badge-success">Đang hoạt động</span>' 
                                 : '<span class="badge badge-secondary">Tạm ẩn</span>';
                             echo "<tr>";
-                            echo "  <td>{$row['id']}</td>";
-                            echo "  <td class='font-weight-bold'>{$row['name']}</td>";
-                            echo "  <td>{$row['description']}</td>";
+                        echo "  <td>{$categoryId}</td>";
+                        echo "  <td class='font-weight-bold'>{$categoryName}</td>";
+                        echo "  <td>{$categoryDescription}</td>";
                             echo "  <td>{$statusBadge}</td>";
                             echo "  <td>
-                                        <a href='category_edit.php?id={$row['id']}' class='btn btn-warning btn-sm' title='Sửa'>
+                              <a href='category_edit.php?id={$categoryId}' class='btn btn-warning btn-sm' title='Sửa'>
                                             <i class='fas fa-edit'></i>
                                         </a>
                                         
-                                        <a href='process/category_delete.php?id={$row['id']}' class='btn btn-danger btn-sm' title='Xóa' onclick=\"return confirm('Bạn có chắc chắn muốn xóa danh mục này không? Lưu ý: Nếu danh mục đang chứa sản phẩm thì có thể sẽ không xóa được.');\">
+                              <a href='process/category_delete.php?id={$categoryId}' class='btn btn-danger btn-sm' title='Xóa' onclick=\"return confirm('Bạn có chắc chắn muốn xóa danh mục này không? Lưu ý: Nếu danh mục đang chứa sản phẩm thì có thể sẽ không xóa được.');\">
                                             <i class='fas fa-trash'></i>
                                         </a>
                                     </td>";

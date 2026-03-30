@@ -60,8 +60,19 @@ try {
             $stmt->close();
             echo json_encode(['success'=>true,'message'=>'Cập nhật địa chỉ thành công!']); exit();
         } else {
-            $stmt = $conn->prepare("INSERT INTO addresses (member_id, full_address, district, city, ward, type, is_default) VALUES (?, ?, ?, ?, ?, ?, 0)");
-            $stmt->bind_param("isssss", $member_id, $full, $district, $province, $ward, $type);
+            $defaultFlag = 0;
+            $stmtCount = $conn->prepare("SELECT COUNT(*) AS total FROM addresses WHERE member_id=?");
+            $stmtCount->bind_param("i", $member_id);
+            $stmtCount->execute();
+            $countRow = $stmtCount->get_result()->fetch_assoc();
+            $stmtCount->close();
+
+            if ((int) ($countRow['total'] ?? 0) === 0) {
+                $defaultFlag = 1;
+            }
+
+            $stmt = $conn->prepare("INSERT INTO addresses (member_id, full_address, district, city, ward, type, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("isssssi", $member_id, $full, $district, $province, $ward, $type, $defaultFlag);
             $stmt->execute();
             $stmt->close();
             echo json_encode(['success'=>true,'message'=>'Thêm địa chỉ mới thành công!']); exit();

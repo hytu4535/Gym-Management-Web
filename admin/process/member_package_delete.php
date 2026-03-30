@@ -11,7 +11,8 @@ if (isset($_GET['id'])) {
     if ($conn->query($sql) === TRUE) {
         echo "<script>alert('Đã xóa dữ liệu thành công!'); window.location.href='../member-packages.php';</script>";
     } else {
-        echo "<script>alert('Lỗi khi xóa: " . $conn->error . "'); window.location.href='../member-packages.php';</script>";
+        $friendly = processFriendlyDbError($conn->error, 'Không thể xóa gói tập hội viên.');
+        echo "<script>alert('" . addslashes($friendly) . "'); window.location.href='../member-packages.php';</script>";
     }
 }
 ?>

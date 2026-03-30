@@ -42,6 +42,79 @@ if ($filterToDate !== '') {
 }
 $scheduleWhereSql = !empty($scheduleWhereClauses) ? ' WHERE ' . implode(' AND ', $scheduleWhereClauses) : '';
 
+$scheduleStatusLabels = [
+  'pending' => 'Đang chờ',
+  'confirmed' => 'Đã xác nhận',
+  'completed' => 'Đã hoàn thành',
+  'canceled' => 'Đã hủy',
+];
+
+if (!function_exists('trainingScheduleStatusLabel')) {
+  function trainingScheduleStatusLabel($status)
+  {
+    $labels = [
+      'pending' => 'Đang chờ',
+      'confirmed' => 'Đã xác nhận',
+      'completed' => 'Đã hoàn thành',
+      'canceled' => 'Đã hủy',
+    ];
+
+    return $labels[$status] ?? $labels['pending'];
+  }
+}
+
+if (!function_exists('trainingScheduleStatusBadgeClass')) {
+  function trainingScheduleStatusBadgeClass($status)
+  {
+    $classes = [
+      'pending' => 'warning',
+      'confirmed' => 'info',
+      'completed' => 'success',
+      'canceled' => 'secondary',
+    ];
+
+    return $classes[$status] ?? 'warning';
+  }
+}
+
+if (!function_exists('normalizeTrainingScheduleStatus')) {
+  function normalizeTrainingScheduleStatus($status)
+  {
+    $allowed = ['pending', 'confirmed', 'completed', 'canceled'];
+    return in_array($status, $allowed, true) ? $status : 'pending';
+  }
+}
+
+if (!function_exists('buildTrainingScheduleDateTime')) {
+  function buildTrainingScheduleDateTime($date, $time)
+  {
+    return DateTime::createFromFormat('Y-m-d H:i:s', trim($date) . ' ' . trim($time) . ':00');
+  }
+}
+
+if (!function_exists('findTrainingScheduleOverlap')) {
+  function findTrainingScheduleOverlap(PDO $db, $column, $value, DateTime $startTime, DateTime $endTime, $excludeId = null)
+  {
+    if (!in_array($column, ['member_id', 'trainer_id'], true)) {
+      return false;
+    }
+
+    $sql = 'SELECT id FROM training_schedules WHERE ' . $column . ' = ? AND status <> ? AND NOT (COALESCE(end_time, DATE_ADD(training_date, INTERVAL 60 MINUTE)) <= ? OR training_date >= ?)';
+    $params = [$value, 'canceled', $startTime->format('Y-m-d H:i:s'), $endTime->format('Y-m-d H:i:s')];
+
+    if ($excludeId !== null) {
+      $sql .= ' AND id <> ?';
+      $params[] = $excludeId;
+    }
+
+    $sql .= ' LIMIT 1';
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+  }
+}
+
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
@@ -49,14 +122,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
         $training_date = sanitize($_POST['training_date']);
         $training_time = sanitize($_POST['training_time']);
+    $end_time = sanitize($_POST['end_time'] ?? '');
         $note = sanitize($_POST['note'] ?? '');
+    $status = normalizeTrainingScheduleStatus($_POST['status'] ?? 'pending');
 
-        // Ghép ngày + giờ
-        $datetime = $training_date . ' ' . $training_time . ':00';
+    $startDateTime = buildTrainingScheduleDateTime($training_date, $training_time);
+    $endDateTime = buildTrainingScheduleDateTime($training_date, $end_time);
+
+    if (!$startDateTime || !$endDateTime) {
+      setFlashMessage('danger', 'Thời gian bắt đầu hoặc kết thúc không hợp lệ.');
+      redirect('training-schedules.php');
+      exit;
+    }
+
+    if ($endDateTime <= $startDateTime) {
+      setFlashMessage('danger', 'Giờ kết thúc phải lớn hơn giờ bắt đầu.');
+      redirect('training-schedules.php');
+      exit;
+    }
+
+    if (findTrainingScheduleOverlap($db, 'member_id', $member_id, $startDateTime, $endDateTime)) {
+      setFlashMessage('danger', 'Hội viên này đã có lịch tập trùng thời gian.');
+      redirect('training-schedules.php');
+      exit;
+    }
+
+    if ($trainer_id && findTrainingScheduleOverlap($db, 'trainer_id', $trainer_id, $startDateTime, $endDateTime)) {
+      setFlashMessage('danger', 'Huấn luyện viên này đã có lịch dạy trùng thời gian.');
+      redirect('training-schedules.php');
+      exit;
+    }
 
         try {
-            $stmt = $db->prepare("INSERT INTO training_schedules (member_id, trainer_id, training_date, note) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$member_id, $trainer_id, $datetime, $note]);
+      $stmt = $db->prepare("INSERT INTO training_schedules (member_id, trainer_id, training_date, end_time, note, status) VALUES (?, ?, ?, ?, ?, ?)");
+      $stmt->execute([$member_id, $trainer_id, $startDateTime->format('Y-m-d H:i:s'), $endDateTime->format('Y-m-d H:i:s'), $note, $status]);
             setFlashMessage('success', 'Thêm lịch tập thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
@@ -71,13 +170,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
         $training_date = sanitize($_POST['training_date']);
         $training_time = sanitize($_POST['training_time']);
+        $end_time = sanitize($_POST['end_time'] ?? '');
         $note = sanitize($_POST['note'] ?? '');
+        $status = normalizeTrainingScheduleStatus($_POST['status'] ?? 'pending');
 
-        $datetime = $training_date . ' ' . $training_time . ':00';
+        $startDateTime = buildTrainingScheduleDateTime($training_date, $training_time);
+        $endDateTime = buildTrainingScheduleDateTime($training_date, $end_time);
+
+        if (!$startDateTime || !$endDateTime) {
+          setFlashMessage('danger', 'Thời gian bắt đầu hoặc kết thúc không hợp lệ.');
+          redirect('training-schedules.php');
+          exit;
+        }
+
+        if ($endDateTime <= $startDateTime) {
+          setFlashMessage('danger', 'Giờ kết thúc phải lớn hơn giờ bắt đầu.');
+          redirect('training-schedules.php');
+          exit;
+        }
+
+        $currentStmt = $db->prepare('SELECT id, trainer_id, training_date, end_time, status FROM training_schedules WHERE id = ? LIMIT 1');
+        $currentStmt->execute([$id]);
+        $currentSchedule = $currentStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$currentSchedule) {
+          setFlashMessage('danger', 'Không tìm thấy lịch tập cần cập nhật.');
+          redirect('training-schedules.php');
+          exit;
+        }
+
+        if (findTrainingScheduleOverlap($db, 'member_id', $member_id, $startDateTime, $endDateTime, $id)) {
+            setFlashMessage('danger', 'Hội viên này đã có lịch tập trùng thời gian.');
+            redirect('training-schedules.php');
+            exit;
+        }
+
+        if ($trainer_id && findTrainingScheduleOverlap($db, 'trainer_id', $trainer_id, $startDateTime, $endDateTime, $id)) {
+            setFlashMessage('danger', 'Huấn luyện viên này đã có lịch dạy trùng thời gian.');
+            redirect('training-schedules.php');
+            exit;
+        }
+
+        $currentStatus = normalizeTrainingScheduleStatus($currentSchedule['status'] ?? 'pending');
+        $allowTrainerChange = strtotime($currentSchedule['training_date']) > time() || in_array($currentStatus, ['pending', 'confirmed'], true);
+        if (!$allowTrainerChange) {
+          $trainer_id = $currentSchedule['trainer_id'] !== null ? (int) $currentSchedule['trainer_id'] : null;
+        }
 
         try {
-            $stmt = $db->prepare("UPDATE training_schedules SET member_id = ?, trainer_id = ?, training_date = ?, note = ? WHERE id = ?");
-            $stmt->execute([$member_id, $trainer_id, $datetime, $note, $id]);
+            $stmt = $db->prepare("UPDATE training_schedules SET member_id = ?, trainer_id = ?, training_date = ?, end_time = ?, note = ?, status = ? WHERE id = ?");
+            $stmt->execute([$member_id, $trainer_id, $startDateTime->format('Y-m-d H:i:s'), $endDateTime->format('Y-m-d H:i:s'), $note, $status, $id]);
             setFlashMessage('success', 'Cập nhật lịch tập thành công!');
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
@@ -88,6 +230,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if ($_POST['action'] === 'delete') {
         $id = intval($_POST['id']);
+      $currentStmt = $db->prepare('SELECT training_date, status FROM training_schedules WHERE id = ? LIMIT 1');
+      $currentStmt->execute([$id]);
+      $currentSchedule = $currentStmt->fetch(PDO::FETCH_ASSOC);
+
+      if (!$currentSchedule) {
+        setFlashMessage('danger', 'Không tìm thấy lịch tập cần xóa.');
+        redirect('training-schedules.php');
+        exit;
+      }
+
+      $currentStatus = normalizeTrainingScheduleStatus($currentSchedule['status'] ?? 'pending');
+      if (strtotime($currentSchedule['training_date']) <= time() && $currentStatus !== 'pending') {
+        setFlashMessage('danger', 'Chỉ được xóa khi lịch còn ở tương lai hoặc đang chờ.');
+        redirect('training-schedules.php');
+        exit;
+      }
+
         try {
             $stmt = $db->prepare("DELETE FROM training_schedules WHERE id = ?");
             $stmt->execute([$id]);
@@ -154,13 +313,13 @@ include 'layout/sidebar.php';
           $filterMode = 'server';
           $filterAction = 'training-schedules.php';
           $filterFieldsHtml = '
-            <div class="col-md-3"><div class="form-group mb-0"><label>Hội viên</label><select name="member_id" class="form-control"><option value="">-- Tất cả --</option>';
+            <div class="col-md-3"><div class="form-group mb-0"><label>Hội viên</label><select name="member_id" class="form-control select2" style="width: 100%;"><option value="">-- Tất cả --</option>';
           foreach ($members as $member) {
             $selected = (string) $filterMemberId === (string) $member['id'] ? 'selected' : '';
             $filterFieldsHtml .= '<option value="' . (int) $member['id'] . '" ' . $selected . '>' . htmlspecialchars($member['full_name']) . '</option>';
           }
           $filterFieldsHtml .= '</select></div></div>
-            <div class="col-md-3"><div class="form-group mb-0"><label>HLV</label><select name="trainer_id" class="form-control"><option value="">-- Tất cả --</option>';
+            <div class="col-md-3"><div class="form-group mb-0"><label>HLV</label><select name="trainer_id" class="form-control select2" style="width: 100%;"><option value="">-- Tất cả --</option>';
           foreach ($trainers as $trainer) {
             $selected = (string) $filterTrainerId === (string) $trainer['id'] ? 'selected' : '';
             $filterFieldsHtml .= '<option value="' . (int) $trainer['id'] . '" ' . $selected . '>' . htmlspecialchars($trainer['full_name']) . '</option>';
@@ -242,6 +401,8 @@ include 'layout/sidebar.php';
                     <th>HLV (PT)</th>
                     <th>Ngày tập</th>
                     <th>Giờ tập</th>
+                    <th>Giờ kết thúc</th>
+                    <th>Trạng thái</th>
                     <th>Ghi chú</th>
                     <th>Hành động</th>
                   </tr>
@@ -260,6 +421,11 @@ include 'layout/sidebar.php';
                     </td>
                     <td><?= date('d/m/Y', strtotime($schedule['training_date'])) ?></td>
                     <td><?= date('H:i', strtotime($schedule['training_date'])) ?></td>
+                    <td><?= !empty($schedule['end_time']) ? date('H:i', strtotime($schedule['end_time'])) : '-' ?></td>
+                    <td>
+                      <?php $scheduleStatus = normalizeTrainingScheduleStatus($schedule['status'] ?? 'pending'); ?>
+                      <span class="badge badge-<?= trainingScheduleStatusBadgeClass($scheduleStatus) ?>"><?= htmlspecialchars(trainingScheduleStatusLabel($scheduleStatus)) ?></span>
+                    </td>
                     <td><?= htmlspecialchars($schedule['note'] ?? '') ?></td>
                     <td>
                       <button class="btn btn-warning btn-sm btn-edit"
@@ -268,6 +434,8 @@ include 'layout/sidebar.php';
                         data-trainer_id="<?= $schedule['trainer_id'] ?? '' ?>"
                         data-date="<?= date('Y-m-d', strtotime($schedule['training_date'])) ?>"
                         data-time="<?= date('H:i', strtotime($schedule['training_date'])) ?>"
+                        data-end_time="<?= !empty($schedule['end_time']) ? date('H:i', strtotime($schedule['end_time'])) : '' ?>"
+                        data-status="<?= htmlspecialchars(normalizeTrainingScheduleStatus($schedule['status'] ?? 'pending')) ?>"
                         data-note="<?= htmlspecialchars($schedule['note'] ?? '') ?>"
                         data-toggle="modal" data-target="#editScheduleModal">
                         <i class="fas fa-edit"></i>
@@ -304,7 +472,7 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control select2" name="member_id" data-field="member_id" style="width: 100%;">
+                <select class="form-control select2" name="member_id" data-field="member_id" data-required="1" style="width: 100%;">
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -335,18 +503,32 @@ include 'layout/sidebar.php';
               <div class="row">
                 <div class="col-md-6">
                   <div class="form-group">
-                    <label>Ngày tập <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="training_date" data-field="training_date" value="<?= date('Y-m-d') ?>">
+                    <label>Giờ bắt đầu <span class="text-danger">*</span></label>
+                    <input type="time" class="form-control" name="training_time" data-field="training_time" data-required="1" value="08:00">
                     <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="form-group">
-                    <label>Giờ tập <span class="text-danger">*</span></label>
-                    <input type="time" class="form-control" name="training_time" data-field="training_time" value="08:00">
+                    <label>Giờ kết thúc <span class="text-danger">*</span></label>
+                    <input type="time" class="form-control" name="end_time" data-field="end_time" data-required="1" value="09:00">
                     <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
+              </div>
+              <div class="form-group">
+                <label>Trạng thái <span class="text-danger">*</span></label>
+                <select class="form-control" name="status" data-field="status" data-required="1">
+                  <?php foreach ($scheduleStatusLabels as $value => $label): ?>
+                    <option value="<?= $value ?>" <?= $value === 'pending' ? 'selected' : '' ?>><?= $label ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              </div>
+              <div class="form-group">
+                <label>Ngày tập <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" name="training_date" data-field="training_date" data-required="1" value="<?= date('Y-m-d') ?>">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Ghi chú</label>
@@ -377,7 +559,7 @@ include 'layout/sidebar.php';
             <div class="modal-body">
               <div class="form-group">
                 <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control" name="member_id" id="edit-member_id" data-field="member_id">
+                <select class="form-control select2" name="member_id" id="edit-member_id" data-field="member_id" data-required="1" style="width: 100%;">
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -389,7 +571,7 @@ include 'layout/sidebar.php';
               </div>
               <div class="form-group">
                 <label>HLV (PT)</label>
-                <select class="form-control" name="trainer_id" id="edit-trainer_id" data-field="trainer_id">
+                <select class="form-control select2" name="trainer_id" id="edit-trainer_id" data-field="trainer_id" style="width: 100%;">
                   <option value="">-- Không gán HLV --</option>
                   <?php foreach ($trainers as $trainer): ?>
                     <option value="<?= $trainer['id'] ?>">
@@ -402,18 +584,33 @@ include 'layout/sidebar.php';
               <div class="row">
                 <div class="col-md-6">
                   <div class="form-group">
-                    <label>Ngày tập <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="training_date" id="edit-date" data-field="training_date">
+                    <label>Giờ bắt đầu <span class="text-danger">*</span></label>
+                    <input type="time" class="form-control" name="training_time" id="edit-time" data-field="training_time" data-required="1">
                     <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
                 <div class="col-md-6">
                   <div class="form-group">
-                    <label>Giờ tập <span class="text-danger">*</span></label>
-                    <input type="time" class="form-control" name="training_time" id="edit-time" data-field="training_time">
+                    <label>Giờ kết thúc <span class="text-danger">*</span></label>
+                    <input type="time" class="form-control" name="end_time" id="edit-end-time" data-field="end_time" data-required="1">
                     <small class="text-danger d-block mt-2" style="display:none;"></small>
                   </div>
                 </div>
+              </div>
+              <div class="form-group">
+                <label>Trạng thái <span class="text-danger">*</span></label>
+                <select class="form-control" name="status" id="edit-status" data-field="status" data-required="1">
+                  <?php foreach ($scheduleStatusLabels as $value => $label): ?>
+                    <option value="<?= $value ?>"><?= $label ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <small class="text-muted d-block mt-2">Có thể đổi HLV khi lịch đang chờ, đã xác nhận hoặc thời gian bắt đầu còn ở tương lai.</small>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              </div>
+              <div class="form-group">
+                <label>Ngày tập <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" name="training_date" id="edit-date" data-field="training_date" data-required="1">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Ghi chú</label>
@@ -476,10 +673,12 @@ $(function() {
   // Điền dữ liệu vào modal sửa
   $('.btn-edit').on('click', function() {
     $('#edit-id').val($(this).data('id'));
-    $('#edit-member_id').val($(this).data('member_id'));
-    $('#edit-trainer_id').val($(this).data('trainer_id'));
+    $('#edit-member_id').val($(this).data('member_id')).trigger('change');
+    $('#edit-trainer_id').val($(this).data('trainer_id')).trigger('change');
     $('#edit-date').val($(this).data('date'));
     $('#edit-time').val($(this).data('time'));
+    $('#edit-end-time').val($(this).data('end_time') || '');
+    $('#edit-status').val($(this).data('status') || 'pending');
     $('#edit-note').val($(this).data('note'));
   });
 
@@ -495,15 +694,15 @@ $(function() {
   function label(field) {
     if (field === 'member_id') return 'Vui lòng chọn hội viên';
     if (field === 'training_date') return 'Vui lòng chọn ngày tập';
-    if (field === 'training_time') return 'Vui lòng chọn giờ tập';
-    if (field === 'trainer_id') return 'Vui lòng chọn HLV';
-    if (field === 'note') return 'Vui lòng nhập ghi chú';
+    if (field === 'training_time') return 'Vui lòng chọn giờ bắt đầu';
+    if (field === 'end_time') return 'Vui lòng chọn giờ kết thúc';
+    if (field === 'status') return 'Vui lòng chọn trạng thái';
     return 'Vui lòng nhập dữ liệu hợp lệ';
   }
   function box(input) { return input.closest('.form-group')?.querySelector('small.text-danger') || null; }
   function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
   function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
-  function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); clear(input); if (!field) return true; if (!value) { show(input, label(field)); return false; } return true; }
+  function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); const required = input.getAttribute('data-required') === '1'; clear(input); if (!field) return true; if (required && !value) { show(input, label(field)); return false; } return true; }
   document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
   document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
   document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);

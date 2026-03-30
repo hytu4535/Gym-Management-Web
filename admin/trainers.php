@@ -550,7 +550,7 @@ include 'layout/sidebar.php';
               <div class="trainer-name-internal-group">
                 <div class="form-group">
                   <label>Chọn tài khoản/email <span class="text-danger">*</span></label>
-                  <select class="form-control trainer-account-select select2" name="users_id" id="edit-users-id" data-field="users_id" style="width: 100%;">
+                  <select class="form-control trainer-account-select select2" name="users_id" id="edit-users-id" data-field="users_id" data-lock-account="1" style="width: 100%;">
                     <option value="">-- Chọn tài khoản/email --</option>
                     <?php foreach ($trainerUsers as $user): ?>
                       <?php $accountLabel = !empty($user['email']) ? $user['email'] : ($user['username'] ?? ''); ?>
@@ -562,6 +562,7 @@ include 'layout/sidebar.php';
                       </option>
                     <?php endforeach; ?>
                   </select>
+                  <input type="hidden" name="users_id" id="edit-users-id-hidden">
                   <small class="text-danger d-block mt-2" style="display:none;"></small>
                 </div>
                 <div class="form-group mb-0">
@@ -640,11 +641,12 @@ function syncTrainerNameFields($modal) {
   const $accountSelect = $modal.find('.trainer-account-select');
   const $accountFullName = $modal.find('.trainer-account-fullname');
   const $phoneInput = $modal.find('.trainer-phone-input');
+  const isLockedAccount = $accountSelect.data('lock-account') === 1 || $accountSelect.data('lock-account') === '1';
 
   $freeGroup.addClass('d-none');
   $internalGroup.removeClass('d-none');
   $freeInput.prop('disabled', true).val('');
-  $accountSelect.prop('disabled', false);
+  $accountSelect.prop('disabled', isLockedAccount);
   $phoneInput.prop('readonly', true);
   applyInternalAccountSelection($modal);
 }
@@ -680,8 +682,8 @@ function fillEditModal($button) {
   const type = $button.data('type');
   const fullName = $button.data('fullname') || '';
   const usersId = $button.data('users-id') || '';
-  const userLabel = $button.data('user-label') || '';
-  const userFullName = $button.data('user-fullname') || fullName;
+  let userLabel = $button.data('user-label') || '';
+  let userFullName = $button.data('user-fullname') || fullName;
   const phone = String($button.attr('data-phone') || '').replace(/\D+/g, '');
 
   $modal.find('#edit-id').val($button.data('id'));
@@ -692,14 +694,38 @@ function fillEditModal($button) {
   $modal.find('#edit-status').val($button.data('status'));
 
   $modal.find('#edit-fullname-free').val('');
+  const $accountSelect = $modal.find('#edit-users-id');
+  const $accountHidden = $modal.find('#edit-users-id-hidden');
+  let selectedUsersId = usersId ? String(usersId) : '';
+
+  if (!selectedUsersId) {
+    const matchByPhone = $accountSelect.find('option').filter(function() {
+      return String($(this).data('phone') || '').replace(/\D+/g, '') === phone && phone !== '';
+    }).first();
+
+    const matchByName = $accountSelect.find('option').filter(function() {
+      return String($(this).data('full-name') || '').trim() === String(userFullName).trim() && String(userFullName).trim() !== '';
+    }).first();
+
+    const matchedOption = matchByPhone.length ? matchByPhone : matchByName;
+    if (matchedOption.length) {
+      selectedUsersId = String(matchedOption.val());
+      userLabel = matchedOption.text();
+      userFullName = String(matchedOption.data('full-name') || userFullName);
+    }
+  }
+
   ensureSelectOption(
-    $modal.find('#edit-users-id'),
-    usersId,
+    $accountSelect,
+    selectedUsersId,
     userLabel || userFullName,
     userFullName,
     phone
   );
-  $modal.find('#edit-users-id').val(usersId ? String(usersId) : '');
+  $accountSelect
+    .val(selectedUsersId)
+    .trigger('change.select2');
+  $accountHidden.val(selectedUsersId);
 
   syncTrainerNameFields($modal);
 }

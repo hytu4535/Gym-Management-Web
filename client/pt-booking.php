@@ -83,7 +83,7 @@ include 'layout/header.php';
 
                         <div class="form-group">
                             <label style="color:#ddd;">Chọn huấn luyện viên <span style="color:#ff6b6b;">*</span></label>
-                            <select class="form-control" name="trainer_id" data-field="trainer_id">
+                            <select class="form-control" name="trainer_id" data-field="trainer_id" data-required="1">
                                 <option value="">-- Chọn HLV --</option>
                                 <?php foreach ($trainers as $trainer): ?>
                                 <option value="<?php echo (int) $trainer['id']; ?>">
@@ -99,8 +99,8 @@ include 'layout/header.php';
 
                         <div class="form-group">
                             <label style="color:#ddd;">Thời gian hẹn tập <span style="color:#ff6b6b;">*</span></label>
-                            <input type="datetime-local" class="form-control" name="training_date" data-field="training_date">
-                            <small style="color:#888;">Nên đặt lịch trước ít nhất 30 phút.</small>
+                            <input type="datetime-local" class="form-control" name="training_date" data-field="training_date" data-required="1">
+                            <small style="color:#888;">Mỗi ngày chỉ được đặt 1 lần. Nên đặt lịch trước ít nhất 30 phút.</small>
                             <small class="text-danger d-block mt-2" style="display:none;"></small>
                         </div>
 
@@ -137,7 +137,6 @@ include 'layout/footer.php';
     function label(field) {
         if (field === 'trainer_id') return 'Vui lòng chọn huấn luyện viên.';
         if (field === 'training_date') return 'Vui lòng chọn thời gian hẹn tập.';
-        if (field === 'note') return '';
         return 'Vui lòng nhập dữ liệu hợp lệ.';
     }
 
@@ -164,10 +163,11 @@ include 'layout/footer.php';
     function validateField(input) {
         var field = input.getAttribute('data-field');
         var value = String(input.value || '').trim();
+        var required = input.getAttribute('data-required') === '1';
 
         if (!field) return true;
 
-        if (!value) {
+        if (required && !value) {
             showFieldError(input, label(field));
             return false;
         }

@@ -20,6 +20,8 @@ $messageType = '';
 
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'delete');
+
     try {
         $stmt = $db->prepare("DELETE FROM bmi_measurements WHERE id = ?");
         $stmt->execute([$_GET['id']]);
@@ -33,6 +35,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 
 // Xử lý thêm
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+  checkPermission('MANAGE_MEMBERS', 'add');
+
     $member_id = $_POST['member_id'];
     $device_id = $_POST['device_id'];
     $height = $_POST['height'];

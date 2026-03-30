@@ -1,5 +1,9 @@
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_PACKAGES', 'edit');
+
 require_once '../../config/db.php';
+
 if (isset($_POST['btn_edit_package'])) {
     
     $id = (int)$_POST['id'];

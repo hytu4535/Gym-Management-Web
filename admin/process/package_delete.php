@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_PACKAGES', 'delete');
+
 require_once '../../config/db.php';
 
 if (isset($_GET['id'])) {

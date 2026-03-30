@@ -58,6 +58,7 @@ if ($structuredScheduleTime) {
                 cs.schedule_start_time,
                 cs.schedule_end_time,
                 cs.schedule_days,
+                cs.price_per_session,
                 cs.capacity,
                 cs.enrolled_count,
                 cs.room,
@@ -73,6 +74,7 @@ if ($structuredScheduleTime) {
                 cs.class_name,
                 cs.class_type,
                 cs.schedule_days,
+                cs.price_per_session,
                 cs.capacity,
                 cs.enrolled_count,
                 cs.room,
@@ -181,6 +183,8 @@ include 'layout/header.php';
                         <p><i class="fa fa-map-marker"></i> Phòng: <?php echo htmlspecialchars($class['room']); ?></p>
                         <?php endif; ?>
 
+                        <p><i class="fa fa-money"></i> Giá/buổi: <?php echo number_format((float) ($class['price_per_session'] ?? 0), 0, ',', '.'); ?>đ</p>
+
                         <p><i class="fa fa-user"></i> HLV: <?php echo htmlspecialchars($class['trainer_name'] ?? 'Chưa có'); ?></p>
 
                         <p>
@@ -203,8 +207,9 @@ include 'layout/header.php';
                             <?php elseif (!$is_full): ?>
                             <button class="primary-btn btn-register-class"
                                     data-id="<?php echo $class['id']; ?>"
+                                    data-price="<?php echo htmlspecialchars((string) ($class['price_per_session'] ?? 0)); ?>"
                                     style="width:100%;display:block;text-align:center;padding:10px;border:none;cursor:pointer;">
-                                <i class="fa fa-check"></i> Đăng ký ngay
+                                <i class="fa fa-check"></i> Đăng ký ngay - <?php echo number_format((float) ($class['price_per_session'] ?? 0), 0, ',', '.'); ?>đ
                             </button>
                             <?php else: ?>
                             <button class="primary-btn" disabled

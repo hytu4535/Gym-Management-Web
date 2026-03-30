@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once '../config/db.php';
+require_once '../includes/discount_helper.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -47,7 +48,7 @@ $display_address = $order['full_address'] ?? $order['default_full_address'] ?? $
 $display_district = $order['district'] ?? $order['default_district'] ?? '';
 $display_city = $order['city'] ?? $order['default_city'] ?? '';
 
-$sql_items = "SELECT item_name, price, quantity FROM order_items WHERE order_id = ?";
+$sql_items = "SELECT item_type, item_name, price, quantity, discount FROM order_items WHERE order_id = ?";
 $stmt_items = $conn->prepare($sql_items);
 $stmt_items->bind_param("i", $order_id);
 $stmt_items->execute();
@@ -55,15 +56,36 @@ $res_items = $stmt_items->get_result();
 
 $order_items = [];
 $total_items_cost = 0;
+$base_discount_amount = 0;
+$has_physical_products = false;
 while($row = $res_items->fetch_assoc()) {
     $subtotal = $row['price'] * $row['quantity'];
     $row['subtotal'] = $subtotal;
     $order_items[] = $row;
     $total_items_cost += $subtotal;
+    if (($row['item_type'] ?? '') === 'product') {
+        $has_physical_products = true;
+    }
 }
 $stmt_items->close();
 
-$shipping_fee = $order['total_amount'] - $total_items_cost;
+$stmt_promo = $conn->prepare("SELECT pu.applied_amount, COALESCE(tp.name, '(Khuyến mãi đã xóa)') AS promotion_name FROM promotion_usage pu LEFT JOIN tier_promotions tp ON tp.id = pu.promotion_id WHERE pu.order_id = ? ORDER BY pu.id DESC LIMIT 1");
+$stmt_promo->bind_param("i", $order_id);
+$stmt_promo->execute();
+$promo_row = $stmt_promo->get_result()->fetch_assoc();
+$stmt_promo->close();
+
+$promotion_discount_amount = (float)($promo_row['applied_amount'] ?? 0);
+$promotion_name = $promo_row['promotion_name'] ?? 'Ưu đãi';
+$cart_subtotal = $total_items_cost;
+$shipping_fee = $has_physical_products ? 30000 : 0;
+$final_total = (float)$order['total_amount']; 
+$base_discount_amount = $cart_subtotal - $promotion_discount_amount + $shipping_fee - $final_total;
+$base_discount_amount = max(0, round($base_discount_amount, 0));
+$base_discount_percent = $cart_subtotal > 0 ? ($base_discount_amount / $cart_subtotal) * 100 : 0;
+
+$subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
+$total_discount_amount = $base_discount_amount + $promotion_discount_amount;
 
 include 'layout/header.php'; 
 ?>
@@ -161,8 +183,16 @@ include 'layout/header.php';
                                     </tbody>
                                     <tfoot>
                                         <tr>
-                                            <td colspan="4" class="text-right"><strong>Tạm tính:</strong></td>
-                                            <td class="text-right"><strong><?php echo number_format($total_items_cost, 0, ',', '.'); ?>đ</strong></td>
+                                            <td colspan="4" class="text-right"><strong>Giá gốc:</strong></td>
+                                            <td class="text-right"><strong style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_subtotal, 0, ',', '.'); ?>đ</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="4" class="text-right"><strong>Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
+                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="4" class="text-right"><strong><?php echo htmlspecialchars($promotion_name); ?>:</strong></td>
+                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong>Phí vận chuyển:</strong></td>
@@ -170,7 +200,7 @@ include 'layout/header.php';
                                         </tr>
                                         <tr class="total-row" style="background: #fdfaf3;">
                                             <td colspan="4" class="text-right"><strong style="color: #e7ab3c; font-size: 1.2rem;">Tổng cộng:</strong></td>
-                                            <td class="text-right"><strong style="color: #e7ab3c; font-size: 1.2rem;"><?php echo number_format($order['total_amount'], 0, ',', '.'); ?>đ</strong></td>
+                                            <td class="text-right"><strong style="color: #e7ab3c; font-size: 1.2rem;"><?php echo number_format($final_total, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                     </tfoot>
                                 </table>

@@ -32,6 +32,16 @@ try {
 		$monthStart = date('Y-m-01');
 		$nextMonthStart = date('Y-m-01', strtotime('+1 month'));
 		$lastMonthStart = date('Y-m-01', strtotime('-1 month'));
+		$chartStartMonth = date('Y-m-01', strtotime('-11 months'));
+		$chartMonths = [];
+		for ($i = 0; $i < 12; $i++) {
+			$monthKey = date('Y-m', strtotime($chartStartMonth . " +$i month"));
+			$chartMonths[$monthKey] = [
+				'label' => date('m/Y', strtotime($chartStartMonth . " +$i month")),
+				'revenue' => 0,
+				'new_members' => 0,
+			];
+		}
 
 		$overview = $db->query(
 				"SELECT
@@ -61,18 +71,51 @@ try {
 		]);
 		$revenue = $revenueStmt->fetch();
 
-		$monthlyRevenueStmt = $db->query(
+		$monthlyRevenueStmt = $db->prepare(
 				"SELECT
 						DATE_FORMAT(order_date, '%Y-%m') AS month_key,
 						DATE_FORMAT(order_date, '%m/%Y') AS month_label,
 						SUM(total_amount) AS revenue
-				 FROM orders
-				 WHERE status IN ('confirmed', 'delivered')
-					 AND order_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-				 GROUP BY DATE_FORMAT(order_date, '%Y-%m'), DATE_FORMAT(order_date, '%m/%Y')
-				 ORDER BY month_key DESC"
+					 FROM orders
+					 WHERE status IN ('confirmed', 'delivered')
+						 AND order_date >= ?
+					 GROUP BY DATE_FORMAT(order_date, '%Y-%m'), DATE_FORMAT(order_date, '%m/%Y')
+					 ORDER BY month_key ASC"
 		);
+		$monthlyRevenueStmt->execute([$chartStartMonth]);
 		$monthlyRevenue = $monthlyRevenueStmt->fetchAll();
+
+		$monthlyRevenueMap = [];
+		foreach ($monthlyRevenue as $row) {
+			$monthlyRevenueMap[$row['month_key']] = (float) $row['revenue'];
+		}
+
+		$monthlyMembersStmt = $db->prepare(
+				"SELECT
+						DATE_FORMAT(join_date, '%Y-%m') AS month_key,
+						COUNT(*) AS total_members
+					 FROM members
+					 WHERE join_date >= ?
+					 GROUP BY DATE_FORMAT(join_date, '%Y-%m')
+					 ORDER BY month_key ASC"
+		);
+		$monthlyMembersStmt->execute([$chartStartMonth]);
+		$monthlyMembers = $monthlyMembersStmt->fetchAll();
+
+		$monthlyMembersMap = [];
+		foreach ($monthlyMembers as $row) {
+			$monthlyMembersMap[$row['month_key']] = (int) $row['total_members'];
+		}
+
+		foreach ($chartMonths as $monthKey => &$monthData) {
+			$monthData['revenue'] = $monthlyRevenueMap[$monthKey] ?? 0;
+			$monthData['new_members'] = $monthlyMembersMap[$monthKey] ?? 0;
+		}
+		unset($monthData);
+
+		$chartLabels = array_values(array_column($chartMonths, 'label'));
+		$chartRevenueData = array_values(array_column($chartMonths, 'revenue'));
+		$chartNewMembersData = array_values(array_column($chartMonths, 'new_members'));
 
 		$orderStatusStmt = $db->query(
 				"SELECT status, COUNT(*) AS total_orders, SUM(total_amount) AS total_amount
@@ -174,6 +217,9 @@ try {
 		$upcomingSchedules = [];
 		$recentOrders = [];
 		$monthlyRevenue = [];
+		$chartLabels = [];
+		$chartRevenueData = [];
+		$chartNewMembersData = [];
 		$statusLabelMap = [];
 		$statusBadgeMap = [];
 		$paymentLabelMap = [];
@@ -281,6 +327,34 @@ try {
 							<span class="info-box-number <?= $monthlyGrowth >= 0 ? 'text-success' : 'text-danger' ?>">
 								<?= ($monthlyGrowth >= 0 ? '+' : '') . number_format($monthlyGrowth, 1) ?>%
 							</span>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="row">
+				<div class="col-lg-6">
+					<div class="card card-outline card-primary">
+						<div class="card-header">
+							<h3 class="card-title"><i class="fas fa-chart-line mr-1"></i> Doanh thu theo tháng</h3>
+						</div>
+						<div class="card-body">
+							<div style="height: 320px;">
+								<canvas id="revenueLineChart"></canvas>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="col-lg-6">
+					<div class="card card-outline card-success">
+						<div class="card-header">
+							<h3 class="card-title"><i class="fas fa-user-plus mr-1"></i> Hội viên mới theo tháng</h3>
+						</div>
+						<div class="card-body">
+							<div style="height: 320px;">
+								<canvas id="newMembersBarChart"></canvas>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -441,34 +515,6 @@ try {
 						</div>
 					</div>
 
-					<div class="card card-outline card-secondary">
-						<div class="card-header">
-							<h3 class="card-title"><i class="fas fa-chart-area mr-1"></i> Doanh thu 6 tháng</h3>
-						</div>
-						<div class="card-body">
-							<?php if (!empty($monthlyRevenue)): ?>
-								<?php $maxRevenue = max(array_map(static function ($row) { return (float) $row['revenue']; }, $monthlyRevenue)); ?>
-								<?php foreach ($monthlyRevenue as $row): ?>
-									<?php
-										$value = (float) $row['revenue'];
-										$width = $maxRevenue > 0 ? ($value / $maxRevenue) * 100 : 0;
-									?>
-									<div class="mb-2">
-										<div class="d-flex justify-content-between">
-											<span><?= htmlspecialchars($row['month_label']) ?></span>
-											<span><?= formatCurrencyVND($value) ?></span>
-										</div>
-										<div class="progress progress-xs">
-											<div class="progress-bar bg-primary" style="width: <?= number_format($width, 1, '.', '') ?>%"></div>
-										</div>
-									</div>
-								<?php endforeach; ?>
-							<?php else: ?>
-								<p class="text-muted mb-0">Chưa có doanh thu xác nhận trong 6 tháng gần đây.</p>
-							<?php endif; ?>
-						</div>
-					</div>
-
 					<div class="card card-outline card-danger">
 						<div class="card-header">
 							<h3 class="card-title"><i class="fas fa-triangle-exclamation mr-1"></i> Cảnh báo nhanh</h3>
@@ -499,5 +545,162 @@ try {
 		</div>
 	</section>
 </div>
+
+<script src="../assets/plugins/chart.js/Chart.min.js"></script>
+<script>
+	(function () {
+		var revenueCanvas = document.getElementById('revenueLineChart');
+		var membersCanvas = document.getElementById('newMembersBarChart');
+
+		if (!revenueCanvas || !membersCanvas || typeof Chart === 'undefined') {
+			return;
+		}
+
+		var chartLabels = <?php echo json_encode($chartLabels, JSON_UNESCAPED_UNICODE); ?>;
+		var chartRevenueData = <?php echo json_encode($chartRevenueData, JSON_UNESCAPED_UNICODE); ?>;
+		var chartNewMembersData = <?php echo json_encode($chartNewMembersData, JSON_UNESCAPED_UNICODE); ?>;
+		var moneyFormatter = new Intl.NumberFormat('vi-VN', {
+			style: 'currency',
+			currency: 'VND',
+			maximumFractionDigits: 0
+		});
+
+		function formatMoney(value) {
+			return moneyFormatter.format(Number(value) || 0);
+		}
+
+		var revenueChartContext = revenueCanvas.getContext('2d');
+		var revenueGradient = revenueChartContext.createLinearGradient(0, 0, 0, 320);
+		revenueGradient.addColorStop(0, 'rgba(0, 123, 255, 0.35)');
+		revenueGradient.addColorStop(1, 'rgba(0, 123, 255, 0.02)');
+
+		new Chart(revenueChartContext, {
+			type: 'line',
+			data: {
+				labels: chartLabels,
+				datasets: [{
+					label: 'Doanh thu',
+					data: chartRevenueData,
+					borderColor: '#0d6efd',
+					backgroundColor: revenueGradient,
+					pointBackgroundColor: '#ffffff',
+					pointBorderColor: '#0d6efd',
+					pointHoverBackgroundColor: '#0d6efd',
+					pointHoverBorderColor: '#ffffff',
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					fill: true,
+					lineTension: 0.35,
+					borderWidth: 3
+				}]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				title: {
+					display: true,
+					text: 'Doanh thu 12 tháng gần nhất',
+					fontSize: 15,
+					fontStyle: '600',
+					fontColor: '#1f2d3d'
+				},
+				legend: {
+					display: true,
+					position: 'top'
+				},
+				tooltips: {
+					mode: 'index',
+					intersect: false,
+					callbacks: {
+						label: function (tooltipItem) {
+							return 'Doanh thu: ' + formatMoney(tooltipItem.yLabel);
+						}
+					}
+				},
+				scales: {
+					yAxes: [{
+						ticks: {
+							beginAtZero: true,
+							callback: function (value) {
+								return formatMoney(value);
+							}
+						},
+						gridLines: {
+							color: 'rgba(13, 110, 253, 0.08)',
+							zeroLineColor: 'rgba(13, 110, 253, 0.16)'
+						}
+					}],
+					xAxes: [{
+						gridLines: {
+							display: false
+						}
+					}]
+				}
+			}
+		});
+
+		new Chart(membersCanvas.getContext('2d'), {
+			type: 'bar',
+			data: {
+				labels: chartLabels,
+				datasets: [{
+					label: 'Hội viên mới',
+					data: chartNewMembersData,
+					backgroundColor: 'rgba(40, 167, 69, 0.88)',
+					borderColor: '#198754',
+					borderWidth: 1,
+					hoverBackgroundColor: 'rgba(25, 135, 84, 1)',
+					barPercentage: 0.7,
+					categoryPercentage: 0.72
+				}]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				title: {
+					display: true,
+					text: 'Hội viên mới theo tháng',
+					fontSize: 15,
+					fontStyle: '600',
+					fontColor: '#1f2d3d'
+				},
+				legend: {
+					display: true,
+					position: 'top'
+				},
+				tooltips: {
+					mode: 'index',
+					intersect: false,
+					callbacks: {
+						label: function (tooltipItem) {
+							return 'Hội viên mới: ' + tooltipItem.yLabel;
+						}
+					}
+				},
+				scales: {
+					yAxes: [{
+						ticks: {
+							beginAtZero: true,
+							precision: 0,
+							stepSize: 1,
+							callback: function (value) {
+								return Math.round(value);
+							}
+						},
+						gridLines: {
+							color: 'rgba(25, 135, 84, 0.08)',
+							zeroLineColor: 'rgba(25, 135, 84, 0.16)'
+						}
+					}],
+					xAxes: [{
+						gridLines: {
+							display: false
+						}
+					}]
+				}
+			}
+		});
+	})();
+</script>
 
 <?php include 'layout/footer.php'; ?>

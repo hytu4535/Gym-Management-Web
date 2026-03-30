@@ -42,12 +42,18 @@ try {
                mp.duration_months,
                s.name AS service_name,
                s.price AS service_price,
+               cs.class_name,
+               cs.price_per_session AS class_price,
+               cs.schedule_days AS class_schedule_days,
+               cs.schedule_start_time AS class_start_time,
+               cs.schedule_end_time AS class_end_time,
                c.id as cart_id
         FROM carts c 
         JOIN cart_items ci ON c.id = ci.cart_id
         LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id 
         LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
         LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+        LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
         WHERE c.member_id = ? AND c.status = 'active' FOR UPDATE
     ");
     $stmt_cart->bind_param("i", $member_id); 
@@ -78,6 +84,10 @@ try {
             $row['quantity'] = 1;
             $row['final_price'] = (float) $row['package_price'];
             $row['item_name'] = $row['package_name'];
+        } elseif ($row['item_type'] === 'class') {
+            $row['quantity'] = 1;
+            $row['final_price'] = (float) $row['class_price'];
+            $row['item_name'] = $row['class_name'];
         } else {
             $row['quantity'] = 1;
             $row['final_price'] = (float) $row['service_price'];
@@ -86,6 +96,8 @@ try {
         
         $cart_items[] = $row;
         $cart_id = $row['cart_id']; 
+
+        $subtotal += ($row['final_price'] * $row['quantity']);
     }
     $stmt_cart->close();
 
@@ -149,12 +161,30 @@ try {
         }
     }
     
-    // Tính tổng có áp dụng promotion (nếu có)
-    $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
-    $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
-    
-    $subtotal = $cart_total['final_subtotal']; // Tổng sau base + promotion
+    // Tính tổng theo cùng công thức với trang checkout/cart
+    $selected_promotion_id = isset($_POST['promotion']) ? (int)$_POST['promotion'] : (isset($_POST['selected_promotion_id']) ? (int)$_POST['selected_promotion_id'] : (isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0));
+    $tier_info = getMemberTierDiscount($user_id, $conn);
+    $base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
+    $base_discount_amount = round($subtotal * $base_discount_percent / 100, 0);
+    $subtotal_after_base = max($subtotal - $base_discount_amount, 0);
+    $promotion_discount = 0;
 
+    if ($selected_promotion_id > 0) {
+        $promotion_info = getPromotionById($selected_promotion_id, $conn);
+        if ($promotion_info && (int) $promotion_info['tier_id'] === (int) $tier_info['tier_id']) {
+            if ($promotion_info['discount_type'] === 'percentage') {
+                $promotion_discount = round(($subtotal_after_base * (float) $promotion_info['discount_value']) / 100, 0);
+            } elseif ($promotion_info['discount_type'] === 'fixed') {
+                $promotion_discount = round((float) $promotion_info['discount_value'], 0);
+            }
+
+            if ($promotion_discount > $subtotal_after_base) {
+                $promotion_discount = $subtotal_after_base;
+            }
+        }
+    }
+
+    $subtotal = max($subtotal_after_base - $promotion_discount, 0);
     $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
     $total_amount = $subtotal + $shipping_fee;
     $status = 'pending';
@@ -257,6 +287,11 @@ try {
             $stmt_service->bind_param("iis", $member_id, $item_id, $startDate);
             $stmt_service->execute();
             $stmt_service->close();
+            continue;
+        }
+
+        if ($item_type === 'class') {
+            continue;
         }
     }
     $stmt_item->close();
@@ -267,9 +302,8 @@ try {
     $stmt_del_cart->execute();
     $stmt_del_cart->close();
     
-    // Lưu promotion usage (nếu có dùng promotion)
-    if ($selected_promotion_id > 0 && $cart_total['has_promotion']) {
-        $applied_amount = $cart_total['promotion_discount'];
+    if ($selected_promotion_id > 0 && isset($promotion_info) && $promotion_info) {
+        $applied_amount = (float) $promotion_discount;
         $stmt_promo_usage = $conn->prepare("
             INSERT INTO promotion_usage (member_id, promotion_id, order_id, applied_amount, applied_at) 
             VALUES (?, ?, ?, ?, NOW())
@@ -279,50 +313,8 @@ try {
         $stmt_promo_usage->close();
     }
 
-    // Cập nhật total_spent cho member
-    $stmt_update_spent = $conn->prepare("UPDATE members SET total_spent = total_spent + ? WHERE id = ?");
-    $stmt_update_spent->bind_param("di", $total_amount, $member_id);
-    $stmt_update_spent->execute();
-    $stmt_update_spent->close();
-
-    // Lấy total_spent mới để check nâng hạng
-    $stmt_check_tier = $conn->prepare("SELECT total_spent, tier_id FROM members WHERE id = ?");
-    $stmt_check_tier->bind_param("i", $member_id);
-    $stmt_check_tier->execute();
-    $member_info = $stmt_check_tier->get_result()->fetch_assoc();
-    $stmt_check_tier->close();
-
-    // Tự động nâng hạng dựa trên total_spent
-    if ($member_info) {
-        $new_total_spent = $member_info['total_spent'];
-        
-        // Lấy hạng phù hợp với total_spent (hạng cao nhất mà member đủ điều kiện)
-        $stmt_tier = $conn->prepare("
-            SELECT id, name, level FROM member_tiers 
-            WHERE min_spent <= ? AND status = 'active'
-            ORDER BY level DESC LIMIT 1
-        ");
-        $stmt_tier->bind_param("d", $new_total_spent);
-        $stmt_tier->execute();
-        $tier_result = $stmt_tier->get_result();
-        
-        if ($tier_result->num_rows > 0) {
-            $new_tier = $tier_result->fetch_assoc();
-            
-            // Nếu hạng mới khác hạng hiện tại thì cập nhật
-            if ($new_tier['id'] != $member_info['tier_id']) {
-                $stmt_update_tier = $conn->prepare("UPDATE members SET tier_id = ? WHERE id = ?");
-                $stmt_update_tier->bind_param("ii", $new_tier['id'], $member_id);
-                $stmt_update_tier->execute();
-                $stmt_update_tier->close();
-            }
-        }
-        $stmt_tier->close();
-    }
-
     $conn->commit();
-    
-    // Xóa promotion khỏi session sau khi đặt hàng thành công
+
     unset($_SESSION['selected_promotion']);
     
     header("Location: invoice.php?order_id=" . $order_id);

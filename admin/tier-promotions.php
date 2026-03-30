@@ -22,7 +22,24 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
+$tierPromotionTable = null;
+$hasTierPromotionSingularTable = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tier_promotion' LIMIT 1")->fetchColumn();
+$hasTierPromotionPluralTable = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tier_promotions' LIMIT 1")->fetchColumn();
+if ($hasTierPromotionSingularTable) {
+  $tierPromotionTable = 'tier_promotion';
+} elseif ($hasTierPromotionPluralTable) {
+  $tierPromotionTable = 'tier_promotions';
+}
+
+$hasTierPromotionsTable = $tierPromotionTable !== null;
+$tierPromotionTableMessage = '';
+if (!$hasTierPromotionsTable) {
+  $tierPromotionTableMessage = 'Database hiện chưa có bảng tier_promotion/tier_promotions. Vui lòng import/migrate schema để dùng chức năng khuyến mãi theo hạng.';
+}
+
+if ($hasTierPromotionsTable && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
+  checkPermission('MANAGE_SALES', 'add');
+
   $name = sanitize($_POST['name']);
   $tierId = intval($_POST['tier_id']);
   $discountType = sanitize($_POST['discount_type']);
@@ -57,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
     exit;
   }
 
-  $insertStmt = $db->prepare("INSERT INTO tier_promotions (name, tier_id, discount_type, discount_value, applicable_items, start_date, end_date, usage_limit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  $insertStmt = $db->prepare("INSERT INTO {$tierPromotionTable} (name, tier_id, discount_type, discount_value, applicable_items, start_date, end_date, usage_limit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
   if ($insertStmt->execute([$name, $tierId, $discountType, $discountValue, null, $startDate, $endDate, $usageLimit, $status])) {
     echo "<script>alert('Thêm khuyến mãi theo hạng thành công!');window.location='tier-promotions.php';</script>";
   } else {
@@ -66,7 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
   exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id'])) {
+if ($hasTierPromotionsTable && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id'])) {
+  checkPermission('MANAGE_SALES', 'edit');
+
   $promotionId = intval($_POST['edit_promotion_id']);
   $name = sanitize($_POST['edit_name']);
   $tierId = intval($_POST['edit_tier_id']);
@@ -95,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id']))
     exit;
   }
 
-  $updateStmt = $db->prepare("UPDATE tier_promotions SET name = ?, tier_id = ?, discount_type = ?, discount_value = ?, applicable_items = ?, start_date = ?, end_date = ?, usage_limit = ?, status = ? WHERE id = ?");
+  $updateStmt = $db->prepare("UPDATE {$tierPromotionTable} SET name = ?, tier_id = ?, discount_type = ?, discount_value = ?, applicable_items = ?, start_date = ?, end_date = ?, usage_limit = ?, status = ? WHERE id = ?");
   if ($updateStmt->execute([$name, $tierId, $discountType, $discountValue, null, $startDate, $endDate, $usageLimit, $status, $promotionId])) {
     echo "<script>alert('Cập nhật khuyến mãi thành công!');window.location='tier-promotions.php';</script>";
   } else {
@@ -104,9 +123,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id']))
   exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_promotion_id'])) {
+if ($hasTierPromotionsTable && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_promotion_id'])) {
+  checkPermission('MANAGE_SALES', 'delete');
+
   $promotionId = intval($_POST['delete_promotion_id']);
-  $deleteStmt = $db->prepare("DELETE FROM tier_promotions WHERE id = ?");
+  $deleteStmt = $db->prepare("DELETE FROM {$tierPromotionTable} WHERE id = ?");
 
   if ($deleteStmt->execute([$promotionId])) {
     echo "<script>alert('Xóa khuyến mãi thành công!');window.location='tier-promotions.php';</script>";
@@ -147,9 +168,12 @@ if ($filterStatus !== '') {
 }
 $promotionWhereSql = !empty($promotionWhereClauses) ? ' WHERE ' . implode(' AND ', $promotionWhereClauses) : '';
 
-$promotionsStmt = $db->prepare("SELECT tp.*, mt.name AS tier_name FROM tier_promotions tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id" . $promotionWhereSql . " ORDER BY tp.id DESC");
-$promotionsStmt->execute($promotionParams);
-$promotions = $promotionsStmt->fetchAll();
+$promotions = [];
+if ($hasTierPromotionsTable) {
+  $promotionsStmt = $db->prepare("SELECT tp.*, mt.name AS tier_name FROM {$tierPromotionTable} tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id" . $promotionWhereSql . " ORDER BY tp.id DESC");
+  $promotionsStmt->execute($promotionParams);
+  $promotions = $promotionsStmt->fetchAll();
+}
 
 function resolveTierDisplayName($tierId, $tierName) {
   $fallbackMap = [
@@ -192,6 +216,14 @@ function resolveTierDisplayName($tierId, $tierName) {
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php if ($tierPromotionTableMessage !== ''): ?>
+          <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <?= htmlspecialchars($tierPromotionTableMessage) ?>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        <?php endif; ?>
         <?php
           $filterMode = 'server';
           $filterAction = 'tier-promotions.php';
@@ -214,7 +246,7 @@ function resolveTierDisplayName($tierId, $tierName) {
               <div class="card-header">
                 <h3 class="card-title">Danh sách Chương Trình Khuyến Mãi</h3>
                 <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addPromotionModal">
+                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addPromotionModal" <?= $hasTierPromotionsTable ? '' : 'disabled' ?>>
                     <i class="fas fa-plus"></i> Thêm Khuyến Mãi
                   </button>
                 </div>

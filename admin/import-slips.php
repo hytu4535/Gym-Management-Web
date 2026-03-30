@@ -1,5 +1,14 @@
 <?php
+require_once '../includes/auth.php';
 require_once '../includes/functions.php';
+require_once '../includes/auth_permission.php';
+
+checkPermission('MANAGE_INVENTORY', 'view');
+
+$hasManageAll = in_array('MANAGE_ALL', $_SESSION['permissions'] ?? [], true);
+$inventoryActionSet = $_SESSION['user_action_permissions']['MANAGE_INVENTORY'] ?? [];
+$canAddImport = $hasManageAll || !empty($inventoryActionSet['add']);
+$canEditImport = $hasManageAll || !empty($inventoryActionSet['edit']);
 
 $db = getDB();
 
@@ -17,6 +26,8 @@ function importStatusLabelByIndex($statusIndex) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_id'])) {
+  checkPermission('MANAGE_INVENTORY', 'edit');
+
   $importSlipId = intval($_POST['update_import_status_id']);
   $newStatusAction = sanitize($_POST['new_status_action'] ?? '');
   $newStatusIndex = null;
@@ -98,6 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
+  checkPermission('MANAGE_INVENTORY', 'add');
+
   $supplierId = intval($_POST['supplier_id']);
   $staffId = intval($_POST['staff_id']);
   $importDateInput = sanitize($_POST['import_date']);
@@ -357,9 +370,11 @@ include 'layout/sidebar.php';
               <div class="card-header">
                 <h3 class="card-title">Danh sách Phiếu Nhập Kho</h3>
                 <div class="card-tools">
+                  <?php if ($canAddImport): ?>
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addImportModal">
                     <i class="fas fa-plus"></i> Tạo Phiếu Nhập
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
               <div class="card-body">
@@ -402,7 +417,7 @@ include 'layout/sidebar.php';
                       <button type="button" class="btn btn-primary btn-sm print-import-btn" data-id="<?= (int) $importSlip['id'] ?>" title="In phiếu nhập">
                         <i class="fas fa-print"></i>
                       </button>
-                      <?php if ($displayStatus === 'Đang chờ duyệt'): ?>
+                      <?php if ($displayStatus === 'Đang chờ duyệt' && $canEditImport): ?>
                         <form method="POST" action="import-slips.php" style="display:inline-block;">
                           <input type="hidden" name="update_import_status_id" value="<?= $importSlip['id'] ?>">
                           <input type="hidden" name="new_status_action" value="approve">
@@ -452,13 +467,9 @@ include 'layout/sidebar.php';
             <div class="alert alert-warning mb-3">Chưa có sản phẩm hoặc thiết bị để nhập kho. Vui lòng tạo dữ liệu trước khi lập phiếu.</div>
           <?php endif; ?>
 
-          <div id="importFormErrors" class="alert alert-danger" style="display:none;">
-            <ul id="importFormErrorsList" class="mb-0 pl-3"></ul>
-          </div>
-
           <div class="form-group">
             <label for="supplier_id">Nhà Cung Cấp <span class="text-danger">*</span></label>
-            <select class="form-control" id="supplier_id" name="supplier_id" <?= empty($suppliers) ? 'disabled' : '' ?>>
+            <select class="form-control" id="supplier_id" name="supplier_id" <?= (empty($suppliers) || !$canAddImport) ? 'disabled' : '' ?>>
               <option value="">-- Chọn nhà cung cấp --</option>
               <?php foreach ($suppliers as $supplier): ?>
                 <option value="<?= $supplier['id'] ?>"><?= htmlspecialchars($supplier['name']) ?></option>
@@ -469,7 +480,7 @@ include 'layout/sidebar.php';
 
           <div class="form-group">
             <label for="staff_id">Nhân Viên <span class="text-danger">*</span></label>
-            <select class="form-control" id="staff_id" name="staff_id" <?= empty($staffs) ? 'disabled' : '' ?>>
+            <select class="form-control" id="staff_id" name="staff_id" <?= (empty($staffs) || !$canAddImport) ? 'disabled' : '' ?>>
               <option value="">-- Chọn nhân viên --</option>
               <?php foreach ($staffs as $staff): ?>
                 <option value="<?= $staff['id'] ?>"><?= htmlspecialchars($staff['full_name']) ?></option>
@@ -495,7 +506,7 @@ include 'layout/sidebar.php';
                 <tbody id="import_detail_body"></tbody>
               </table>
             </div>
-            <button type="button" class="btn btn-outline-primary btn-sm" id="add_import_detail_row">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="add_import_detail_row" <?= !$canAddImport ? 'disabled' : '' ?>>
               <i class="fas fa-plus"></i> Thêm dòng
             </button>
             <div><small id="importDetailError" class="text-danger" style="display:none;"></small></div>
@@ -508,7 +519,7 @@ include 'layout/sidebar.php';
 
           <div class="form-group">
             <label for="import_date">Ngày Nhập <span class="text-danger">*</span></label>
-            <input type="datetime-local" class="form-control" id="import_date" name="import_date">
+            <input type="datetime-local" class="form-control" id="import_date" name="import_date" <?= !$canAddImport ? 'disabled' : '' ?>>
             <small id="importDateError" class="text-danger" style="display:none;"></small>
           </div>
 
@@ -525,7 +536,7 @@ include 'layout/sidebar.php';
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || empty($staffs) || (empty($products) && empty($equipmentList))) ? 'disabled' : '' ?>>Tạo phiếu</button>
+          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || empty($staffs) || (empty($products) && empty($equipmentList)) || !$canAddImport) ? 'disabled' : '' ?>>Tạo phiếu</button>
         </div>
       </form>
     </div>

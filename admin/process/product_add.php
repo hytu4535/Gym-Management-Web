@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_SALES', 'add');
+
 require_once '../../config/db.php'; 
 
 if (isset($_POST['btn_add_product'])) {
@@ -37,8 +40,25 @@ if (isset($_POST['btn_add_product'])) {
         }
     }
 
-    $sql_insert = "INSERT INTO products (category_id, name, short_description, description, img, unit, stock_quantity, selling_price, status) 
-                   VALUES ($category_id, '$name', '$short_description', '$description', '$img_name', '$unit', $stock_quantity, $selling_price, '$status')";
+    $hasShortDescriptionColumn = (bool) ($conn->query("SHOW COLUMNS FROM products LIKE 'short_description'")->num_rows ?? 0);
+    $hasDescriptionColumn = (bool) ($conn->query("SHOW COLUMNS FROM products LIKE 'description'")->num_rows ?? 0);
+
+    $insertColumns = ['category_id', 'name'];
+    $insertValues = [$category_id, "'$name'"];
+
+    if ($hasShortDescriptionColumn) {
+        $insertColumns[] = 'short_description';
+        $insertValues[] = "'$short_description'";
+    }
+    if ($hasDescriptionColumn) {
+        $insertColumns[] = 'description';
+        $insertValues[] = "'" . ($description !== '' ? $description : $short_description) . "'";
+    }
+
+    $insertColumns = array_merge($insertColumns, ['img', 'unit', 'stock_quantity', 'selling_price', 'status']);
+    $insertValues = array_merge($insertValues, ["'$img_name'", "'$unit'", $stock_quantity, $selling_price, "'$status'"]);
+
+    $sql_insert = "INSERT INTO products (" . implode(', ', $insertColumns) . ") VALUES (" . implode(', ', $insertValues) . ")";
 
     if ($conn->query($sql_insert) === TRUE) {
         echo "<script>

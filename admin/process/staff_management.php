@@ -7,119 +7,206 @@ checkPermission('MANAGE_STAFF');
 
 $db = getDB();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
+$hasDepartmentIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff' AND COLUMN_NAME = 'department_id' LIMIT 1")->fetchColumn();
+$staffUserIdColumn = 'users_id';
+$hasUserFullNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'full_name' LIMIT 1")->fetchColumn();
+$userProfileSql = $hasUserFullNameColumn
+    ? 'SELECT full_name, phone FROM users WHERE id = ?'
+    : 'SELECT username AS full_name, phone FROM users WHERE id = ?';
+
+function failAndGoBack($message)
+{
+    echo "<script>alert('" . addslashes($message) . "'); window.history.back();</script>";
+    exit();
+}
+
+function getRoleIdByPosition(PDO $db, $position)
+{
+    $stmt = $db->prepare("SELECT id FROM roles WHERE name = ? LIMIT 1");
+    $stmt->execute([$position]);
+    return (int) $stmt->fetchColumn();
+}
 
 try {
-    // Thêm staff mới
+    if ($staffUserIdColumn !== 'users_id') {
+        failAndGoBack('Không tìm thấy cột liên kết tài khoản trong bảng staff (users_id).');
+    }
+
     if ($action === 'add') {
-        $full_name = trim($_POST['full_name']);
-        $position  = trim($_POST['position']);
-        $status    = $_POST['status'] ?? 'Active';
+        checkPermission('MANAGE_STAFF', 'add');
 
-        // Thông tin user mới
-        $username  = trim($_POST['username']);
-        $password  = trim($_POST['password']); // lưu plaintext
-        $email     = trim($_POST['email']);
-        $role_id   = 5; // Staff
+        $usersId = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
+        $position = trim((string) ($_POST['position'] ?? ''));
+        $departmentId = isset($_POST['department_id']) ? (int) $_POST['department_id'] : 0;
+        $status = trim((string) ($_POST['status'] ?? 'active'));
 
-        // Kiểm tra bắt buộc nhập mật khẩu
-        if (empty($password)) {
-            echo "<script>alert('Bạn phải nhập mật khẩu cho staff!'); window.history.back();</script>";
-            exit();
+        if ($usersId <= 0) {
+            failAndGoBack('Vui lòng chọn tài khoản / email hợp lệ.');
         }
 
-        // Kiểm tra trùng username hoặc email
-        $stmtCheck = $db->prepare("SELECT COUNT(*) FROM users WHERE username = :username OR email = :email");
-        $stmtCheck->execute([':username' => $username, ':email' => $email]);
-        $exists = $stmtCheck->fetchColumn();
-
-        if ($exists > 0) {
-            echo "<script>alert('Username hoặc Email đã tồn tại, vui lòng chọn khác!'); window.history.back();</script>";
-            exit();
+        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE $staffUserIdColumn = ?");
+        $duplicateStmt->execute([$usersId]);
+        if ((int) $duplicateStmt->fetchColumn() > 0) {
+            failAndGoBack('Tài khoản / email này đã được dùng trong bảng staff.');
         }
 
-        // 1. Tạo user mới (lưu mật khẩu plaintext)
-        $stmtUser = $db->prepare("INSERT INTO users (role_id, username, password, email, status, created_at) 
-                                VALUES (:role_id, :username, :password, :email, 'active', NOW())");
-        $stmtUser->bindParam(':role_id', $role_id, PDO::PARAM_INT);
-        $stmtUser->bindParam(':username', $username);
-        $stmtUser->bindParam(':password', $password); // lưu trực tiếp
-        $stmtUser->bindParam(':email', $email);
-        $stmtUser->execute();
+        $userStmt = $db->prepare($userProfileSql);
+        $userStmt->execute([$usersId]);
+        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user) {
+            failAndGoBack('Không tìm thấy tài khoản đã chọn.');
+        }
 
-        $newUserId = $db->lastInsertId();
+        $fullName = trim((string) ($user['full_name'] ?? ''));
+        $phone = trim((string) ($user['phone'] ?? ''));
+        if ($fullName === '') {
+            failAndGoBack('Tài khoản đã chọn chưa có họ tên.');
+        }
 
-        // 2. Tạo staff mới liên kết với user vừa tạo
-        $stmtStaff = $db->prepare("INSERT INTO staff (users_id, full_name, position, status) 
-                                VALUES (:users_id, :full_name, :position, :status)");
-        $stmtStaff->bindParam(':users_id', $newUserId, PDO::PARAM_INT);
-        $stmtStaff->bindParam(':full_name', $full_name);
-        $stmtStaff->bindParam(':position', $position);
-        $stmtStaff->bindParam(':status', $status);
-        $stmtStaff->execute();
+        if (!in_array($status, ['active', 'inactive', 'on_leave'], true)) {
+            $status = 'active';
+        }
+
+        if ($position === '') {
+            failAndGoBack('Vui lòng chọn chức vụ.');
+        }
+
+        $roleId = getRoleIdByPosition($db, $position);
+        if ($roleId <= 0) {
+            failAndGoBack('Chức vụ đã chọn không hợp lệ.');
+        }
+
+        if ($hasDepartmentIdColumn && $departmentId <= 0) {
+            failAndGoBack('Vui lòng chọn phòng ban.');
+        }
+
+        $db->beginTransaction();
+
+        if ($hasDepartmentIdColumn) {
+            $stmt = $db->prepare(
+                "INSERT INTO staff ($staffUserIdColumn, full_name, position, department_id, status) VALUES (?, ?, ?, ?, ?)"
+            );
+            $stmt->execute([$usersId, $fullName, $position, $departmentId, $status]);
+        } else {
+            $stmt = $db->prepare(
+                "INSERT INTO staff ($staffUserIdColumn, full_name, position, status) VALUES (?, ?, ?, ?)"
+            );
+            $stmt->execute([$usersId, $fullName, $position, $status]);
+        }
+
+        $syncUserRoleStmt = $db->prepare('UPDATE users SET role_id = ? WHERE id = ?');
+        $syncUserRoleStmt->execute([$roleId, $usersId]);
+
+        if ((int) ($_SESSION['admin_user_id'] ?? 0) === $usersId) {
+            $_SESSION['role_id'] = $roleId;
+            $_SESSION['role'] = $position;
+        }
+
+        $db->commit();
 
         echo "<script>alert('Thêm staff thành công!'); window.location.href='../staff.php';</script>";
         exit();
     }
 
-    // Sửa staff (và có thể sửa user liên kết)
     if ($action === 'edit') {
-        $id        = intval($_POST['id']);
-        $users_id  = intval($_POST['users_id']);
-        $full_name = trim($_POST['full_name']);
-        $position  = trim($_POST['position']);
-        $status    = $_POST['status'] ?? 'Active';
+        checkPermission('MANAGE_STAFF', 'edit');
 
-        // Cập nhật staff
-        $stmt = $db->prepare("UPDATE staff 
-                              SET full_name=:full_name, position=:position, status=:status 
-                              WHERE id=:id");
-        $stmt->bindParam(':full_name', $full_name);
-        $stmt->bindParam(':position', $position);
-        $stmt->bindParam(':status', $status);
-        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-        $stmt->execute();
+        $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
+        $submittedUsersId = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
+        $position = trim((string) ($_POST['position'] ?? ''));
+        $departmentId = isset($_POST['department_id']) ? (int) $_POST['department_id'] : 0;
+        $status = trim((string) ($_POST['status'] ?? 'active'));
 
-        // Nếu có sửa thông tin user liên kết
-        if (!empty($_POST['username']) && !empty($_POST['email'])) {
-            $username = trim($_POST['username']);
-            $email    = trim($_POST['email']);
-
-            $sqlUser = "UPDATE users SET username=:username, email=:email WHERE id=:id";
-            $stmtUser = $db->prepare($sqlUser);
-            $stmtUser->bindParam(':username', $username);
-            $stmtUser->bindParam(':email', $email);
-            $stmtUser->bindParam(':id', $users_id, PDO::PARAM_INT);
-            $stmtUser->execute();
+        if ($id <= 0) {
+            failAndGoBack('Thiếu thông tin staff cần cập nhật.');
         }
 
-        header("Location: ../staff.php?msg=updated");
+        $currentStmt = $db->prepare("SELECT $staffUserIdColumn FROM staff WHERE id = ?");
+        $currentStmt->execute([$id]);
+        $currentUsersId = (int) $currentStmt->fetchColumn();
+
+        if ($currentUsersId <= 0) {
+            failAndGoBack('Không tìm thấy staff cần cập nhật.');
+        }
+
+        if ($submittedUsersId > 0 && $submittedUsersId !== $currentUsersId) {
+            failAndGoBack('Không thể thay đổi tài khoản / email đã liên kết.');
+        }
+
+        if ($position === '') {
+            failAndGoBack('Vui lòng chọn chức vụ.');
+        }
+
+        $roleId = getRoleIdByPosition($db, $position);
+        if ($roleId <= 0) {
+            failAndGoBack('Chức vụ đã chọn không hợp lệ.');
+        }
+
+        if ($hasDepartmentIdColumn && $departmentId <= 0) {
+            failAndGoBack('Vui lòng chọn phòng ban.');
+        }
+
+        if (!in_array($status, ['active', 'inactive', 'on_leave'], true)) {
+            $status = 'active';
+        }
+
+        $userStmt = $db->prepare($userProfileSql);
+        $userStmt->execute([$currentUsersId]);
+        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user) {
+            failAndGoBack('Không tìm thấy tài khoản liên kết của staff.');
+        }
+
+        $fullName = trim((string) ($user['full_name'] ?? ''));
+        if ($fullName === '') {
+            failAndGoBack('Tài khoản liên kết chưa có họ tên.');
+        }
+
+        $db->beginTransaction();
+
+        if ($hasDepartmentIdColumn) {
+            $stmt = $db->prepare(
+                'UPDATE staff SET full_name = ?, position = ?, department_id = ?, status = ? WHERE id = ?'
+            );
+            $stmt->execute([$fullName, $position, $departmentId, $status, $id]);
+        } else {
+            $stmt = $db->prepare(
+                'UPDATE staff SET full_name = ?, position = ?, status = ? WHERE id = ?'
+            );
+            $stmt->execute([$fullName, $position, $status, $id]);
+        }
+
+        $syncUserRoleStmt = $db->prepare('UPDATE users SET role_id = ? WHERE id = ?');
+        $syncUserRoleStmt->execute([$roleId, $currentUsersId]);
+
+        if ((int) ($_SESSION['admin_user_id'] ?? 0) === $currentUsersId) {
+            $_SESSION['role_id'] = $roleId;
+            $_SESSION['role'] = $position;
+        }
+
+        $db->commit();
+
+        echo "<script>alert('Cập nhật staff thành công!'); window.location.href='../staff.php';</script>";
         exit();
     }
 
-    // Xóa staff
     if ($action === 'delete') {
-        $id = intval($_GET['id']);
+        checkPermission('MANAGE_STAFF', 'delete');
 
-        // Lấy users_id liên kết với staff
-        $stmt = $db->prepare("SELECT users_id FROM staff WHERE id = :id");
-        $stmt->execute([':id' => $id]);
-        $users_id = $stmt->fetchColumn();
-
-        // Xóa staff
-        $stmtDelStaff = $db->prepare("DELETE FROM staff WHERE id = :id");
-        $stmtDelStaff->execute([':id' => $id]);
-
-        // Nếu có users_id thì xóa user liên kết
-        if ($users_id) {
-            $stmtDelUser = $db->prepare("DELETE FROM users WHERE id = :users_id");
-            $stmtDelUser->execute([':users_id' => $users_id]);
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+        if ($id <= 0) {
+            failAndGoBack('Thiếu staff cần xóa.');
         }
 
-        // Thông báo và quay lại trang staff
-        echo "<script>alert('Đã xóa staff và user liên kết!'); window.location.href='../staff.php';</script>";
+        $stmt = $db->prepare('DELETE FROM staff WHERE id = ?');
+        $stmt->execute([$id]);
+
+        echo "<script>alert('Đã xóa staff thành công!'); window.location.href='../staff.php';</script>";
         exit();
     }
-
 } catch (Exception $e) {
-    die("Lỗi: " . $e->getMessage());
+    if ($db->inTransaction()) {
+        $db->rollBack();
+    }
+    failAndGoBack('Lỗi: ' . $e->getMessage());
 }

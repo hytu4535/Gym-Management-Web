@@ -31,7 +31,7 @@ include 'layout/header.php';
 <section class="shopping-cart-section spad">
     <div class="container">
         <div class="row">
-            <div class="col-lg-12">
+            <div class="col-lg-12" id="cart-wrapper">
                 <div class="cart-table">
                     <table>
                         <thead>
@@ -51,6 +51,7 @@ include 'layout/header.php';
                             $originalTotal = 0;
                             
                             if ($is_logged_in) {
+                                // CẬP NHẬT: Thêm p.img AS product_img vào câu truy vấn
                                 $query = "
                                     SELECT ci.item_type,
                                            ci.quantity,
@@ -58,18 +59,25 @@ include 'layout/header.php';
                                            p.name AS product_name,
                                            p.selling_price,
                                            p.stock_quantity,
+                                           p.img AS product_img,
                                            mp.package_name,
                                            mp.price AS package_price,
-                                         mp.duration_months,
-                                         s.name AS service_name,
-                                         s.price AS service_price,
-                                         s.type AS service_type
+                                           mp.duration_months,
+                                           s.name AS service_name,
+                                           s.price AS service_price,
+                                           s.type AS service_type,
+                                           cs.class_name,
+                                           cs.price_per_session AS class_price,
+                                           cs.schedule_days AS class_schedule_days,
+                                           cs.schedule_start_time AS class_start_time,
+                                           cs.schedule_end_time AS class_end_time
                                     FROM members m
                                     JOIN carts c ON m.id = c.member_id AND c.status = 'active'
                                     JOIN cart_items ci ON c.id = ci.cart_id
                                     LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
                                     LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
-                                     LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+                                    LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+                                    LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
                                     WHERE m.users_id = ?
                                     ORDER BY ci.created_at DESC, ci.id DESC
                                 ";
@@ -90,7 +98,8 @@ include 'layout/header.php';
                                             $isProduct = $itemType === 'product';
                                             $isPackage = $itemType === 'package';
                                             $isService = $itemType === 'service';
-                                            $itemName = $isProduct ? $item['product_name'] : ($isPackage ? $item['package_name'] : $item['service_name']);
+                                            $isClass = $itemType === 'class';
+                                            $itemName = $isProduct ? $item['product_name'] : ($isPackage ? $item['package_name'] : ($isService ? $item['service_name'] : $item['class_name']));
                                             $itemQuantity = (int) $item['quantity'];
 
                                             if ($isProduct) {
@@ -104,8 +113,8 @@ include 'layout/header.php';
                                                 ];
                                             } else {
                                                 $price_info = [
-                                                    'original_price' => (float) $item['service_price'],
-                                                    'final_price' => (float) $item['service_price'],
+                                                    'original_price' => $isService ? (float) $item['service_price'] : (float) $item['class_price'],
+                                                    'final_price' => $isService ? (float) $item['service_price'] : (float) $item['class_price'],
                                                     'discount_percent' => 0,
                                                     'has_discount' => false,
                                                 ];
@@ -118,10 +127,19 @@ include 'layout/header.php';
                                             $originalTotal += $itemOriginal;
                                             $totalDiscount += ($itemOriginal - $itemTotal);
                                             
+                                            // CẬP NHẬT: Logic lấy hình ảnh động giống với products.php
                                             if ($isProduct) {
-                                                $imgPath = '../assets/uploads/products/default-product.jpg';
+                                                $imageFile = $item['product_img'] ?? '';
+                                                $physicalPath = __DIR__ . "/../assets/uploads/products/" . $imageFile;
+                                                if ($imageFile !== '' && file_exists($physicalPath) && is_file($physicalPath)) {
+                                                    $imgPath = "../assets/uploads/products/" . $imageFile;
+                                                } else {
+                                                    $imgPath = "../assets/uploads/products/default-product.jpg";
+                                                }
                                             } elseif ($isPackage) {
                                                 $imgPath = 'assets/img/logo.png';
+                                            } elseif ($isClass) {
+                                                $imgPath = 'assets/img/classes/class-1.jpg';
                                             } else {
                                                 $imgPath = 'assets/img/services/services-1.jpg';
                                             }
@@ -143,6 +161,10 @@ include 'layout/header.php';
                                                     <?php elseif ($isService): ?>
                                                         <small style="color: #777; font-weight: bold;">
                                                             <i class="fa fa-heartbeat"></i> Dịch vụ <?php echo htmlspecialchars((string) $item['service_type']); ?>
+                                                        </small>
+                                                    <?php elseif ($isClass): ?>
+                                                        <small style="color: #777; font-weight: bold;">
+                                                            <i class="fa fa-calendar"></i> <?php echo htmlspecialchars((string) $item['class_schedule_days']); ?>
                                                         </small>
                                                     <?php endif; ?>
                                                 </td>
@@ -251,28 +273,51 @@ include 'layout/header.php';
                         <div class="proceed-checkout">
                             <ul>
                                 <?php
-                                    $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
-                                    $cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
-                                    $tier_info = getMemberTierDiscount($user_id, $conn);
-                                ?>
-                                <?php if ($cart_total['base_discount_amount'] > 0 || $cart_total['has_promotion']): ?>
-                                    <li class="subtotal" style="color: #ffffff;">Giá gốc: <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span></li>
-                                    <?php if ($cart_total['base_discount_amount'] > 0): ?>
-                                    <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (<?php echo $tier_info['tier_name']; ?> <?php echo number_format($tier_info['base_discount'], 0); ?>%)
-                                        <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($cart_total['base_discount_amount'], 0, ',', '.'); ?>đ</span>
-                                    </li>
-                                    <?php endif; ?>
-                                    <?php if ($cart_total['has_promotion']): ?>
-                                    <li class="subtotal" style="background: #e7f3ff; padding: 8px; margin: 5px -10px; border-radius: 4px;">
-                                        <i class="fa fa-gift" style="color: #e7ab3c;"></i> Ưu đãi: <?php echo $cart_total['promotion_info']['name']; ?>
-                                        <span style="color: #ff4444; font-weight: bold;">-<?php echo number_format($cart_total['promotion_discount'], 0, ',', '.'); ?>đ</span>
-                                    </li>
-                                    <?php endif; ?>
-                                    <li class="cart-total" style="color: #ffffff;">Tổng cộng:   <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($cart_total['final_subtotal'], 0, ',', '.'); ?>đ</span></li>
-                                <?php else: ?>
-                                    <li class="subtotal" style="color: #ffffff;">Tạm tính <span style="color: #ffffff;"><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
-                                    <li class="cart-total" style="color: #ffffff;">Tổng cộng <span style="color: #ffffff;"><?php echo number_format($totalAmount, 0, ',', '.'); ?>đ</span></li>
-                                <?php endif; ?>
+                                            $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
+                                            $tier_info = getMemberTierDiscount($user_id, $conn);
+                                            $subtotal_original = $totalAmount;
+                                            $base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
+                                            $base_discount_amount = round($subtotal_original * $base_discount_percent / 100, 0);
+                                            $subtotal_after_base = max($subtotal_original - $base_discount_amount, 0);
+                                            $promotion_discount = 0;
+                                            $promotion_info = null;
+
+                                            if ($selected_promotion_id > 0) {
+                                                $promotion_info = getPromotionById($selected_promotion_id, $conn);
+                                                if ($promotion_info && (int) $promotion_info['tier_id'] === (int) $tier_info['tier_id']) {
+                                                    if ($promotion_info['discount_type'] === 'percentage') {
+                                                        $promotion_discount = round(($subtotal_after_base * (float) $promotion_info['discount_value']) / 100, 0);
+                                                    } elseif ($promotion_info['discount_type'] === 'fixed') {
+                                                        $promotion_discount = round((float) $promotion_info['discount_value'], 0);
+                                                    }
+
+                                                    if ($promotion_discount > $subtotal_after_base) {
+                                                        $promotion_discount = $subtotal_after_base;
+                                                    }
+                                                } else {
+                                                    $promotion_info = null;
+                                                }
+                                            }
+
+                                            $final_total = max($subtotal_after_base - $promotion_discount, 0);
+                                        ?>
+                                        <?php if ($base_discount_amount > 0 || $promotion_discount > 0): ?>
+                                            <li class="subtotal" style="color: #ffffff;">Giá gốc: <span style="text-decoration: line-through; color: #999;"><?php echo number_format($subtotal_original, 0, ',', '.'); ?>đ</span></li>
+                                            <?php if ($base_discount_amount > 0): ?>
+                                            <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (<?php echo number_format($base_discount_percent, 0); ?>%)
+                                                <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
+                                            </li>
+                                            <?php endif; ?>
+                                            <?php if ($promotion_discount > 0 && $promotion_info): ?>
+                                            <li class="subtotal" style="background: #e7f3ff; padding: 8px; margin: 5px -10px; border-radius: 4px;">
+                                                <i class="fa fa-gift" style="color: #e7ab3c;"></i> Ưu đãi: <?php echo htmlspecialchars($promotion_info['name']); ?>
+                                                <span style="color: #ff4444; font-weight: bold;">-<?php echo number_format($promotion_discount, 0, ',', '.'); ?>đ</span>
+                                            </li>
+                                            <?php endif; ?>
+                                            <li class="cart-total" style="color: #ffffff;">Tổng cộng:   <span style="color: #e7ab3c; font-weight: bold; font-size: 20px;"><?php echo number_format($final_total, 0, ',', '.'); ?>đ</span></li>
+                                        <?php else: ?>
+                                            <li class="cart-total" style="color: #ffffff;">Tổng cộng <span style="color: #ffffff;"><?php echo number_format($subtotal_original, 0, ',', '.'); ?>đ</span></li>
+                                        <?php endif; ?>
                             </ul>
                             <?php if ($totalAmount > 0): ?>
                                 <a href="checkout.php" class="proceed-btn">Tiến hành thanh toán</a>
@@ -288,7 +333,6 @@ include 'layout/header.php';
 </section>
 
 <style>
-/* Phục hồi phần CSS bị thiếu */
 .proceed-checkout .proceed-btn {
     background: #e7ab3c !important;
     color: #ffffff !important;
@@ -310,10 +354,30 @@ include 'layout/header.php';
 </style>
 
 <script>
+// Hàm tải lại ngầm HTML của riêng khu vực giỏ hàng
+function reloadCartData() {
+    fetch(window.location.href)
+    .then(response => response.text())
+    .then(html => {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+        
+        var newCartWrapper = doc.getElementById('cart-wrapper');
+        if (newCartWrapper) {
+            document.getElementById('cart-wrapper').innerHTML = newCartWrapper.innerHTML;
+        } else {
+            window.location.reload(); 
+        }
+    })
+    .catch(error => {
+        console.error('Lỗi khi cập nhật DOM:', error);
+        window.location.reload();
+    });
+}
+
 function updateQuantity(itemType, itemId, newQuantity) {
     if (newQuantity < 1) {
         removeFromCart(itemType, itemId);
-        window.location.reload();
         return;
     }
     if (itemType === 'package' || itemType === 'service') return;
@@ -330,10 +394,10 @@ function updateQuantity(itemType, itemId, newQuantity) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            window.location.reload(); 
+            reloadCartData(); 
         } else {
             alert(data.message);
-            window.location.reload(); 
+            reloadCartData(); 
         }
     })
     .catch(error => console.error('Error:', error));
@@ -359,7 +423,7 @@ function removeFromCart(itemType, itemId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                window.location.reload(); 
+                reloadCartData(); 
             } else {
                 alert(data.message);
             }
@@ -368,37 +432,31 @@ function removeFromCart(itemType, itemId) {
     }
 }
 
-// Xử lý chọn promotion
-document.addEventListener('DOMContentLoaded', function() {
-    const promotionRadios = document.querySelectorAll('.promotion-radio');
-    
-    promotionRadios.forEach(function(radio) {
-        radio.addEventListener('change', function() {
-            const promotionId = this.value;
-            
-            var formData = new FormData();
-            formData.append('promotion_id', promotionId);
-            
-            fetch('ajax/apply-promotion.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Reload để cập nhật giá
-                    window.location.reload();
-                } else {
-                    alert(data.message);
-                    window.location.reload();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Có lỗi xảy ra!');
-            });
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('promotion-radio')) {
+        const promotionId = e.target.value;
+        
+        var formData = new FormData();
+        formData.append('promotion_id', promotionId);
+        
+        fetch('ajax/apply-promotion.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                reloadCartData();
+            } else {
+                alert(data.message);
+                reloadCartData(); 
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Có lỗi xảy ra!');
         });
-    });
+    }
 });
 </script>
 

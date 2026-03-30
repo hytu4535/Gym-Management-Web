@@ -60,10 +60,9 @@ __pycache__/
 # Environment variables
 .env
 
-# Storage rác (không nên đẩy ảnh tạm lên Git)
+# Storage
 storage/face_templates/*
 storage/logs/*
 !storage/.gitkeep
-
 # VS Code rác
 .vscode/

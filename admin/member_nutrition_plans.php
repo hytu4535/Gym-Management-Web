@@ -72,6 +72,8 @@ function estimateCaloriesFromMember($db, $member_id) {
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
+    checkPermission('MANAGE_SERVICES_NUTRITION', 'add');
+
         $member_id = intval($_POST['member_id']);
         $nutrition_plan_id = intval($_POST['nutrition_plan_id']);
         $start_date = sanitize($_POST['start_date']);
@@ -94,6 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'edit') {
+      checkPermission('MANAGE_SERVICES_NUTRITION', 'edit');
+
         $id = intval($_POST['id']);
         $member_id = intval($_POST['member_id']);
         $nutrition_plan_id = intval($_POST['nutrition_plan_id']);
@@ -133,6 +137,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'delete') {
+      checkPermission('MANAGE_SERVICES_NUTRITION', 'delete');
+
         $id = intval($_POST['id']);
         try {
             $stmt = $db->prepare("DELETE FROM member_nutrition_plans WHERE id = ?");

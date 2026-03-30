@@ -10,6 +10,46 @@ include '../includes/auth_permission.php';
 // Dùng cùng quyền với nhóm quản lý luyện tập hiện có.
 checkPermission('MANAGE_TRAINERS');
 
+$resolveTrainerActionPermission = static function (string $requiredAction): bool {
+  $permissions = $_SESSION['permissions'] ?? [];
+  $actionPermissions = $_SESSION['user_action_permissions'] ?? [];
+
+  if (!is_array($permissions)) {
+    return false;
+  }
+
+  if (!empty($_SESSION['is_admin_role']) || strtolower((string) ($_SESSION['role'] ?? '')) === 'admin') {
+    return true;
+  }
+
+  $actionKeyMap = [
+    'view' => 'view',
+    'add' => 'add',
+    'create' => 'add',
+    'edit' => 'edit',
+    'update' => 'edit',
+    'delete' => 'delete',
+    'remove' => 'delete',
+  ];
+
+  $normalizedAction = strtolower(trim($requiredAction));
+  $normalizedAction = $actionKeyMap[$normalizedAction] ?? 'view';
+
+  if (is_array($actionPermissions) && !empty($actionPermissions)) {
+    if (isset($actionPermissions['MANAGE_TRAINERS']) && is_array($actionPermissions['MANAGE_TRAINERS'])) {
+      return !empty($actionPermissions['MANAGE_TRAINERS'][$normalizedAction]);
+    }
+
+    return $normalizedAction === 'view' && in_array('MANAGE_TRAINERS', $permissions, true);
+  }
+
+  return $normalizedAction === 'view' && in_array('MANAGE_TRAINERS', $permissions, true);
+};
+
+$canAddClass = $resolveTrainerActionPermission('add');
+$canEditClass = $resolveTrainerActionPermission('edit');
+$canDeleteClass = $resolveTrainerActionPermission('delete');
+
 include '../includes/functions.php';
 
 $db = getDB();
@@ -59,6 +99,8 @@ function supportsStructuredScheduleTime(PDO $db)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
+    checkPermission('MANAGE_TRAINERS', 'add');
+
         $class_name = sanitize($_POST['class_name'] ?? '');
         $class_type = sanitize($_POST['class_type'] ?? '');
         $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
@@ -66,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $schedule_end_time = sanitize($_POST['schedule_end_time'] ?? '');
         $schedule_days = sanitize($_POST['schedule_days'] ?? '');
         $capacity = max(1, intval($_POST['capacity'] ?? 1));
+        $price_per_session = max(0, floatval($_POST['price_per_session'] ?? 0));
         $room = sanitize($_POST['room'] ?? '');
         $status = ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
 
@@ -81,11 +124,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         try {
       if ($structuredScheduleTime) {
-        $stmt = $db->prepare("INSERT INTO class_schedules (class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, capacity, enrolled_count, room, status) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)");
-        $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_start_time, $schedule_end_time, $schedule_days, $capacity, $room, $status]);
+        $stmt = $db->prepare("INSERT INTO class_schedules (class_name, class_type, trainer_id, schedule_start_time, schedule_end_time, schedule_days, capacity, enrolled_count, room, price_per_session, status) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)");
+        $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_start_time, $schedule_end_time, $schedule_days, $capacity, $room, $price_per_session, $status]);
       } else {
-        $stmt = $db->prepare("INSERT INTO class_schedules (class_name, class_type, trainer_id, schedule_days, capacity, enrolled_count, room, status) VALUES (?, ?, ?, ?, ?, 0, ?, ?)");
-        $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_days, $capacity, $room, $status]);
+        $stmt = $db->prepare("INSERT INTO class_schedules (class_name, class_type, trainer_id, schedule_days, capacity, enrolled_count, room, price_per_session, status) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)");
+        $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_days, $capacity, $room, $price_per_session, $status]);
       }
             setFlashMessage('success', 'Thêm lớp tập thành công!');
         } catch (PDOException $e) {
@@ -97,6 +140,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'edit') {
+      checkPermission('MANAGE_TRAINERS', 'edit');
+
         $id = intval($_POST['id'] ?? 0);
         $class_name = sanitize($_POST['class_name'] ?? '');
         $class_type = sanitize($_POST['class_type'] ?? '');
@@ -105,6 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
       $schedule_end_time = sanitize($_POST['schedule_end_time'] ?? '');
         $schedule_days = sanitize($_POST['schedule_days'] ?? '');
         $capacity = max(1, intval($_POST['capacity'] ?? 1));
+        $price_per_session = max(0, floatval($_POST['price_per_session'] ?? 0));
         $room = sanitize($_POST['room'] ?? '');
         $status = ($_POST['status'] ?? 'active') === 'inactive' ? 'inactive' : 'active';
 
@@ -132,11 +178,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             if ($structuredScheduleTime) {
-              $stmt = $db->prepare("UPDATE class_schedules SET class_name = ?, class_type = ?, trainer_id = ?, schedule_start_time = ?, schedule_end_time = ?, schedule_days = ?, capacity = ?, room = ?, status = ? WHERE id = ?");
-              $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_start_time, $schedule_end_time, $schedule_days, $capacity, $room, $status, $id]);
+              $stmt = $db->prepare("UPDATE class_schedules SET class_name = ?, class_type = ?, trainer_id = ?, schedule_start_time = ?, schedule_end_time = ?, schedule_days = ?, capacity = ?, room = ?, price_per_session = ?, status = ? WHERE id = ?");
+              $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_start_time, $schedule_end_time, $schedule_days, $capacity, $room, $price_per_session, $status, $id]);
             } else {
-              $stmt = $db->prepare("UPDATE class_schedules SET class_name = ?, class_type = ?, trainer_id = ?, schedule_days = ?, capacity = ?, room = ?, status = ? WHERE id = ?");
-              $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_days, $capacity, $room, $status, $id]);
+              $stmt = $db->prepare("UPDATE class_schedules SET class_name = ?, class_type = ?, trainer_id = ?, schedule_days = ?, capacity = ?, room = ?, price_per_session = ?, status = ? WHERE id = ?");
+              $stmt->execute([$class_name, $class_type, $trainer_id, $schedule_days, $capacity, $room, $price_per_session, $status, $id]);
             }
             setFlashMessage('success', 'Cập nhật lớp tập thành công!');
         } catch (Exception $e) {
@@ -148,6 +194,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'delete') {
+      checkPermission('MANAGE_TRAINERS', 'delete');
+
         $id = intval($_POST['id'] ?? 0);
 
         try {
@@ -262,9 +310,11 @@ include 'layout/sidebar.php';
             <div class="card-header">
               <h3 class="card-title">Danh sách lớp tập</h3>
               <div class="card-tools">
+                <?php if ($canAddClass): ?>
                 <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addClassModal">
                   <i class="fas fa-plus"></i> Thêm lớp tập
                 </button>
+                <?php endif; ?>
               </div>
             </div>
             <div class="card-body">
@@ -275,6 +325,7 @@ include 'layout/sidebar.php';
                     <th>Tên lớp</th>
                     <th>Loại</th>
                     <th>HLV</th>
+                    <th>Giá/buổi</th>
                     <th>Lịch</th>
                     <th>Sức chứa</th>
                     <th>Phòng</th>
@@ -289,6 +340,7 @@ include 'layout/sidebar.php';
                     <td><?= htmlspecialchars($class['class_name']) ?></td>
                     <td><span class="badge badge-info"><?= htmlspecialchars($class['class_type']) ?></span></td>
                     <td><?= htmlspecialchars($class['trainer_name'] ?? 'Chưa gán') ?></td>
+                    <td><?= number_format((float) ($class['price_per_session'] ?? 0), 0, ',', '.') ?>đ</td>
                     <td>
                       <div><strong>Ngày:</strong> <?= htmlspecialchars($class['schedule_days'] ?? '') ?></div>
                       <div><strong>Giờ:</strong> <?= htmlspecialchars(trim((string) ($class['schedule_start_time'] ?? '') . ' - ' . (string) ($class['schedule_end_time'] ?? ''))) ?></div>
@@ -305,6 +357,7 @@ include 'layout/sidebar.php';
                       <?php endif; ?>
                     </td>
                     <td>
+                      <?php if ($canEditClass): ?>
                       <button class="btn btn-warning btn-sm btn-edit"
                         data-id="<?= $class['id'] ?>"
                         data-class_name="<?= htmlspecialchars($class['class_name'], ENT_QUOTES, 'UTF-8') ?>"
@@ -314,18 +367,22 @@ include 'layout/sidebar.php';
                         data-schedule_end_time="<?= htmlspecialchars($class['schedule_end_time'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                         data-schedule_days="<?= htmlspecialchars($class['schedule_days'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                         data-capacity="<?= (int) $class['capacity'] ?>"
+                        data-price_per_session="<?= htmlspecialchars((string) ($class['price_per_session'] ?? 0), ENT_QUOTES, 'UTF-8') ?>"
                         data-enrolled_count="<?= (int) $class['enrolled_count'] ?>"
                         data-room="<?= htmlspecialchars($class['room'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                         data-status="<?= htmlspecialchars($class['status'] ?? 'active', ENT_QUOTES, 'UTF-8') ?>"
                         data-toggle="modal" data-target="#editClassModal">
                         <i class="fas fa-edit"></i>
                       </button>
+                      <?php endif; ?>
+                      <?php if ($canDeleteClass): ?>
                       <button class="btn btn-danger btn-sm btn-delete"
                         data-id="<?= $class['id'] ?>"
                         data-name="<?= htmlspecialchars($class['class_name'], ENT_QUOTES, 'UTF-8') ?>"
                         data-toggle="modal" data-target="#deleteClassModal">
                         <i class="fas fa-trash"></i>
                       </button>
+                      <?php endif; ?>
                     </td>
                   </tr>
                   <?php endforeach; ?>
@@ -386,6 +443,11 @@ include 'layout/sidebar.php';
             <div class="form-group">
               <label>Sức chứa <span class="text-danger">*</span></label>
               <input type="number" min="1" class="form-control" name="capacity" value="20" data-field="capacity">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
+            </div>
+            <div class="form-group">
+              <label>Giá mỗi buổi <span class="text-danger">*</span></label>
+              <input type="number" min="0" step="1000" class="form-control" name="price_per_session" value="0" data-field="price_per_session">
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
@@ -464,6 +526,11 @@ include 'layout/sidebar.php';
               <small class="text-muted">Đã đăng ký hiện tại: <span id="edit-enrolled_count">0</span></small>
             </div>
             <div class="form-group">
+              <label>Giá mỗi buổi <span class="text-danger">*</span></label>
+              <input type="number" min="0" step="1000" class="form-control" name="price_per_session" id="edit-price_per_session" data-field="price_per_session">
+              <small class="text-danger d-block mt-2" style="display:none;"></small>
+            </div>
+            <div class="form-group">
               <label>Phòng tập</label>
               <input type="text" class="form-control" name="room" id="edit-room" data-field="room">
               <small class="text-danger d-block mt-2" style="display:none;"></small>
@@ -526,6 +593,7 @@ $(function() {
     $('#edit-schedule_end_time').val(endTime);
     $('#edit-schedule_days').val($(this).data('schedule_days'));
     $('#edit-capacity').val($(this).data('capacity'));
+    $('#edit-price_per_session').val($(this).data('price_per_session'));
     $('#edit-enrolled_count').text($(this).data('enrolled_count'));
     $('#edit-room').val($(this).data('room'));
     $('#edit-status').val($(this).data('status'));
@@ -547,6 +615,7 @@ $(function() {
     if (field === 'schedule_end_time') return 'Vui lòng nhập giờ kết thúc';
     if (field === 'schedule_days') return 'Vui lòng nhập lịch ngày';
     if (field === 'room') return 'Vui lòng nhập phòng tập';
+    if (field === 'price_per_session') return 'Vui lòng nhập giá mỗi buổi';
     if (field === 'status') return 'Vui lòng chọn trạng thái';
     return 'Vui lòng nhập dữ liệu hợp lệ';
   }
@@ -577,7 +646,7 @@ $(function() {
       return true;
     }
     if (field === 'schedule_start_time' || field === 'schedule_end_time') {
-      if (!/^\d{2}:\d{2}$/.test(value)) { show(input, getMsg(field)); return false; }
+      if (!/^\d{2}:\d{2}(?::\d{2})?$/.test(value)) { show(input, getMsg(field)); return false; }
       return true;
     }
     if (!value) { show(input, getMsg(field)); return false; }

@@ -20,6 +20,8 @@ $messageType = '';
 
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'delete');
+
   $deleteId = (int) $_GET['id'];
 
   try {
@@ -47,6 +49,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])
 
 // Xử lý cập nhật
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['id']) && !empty($_POST['id'])) {
+      checkPermission('MANAGE_MEMBERS', 'edit');
+    } else {
+      checkPermission('MANAGE_MEMBERS', 'add');
+    }
+
     $id = $_POST['id'];
     $name = $_POST['name'];
     $level = $_POST['level'];

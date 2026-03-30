@@ -27,6 +27,8 @@ $filter_status = trim((string) ($_GET['filter_status'] ?? ''));
 
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'delete');
+
     try {
         $stmt = $db->prepare("DELETE FROM addresses WHERE id = ?");
         $stmt->execute([$_GET['id']]);
@@ -40,6 +42,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
 
 // Xử lý đặt mặc định
 if (isset($_GET['action']) && $_GET['action'] == 'set_default' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'edit');
+
     try {
         // Lấy member_id của địa chỉ
         $stmt = $db->prepare("SELECT member_id FROM addresses WHERE id = ?");
@@ -64,6 +68,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'set_default' && isset($_GET['i
 
 // Xử lý thêm/sửa
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+  if (isset($_POST['id']) && !empty($_POST['id'])) {
+    checkPermission('MANAGE_MEMBERS', 'edit');
+  } else {
+    checkPermission('MANAGE_MEMBERS', 'add');
+  }
+
   $member_id = isset($_POST['member_id']) ? (int) $_POST['member_id'] : 0;
   $address_id = isset($_POST['id']) && $_POST['id'] !== '' ? (int) $_POST['id'] : 0;
   $full_address = trim((string) ($_POST['full_address'] ?? ''));

@@ -1,11 +1,26 @@
 <?php
-session_start();
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_ALL', 'view');
+
 include '../../includes/database.php';
+require_once '../../includes/functions.php';
 $db = getDB();
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+if ($action == 'update_permissions') {
+    $_SESSION['validation_errors'] = ['general' => 'Phân quyền theo user đã bị tắt. Vui lòng phân quyền theo vai trò tại trang Vai trò.'];
+    header("Location: ../roles.php");
+    exit();
+}
+
+// Kiểm tra khả năng tương thích schema cũ/mới
+$checkPhoneColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
+$hasPhoneColumn = !empty($checkPhoneColumn);
+
 if ($action == 'add') {
+    processRequirePermission('MANAGE_ALL', 'add');
+
     $username = $_POST['username'] ?? '';
     $full_name = $_POST['full_name'] ?? '';
     $email = $_POST['email'] ?? '';
@@ -13,7 +28,6 @@ if ($action == 'add') {
     $password_confirm = $_POST['password_confirm'] ?? '';
     $phone = $_POST['phone'] ?? '';
     $role_id = $_POST['role_id'] ?? '';
-    $status = 'active';
     
     $errors = [];
 
@@ -88,15 +102,17 @@ if ($action == 'add') {
     $checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
     
     if (!empty($checkColumn)) {
+        $hashedPassword = hashPassword($password);
         $sql = "INSERT INTO users (username, full_name, password, email, phone, role_id, status, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())";
         $stmt = $db->prepare($sql);
-        $stmt->execute([$username, $full_name, $password, $email, $phone, $role_id, $status]);
+        $stmt->execute([$username, $full_name, $hashedPassword, $email, $phone, $role_id, 'active']);
     } else {
+        $hashedPassword = hashPassword($password);
         $sql = "INSERT INTO users (username, full_name, password, email, role_id, status, created_at)
             VALUES (?, ?, ?, ?, ?, ?, NOW())";
         $stmt = $db->prepare($sql);
-        $stmt->execute([$username, $full_name, $password, $email, $role_id, $status]);
+        $stmt->execute([$username, $full_name, $hashedPassword, $email, $role_id, 'active']);
     }
 
     unset($_SESSION['validation_errors']);
@@ -106,6 +122,8 @@ if ($action == 'add') {
 }
 
 if ($action == 'delete') {
+    processRequirePermission('MANAGE_ALL', 'delete');
+
     $id = $_GET['id'] ?? '';
     if (empty($id)) {
         $_SESSION['validation_errors'] = ['general' => 'Yêu cầu không hợp lệ'];
@@ -121,9 +139,9 @@ if ($action == 'delete') {
         $refCount = (int)($refStmt->fetch()['cnt'] ?? 0);
 
         if ($refCount > 0) {
-            $softStmt = $db->prepare("UPDATE users SET status = 'inactive' WHERE id = ?");
+            $softStmt = $db->prepare("UPDATE users SET status = 'locked' WHERE id = ?");
             $softStmt->execute([$id]);
-            $_SESSION['validation_errors'] = ['general' => 'User đang có dữ liệu liên kết (hội viên). Đã chuyển sang trạng thái Inactive thay vì xóa.'];
+            $_SESSION['validation_errors'] = ['general' => 'User đang có dữ liệu liên kết (hội viên). Đã chuyển sang trạng thái bị khóa thay vì xóa.'];
             header("Location: ../users.php");
             exit();
         }
@@ -141,11 +159,41 @@ if ($action == 'delete') {
     }
 }
 
+if ($action == 'toggle_status') {
+    processRequirePermission('MANAGE_ALL', 'edit');
+
+    $id = $_POST['id'] ?? $_GET['id'] ?? '';
+
+    if (empty($id)) {
+        $_SESSION['validation_errors'] = ['general' => 'Yêu cầu không hợp lệ'];
+        header("Location: ../users.php");
+        exit();
+    }
+
+    $statusStmt = $db->prepare("SELECT status FROM users WHERE id = ? LIMIT 1");
+    $statusStmt->execute([$id]);
+    $currentUser = $statusStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$currentUser) {
+        $_SESSION['validation_errors'] = ['general' => 'Không tìm thấy user cần cập nhật'];
+        header("Location: ../users.php");
+        exit();
+    }
+
+    $newStatus = ($currentUser['status'] ?? '') === 'active' ? 'locked' : 'active';
+    $updateStmt = $db->prepare("UPDATE users SET status = ? WHERE id = ?");
+    $updateStmt->execute([$newStatus, $id]);
+
+    header("Location: ../users.php");
+    exit();
+}
+
 // xử lý edit
 if ($action == 'edit') {
+    processRequirePermission('MANAGE_ALL', 'edit');
+
     $id = $_POST['id'] ?? '';
     $role_id = $_POST['role_id'] ?? '';
-    $status = $_POST['status'] ?? 'active';
     $full_name = $_POST['full_name'] ?? '';
     $password = $_POST['password'] ?? '';
     $password_confirm = $_POST['password_confirm'] ?? '';
@@ -200,8 +248,7 @@ if ($action == 'edit') {
         $_SESSION['form_data'] = [
             'full_name' => $full_name,
             'phone' => $phone,
-            'role_id' => $role_id,
-            'status' => $status
+            'role_id' => $role_id
         ];
         header("Location: ../users.php?edit=" . $id . "#editUserModal" . $id);
         exit();
@@ -212,23 +259,25 @@ if ($action == 'edit') {
 
     if (!empty($checkColumn)) {
         if (!empty($password)) {
-            $sql = "UPDATE users SET username=?, full_name=?, email=?, phone=?, role_id=?, status=?, password=? WHERE id=?";
+            $hashedPassword = hashPassword($password);
+            $sql = "UPDATE users SET username=?, full_name=?, email=?, phone=?, role_id=?, password=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $phone, $role_id, $status, $password, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $phone, $role_id, $hashedPassword, $id]);
         } else {
-            $sql = "UPDATE users SET username=?, full_name=?, email=?, phone=?, role_id=?, status=? WHERE id=?";
+            $sql = "UPDATE users SET username=?, full_name=?, email=?, phone=?, role_id=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $phone, $role_id, $status, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $phone, $role_id, $id]);
         }
     } else {
         if (!empty($password)) {
-            $sql = "UPDATE users SET username=?, full_name=?, email=?, role_id=?, status=?, password=? WHERE id=?";
+            $hashedPassword = hashPassword($password);
+            $sql = "UPDATE users SET username=?, full_name=?, email=?, role_id=?, password=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $role_id, $status, $password, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $role_id, $hashedPassword, $id]);
         } else {
-            $sql = "UPDATE users SET username=?, full_name=?, email=?, role_id=?, status=? WHERE id=?";
+            $sql = "UPDATE users SET username=?, full_name=?, email=?, role_id=? WHERE id=?";
             $stmt = $db->prepare($sql);
-            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $role_id, $status, $id]);
+            $stmt->execute([$currentUser['username'], $full_name, $currentUser['email'], $role_id, $id]);
         }
     }
 

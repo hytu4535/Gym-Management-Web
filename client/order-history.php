@@ -14,7 +14,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 $user_id = $_SESSION['user_id'];
 
-
+// 1. Lấy thông tin member (id, full_name)
 $stmt_user = $conn->prepare("SELECT id, full_name FROM members WHERE users_id = ?");
 $stmt_user->bind_param("i", $user_id);
 $stmt_user->execute();
@@ -27,6 +27,21 @@ if ($res_user->num_rows === 0) {
 $member = $res_user->fetch_assoc();
 $member_id = $member['id'];
 $stmt_user->close();
+
+// 2. Lấy thêm thông tin từ bảng users (để đồng bộ avatar và email)
+$sql_user_data = "SELECT email, avatar FROM users WHERE id = ?";
+$stmt_user_data = $conn->prepare($sql_user_data);
+$stmt_user_data->bind_param("i", $user_id);
+$stmt_user_data->execute();
+$user_data = $stmt_user_data->get_result()->fetch_assoc();
+$stmt_user_data->close();
+
+$avatarPath = trim((string)($user_data['avatar'] ?? ''));
+$avatarUrl = '';
+if ($avatarPath !== '') {
+    $normalizedAvatarPath = ltrim(str_replace('\\', '/', $avatarPath), '/');
+    $avatarUrl = '../' . $normalizedAvatarPath;
+}
 
 $filter_status = $_GET['status'] ?? '';
 $filter_from = $_GET['from_date'] ?? '';
@@ -276,7 +291,8 @@ include 'layout/header.php';
                     <h2>Lịch sử mua hàng</h2>
                     <div class="bt-option">
                         <a href="index.php">Trang chủ</a>
-                        <span>Lịch sử</span>
+                        <a href="profile.php">Hồ sơ</a>
+                        <span>Lịch sử mua hàng</span>
                     </div>
                 </div>
             </div>
@@ -285,24 +301,54 @@ include 'layout/header.php';
 </section>
 
 <style>
-.sidebar-item { display:block; padding:10px 15px; color:#333; border-radius:5px; margin-bottom:5px; text-decoration:none; }
+/* Đồng bộ CSS Sidebar từ trang Profile */
+.sidebar-item { display:block; padding:10px 15px; color:#333; border-radius:5px; margin-bottom:5px; text-decoration:none; transition: 0.2s; }
 .sidebar-item:hover, .sidebar-item.active { background:#f36100; color:#fff; text-decoration:none; }
 .sidebar-item i { margin-right:8px; width:16px; }
 .profile-sidebar { background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.08); position:sticky; top:20px; }
-.user-avatar { color:#f36100; margin-bottom:15px; }
+.user-avatar { margin-bottom:15px; }
+.user-avatar-image,
+.user-avatar-placeholder {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 4px solid #f36100;
+    background: #fff;
+    object-fit: cover;
+    margin: 0 auto;
+}
+.user-avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f36100;
+}
+
+/* Các thuộc tính CSS dành cho order */
+.order-item { border: 1px solid #ebebeb; border-radius: 8px; overflow: hidden; background: #fff; transition: 0.3s; }
+.order-item:hover { border-color: #e7ab3c; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+.order-header { border-bottom: 1px solid #f2f2f2; }
+.btn-sm { padding: 8px 15px; font-size: 12px; }
+.badge { font-weight: 500; padding: 6px 12px; border-radius: 20px; }
 </style>
 
-<section class="order-history-section spad">
+<section class="profile-section spad">
     <div class="container">
         <div class="row">
-                        <div class="col-lg-3">
+            <div class="col-lg-3">
                 <div class="profile-sidebar">
                     <div class="user-info text-center">
                         <div class="user-avatar">
-                            <i class="fa fa-user-circle fa-5x" style="color:#f36100;"></i>
+                            <?php if ($avatarUrl !== ''): ?>
+                                <img src="<?php echo htmlspecialchars($avatarUrl); ?>" alt="Avatar" class="user-avatar-image">
+                            <?php else: ?>
+                                <div class="user-avatar-placeholder">
+                                    <i class="fa fa-user-circle fa-5x"></i>
+                                </div>
+                            <?php endif; ?>
                         </div>
                         <h5 class="mt-3"><?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Hội viên'); ?></h5>
-                        <p style="color:#888;font-size:13px;"><?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?></p>
+                        <p style="color:#888;font-size:13px;"><?php echo htmlspecialchars($user_data['email'] ?? $_SESSION['email'] ?? ''); ?></p>
                     </div>
                     <hr>
                     <div class="sidebar-menu">
@@ -318,7 +364,7 @@ include 'layout/header.php';
                         <a href="my-schedules.php" class="sidebar-item">
                             <i class="fa fa-calendar"></i> Lịch tập của tôi
                         </a>
-                        <a href="order-history.php" class="sidebar-item" active>
+                        <a href="order-history.php" class="sidebar-item active">
                             <i class="fa fa-shopping-bag"></i> Lịch sử mua hàng
                         </a>
                         <a href="addresses.php" class="sidebar-item">
@@ -330,11 +376,12 @@ include 'layout/header.php';
                     </div>
                 </div>
             </div>
+            
             <div class="col-lg-9">
-                <div class="order-history-content">
+                <div class="profile-content" style="background-color: aliceblue; padding: 30px; border-radius: 8px;">
                     <h4 class="mb-4">Danh sách đơn hàng</h4>
                     
-                    <div class="order-filter mb-4 p-3" style="background: #f8f9fa; border-radius: 5px;">
+                    <div class="order-filter mb-4 p-3" style="background: #fff; border: 1px solid #ebebeb; border-radius: 8px;">
                         <form action="order-history.php" method="GET">
                             <div class="row">
                                 <div class="col-lg-3 mb-2">
@@ -401,11 +448,11 @@ include 'layout/header.php';
                                                 <a href="invoice.php?order_id=<?php echo $order['id']; ?>" class="site-btn btn-sm" style="background: #333;">Hóa đơn</a>
                                                 
                                                 <?php if ($order['status'] === 'delivered'): ?>
-                                                    <button type="button" class="site-btn btn-sm btn-warning ml-1" onclick="openReviewModal(<?php echo $order['id']; ?>)">Đánh giá</button>
+                                                    <button type="button" class="site-btn btn-sm ml-1" onclick="openReviewModal(<?php echo $order['id']; ?>)">Đánh giá</button>
                                                 <?php endif; ?>
 
                                                 <?php if ($order['status'] === 'pending'): ?>
-                                                    <button onclick="cancelOrder(<?php echo $order['id']; ?>)" class="site-btn btn-sm btn-danger-custom ml-1">Hủy đơn</button>
+                                                    <button onclick="cancelOrder(<?php echo $order['id']; ?>)" class="site-btn btn-sm ml-1" style="background: #dc3545;">Hủy đơn</button>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
@@ -413,9 +460,10 @@ include 'layout/header.php';
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <div class="text-center py-5">
+                            <div class="text-center py-5" style="background: #fff; border-radius: 8px;">
                                 <i class="fa fa-file-text-o mb-3" style="font-size: 50px; color: #ddd;"></i>
-                                <p>Không tìm thấy đơn hàng nào.</p>
+                                <h5>Chưa có đơn hàng nào</h5>
+                                <p class="text-muted">Bạn chưa có lịch sử mua hàng nào. Hãy bắt đầu mua sắm ngay!</p>
                                 <a href="products.php" class="site-btn mt-2">Mua sắm ngay</a>
                             </div>
                         <?php endif; ?>
@@ -466,23 +514,12 @@ include 'layout/header.php';
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-                    <button type="submit" name="submit_review" class="btn btn-warning">Lưu đánh giá</button>
+                    <button type="submit" name="submit_review" class="site-btn">Lưu đánh giá</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-
-<style>
-.profile-sidebar { border: 1px solid #ebebeb; padding: 25px; border-radius: 8px; background: #fff; }
-.order-item { border: 1px solid #ebebeb; border-radius: 8px; overflow: hidden; background: #fff; transition: 0.3s; }
-.order-item:hover { border-color: #e7ab3c; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-.order-header { border-bottom: 1px solid #f2f2f2; }
-.btn-sm { padding: 8px 15px; font-size: 12px; }
-.btn-danger-custom { background: #dc3545; border: none; }
-.btn-danger-custom:hover { background: #a71d2a; }
-.badge { font-weight: 500; padding: 6px 12px; border-radius: 20px; }
-</style>
 
 <script>
 var orderReviewData = <?php echo json_encode($order_products_map, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;

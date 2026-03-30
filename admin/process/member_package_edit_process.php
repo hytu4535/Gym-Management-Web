@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_MEMBERS', 'edit');
+
 require_once '../../config/db.php';
 
 if (isset($_POST['btn_edit_mp'])) {

@@ -21,9 +21,12 @@ if ($order_id === 0) {
     exit;
 }
 
-$sql_order = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, m.full_name 
+$sql_order = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, m.full_name, mt.name as tier_name,
+              u_staff.full_name as handler_name 
               FROM orders o 
               LEFT JOIN members m ON o.member_id = m.id 
+              LEFT JOIN member_tiers mt ON m.tier_id = mt.id
+              LEFT JOIN users u_staff ON o.handled_by = u_staff.id
               WHERE o.id = $order_id";
 $result_order = $conn->query($sql_order);
 
@@ -44,18 +47,15 @@ $has_physical_products = false;
 
 if ($result_items && $result_items->num_rows > 0) {
   while ($row = $result_items->fetch_assoc()) {
-    // Thành tiền = Đơn giá gốc * Số lượng (Không trừ giảm giá)
     $row['pure_subtotal'] = (float)$row['price'] * (int)$row['quantity'];
     $order_items[] = $row;
     $total_items_cost += $row['pure_subtotal'];
-    
     if (($row['item_type'] ?? '') === 'product') {
       $has_physical_products = true;
     }
   }
 }
 
-// Lấy tiền và tên chương trình khuyến mãi
 $stmt_promo = $conn->prepare("
     SELECT pu.applied_amount AS promo_discount, 
            COALESCE(tp.name, 'Mã ưu đãi') AS promotion_name 
@@ -71,16 +71,12 @@ $stmt_promo->close();
 
 $promotion_discount_amount = (float) ($promo_row['promo_discount'] ?? 0);
 $promotion_name = $promo_row['promotion_name'] ?? 'Mã ưu đãi';
-
-// Phí ship
 $shipping_fee = $has_physical_products ? 30000 : 0;
-
-// ĐỒNG BỘ LOGIC VỚI INVOICE.PHP: Tính ngược số tiền giảm hạng thành viên
-// Công thức: Tổng tiền = (Tạm tính - Khuyến mãi - Giảm hạng) + Phí ship
-// => Giảm hạng = Tạm tính - Khuyến mãi + Phí ship - Tổng tiền
 $final_total = (float)$order['total_amount'];
+
 $base_discount_amount = $total_items_cost - $promotion_discount_amount + $shipping_fee - $final_total;
 $base_discount_amount = max(0, round($base_discount_amount, 0));
+$base_discount_percent = $total_items_cost > 0 ? ($base_discount_amount / $total_items_cost) * 100 : 0;
 
 $subtotal_before_discount = $total_items_cost;
 ?>
@@ -154,6 +150,7 @@ $subtotal_before_discount = $total_items_cost;
                 <div class="info-card order">
                     <h6><i class="fas fa-shopping-bag mr-1"></i> Đơn hàng</h6>
                     <p><strong>Ngày đặt:</strong> <?php echo date('H:i - d/m/Y', strtotime($order['order_date'])); ?></p>
+                    <p><strong>Người duyệt:</strong> <?php echo !empty($order['handler_name']) ? "<span class='text-primary'><i class='fas fa-user-check'></i> " . htmlspecialchars($order['handler_name']) . "</span>" : 'Chưa có người xử lý'; ?></p>
                     <p><strong>Trạng thái:</strong> 
                         <?php 
                             $status_badges = [
@@ -211,7 +208,7 @@ $subtotal_before_discount = $total_items_cost;
                             
                             $price = $item['price'];
                             $quantity = $item['quantity'];
-                            $subtotal = $item['pure_subtotal']; // Lấy thẳng số lượng * đơn giá
+                            $subtotal = $item['pure_subtotal']; 
                             
                             echo "<tr>";
                             echo "  <td class='text-center text-muted'>{$stt}</td>";                                    
@@ -244,7 +241,7 @@ $subtotal_before_discount = $total_items_cost;
                             
                             <?php if($base_discount_amount > 0): ?>
                             <tr>
-                                <th>Giảm giá hạng thành viên:</th>
+                                <th>Giảm giá hạng <?php echo htmlspecialchars($order['tier_name'] ?? 'Thành viên'); ?> (<?php echo number_format($base_discount_percent, 0); ?>%):</th>
                                 <td class="text-success">- <?php echo number_format($base_discount_amount, 0, ',', '.'); ?> đ</td>
                             </tr>
                             <?php endif; ?>

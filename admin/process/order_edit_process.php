@@ -1,4 +1,7 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once __DIR__ . '/_permission_guard.php';
 processRequirePermission('MANAGE_SALES', 'edit');
 
@@ -22,26 +25,20 @@ if (isset($_POST['btn_update_order'])) {
     
     $current_status = $check_result->fetch_assoc()['status'];
     
-    // Kiểm tra quy tắc cập nhật trạng thái (chỉ cho phép cập nhật xuôi)
-    $status_order = ['pending' => 0, 'confirmed' => 1, 'delivered' => 2, 'cancelled' => 3];
-    
     // Validate status progression
     $valid_update = false;
     
     if ($current_status == $new_status) {
         $valid_update = true; // Không thay đổi
     } elseif ($current_status == 'pending') {
-        // pending có thể chuyển sang confirmed hoặc cancelled
         if ($new_status == 'confirmed' || $new_status == 'cancelled') {
             $valid_update = true;
         }
     } elseif ($current_status == 'confirmed') {
-        // confirmed có thể chuyển sang delivered hoặc cancelled
         if ($new_status == 'delivered' || $new_status == 'cancelled') {
             $valid_update = true;
         }
     } elseif ($current_status == 'delivered' || $current_status == 'cancelled') {
-        // delivered và cancelled không thể thay đổi
         $valid_update = false;
     }
     
@@ -53,7 +50,10 @@ if (isset($_POST['btn_update_order'])) {
         exit();
     }
 
-    $sql = "UPDATE orders SET status = '$new_status' WHERE id = $id";
+    // FIX LỖI Ở ĐÂY: Ưu tiên lấy session của Admin, nếu không có mới lấy user_id
+    $handled_by = isset($_SESSION['admin_user_id']) ? (int)$_SESSION['admin_user_id'] : (isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : 'NULL'); 
+    
+    $sql = "UPDATE orders SET status = '$new_status', handled_by = $handled_by WHERE id = $id";
 
     if ($conn->query($sql) === TRUE) {
         $memberIdStmt = $conn->prepare("SELECT member_id FROM orders WHERE id = ? LIMIT 1");

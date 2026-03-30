@@ -28,8 +28,8 @@ function getRoleIdByPosition(PDO $db, $position)
 }
 
 try {
-    if ($staffUserIdColumn !== 'users_id') {
-        failAndGoBack('Không tìm thấy cột liên kết tài khoản trong bảng staff (users_id).');
+    if ($staffUserIdColumn === null) {
+        failAndGoBack('Không tìm thấy cột liên kết tài khoản trong bảng staff (users_id hoặc user_id).');
     }
 
     if ($action === 'add') {
@@ -196,6 +196,18 @@ try {
         $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
         if ($id <= 0) {
             failAndGoBack('Thiếu staff cần xóa.');
+        }
+
+        $userStmt = $db->prepare("SELECT $staffUserIdColumn FROM staff WHERE id = ?");
+        $userStmt->execute([$id]);
+        $linkedUserId = (int)$userStmt->fetchColumn();
+
+        if ($linkedUserId > 0) {
+            $checkOrderStmt = $db->prepare("SELECT COUNT(*) FROM orders WHERE handled_by = ?");
+            $checkOrderStmt->execute([$linkedUserId]);
+            if ((int)$checkOrderStmt->fetchColumn() > 0) {
+                failAndGoBack('Không thể xóa nhân viên này vì họ đã tham gia duyệt/xử lý đơn hàng.');
+            }
         }
 
         $stmt = $db->prepare('DELETE FROM staff WHERE id = ?');

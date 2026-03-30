@@ -6,9 +6,10 @@ require_once '../config/db.php';
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-$sql = "SELECT o.*, m.full_name 
+$sql = "SELECT o.*, m.full_name, u.full_name AS handler_name 
         FROM orders o 
         LEFT JOIN members m ON o.member_id = m.id 
+        LEFT JOIN users u ON o.handled_by = u.id
         WHERE o.id = $id";
 $result = $conn->query($sql);
 
@@ -38,8 +39,9 @@ if ($result->num_rows > 0) {
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <p><strong>Khách hàng:</strong> <?php echo $order['full_name'] ?? 'Khách vãng lai'; ?></p>
+                                <p><strong>Khách hàng:</strong> <?php echo htmlspecialchars($order['full_name'] ?? 'Khách vãng lai'); ?></p>
                                 <p><strong>Ngày đặt:</strong> <?php echo date('d/m/Y H:i', strtotime($order['order_date'])); ?></p>
+                                <p><strong>Người duyệt:</strong> <?php echo !empty($order['handler_name']) ? "<span class='badge badge-info'><i class='fas fa-user-check'></i> " . htmlspecialchars($order['handler_name']) . "</span>" : '<span class="text-muted">Chưa xử lý</span>'; ?></p>
                                 <p><strong>Tổng tiền:</strong> <span class="text-danger font-weight-bold"><?php echo number_format($order['total_amount'], 0, ',', '.'); ?>đ</span></p>
                             </div>
                             <div class="col-md-6">
@@ -47,7 +49,6 @@ if ($result->num_rows > 0) {
                                     <label>Trạng Thái Đơn Hàng <span class="text-danger">*</span></label>
                                     <select name="status" class="form-control" style="font-weight: bold;">
                                         <?php
-                                        // Xác định các trạng thái có thể chuyển đổi
                                         $current_status = $order['status'];
                                         $all_statuses = [
                                             'pending' => '🟡 Chờ xử lý',
@@ -56,16 +57,15 @@ if ($result->num_rows > 0) {
                                             'cancelled' => '🔴 Đã hủy'
                                         ];
 
-                                        // Xác định trạng thái có thể chuyển
                                         $allowed_statuses = [];
                                         if ($current_status == 'pending') {
                                             $allowed_statuses = ['pending', 'confirmed', 'cancelled'];
                                         } elseif ($current_status == 'confirmed') {
                                             $allowed_statuses = ['confirmed', 'delivered', 'cancelled'];
                                         } elseif ($current_status == 'delivered') {
-                                            $allowed_statuses = ['delivered']; // Không thể thay đổi
+                                            $allowed_statuses = ['delivered']; 
                                         } elseif ($current_status == 'cancelled') {
-                                            $allowed_statuses = ['cancelled']; // Không thể thay đổi
+                                            $allowed_statuses = ['cancelled']; 
                                         }
 
                                         foreach ($all_statuses as $status_key => $status_label) {

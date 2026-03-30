@@ -5,7 +5,6 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once '../config/db.php';
 require_once '../includes/discount_helper.php';
 
-// Kiểm tra đăng nhập
 $is_logged_in = isset($_SESSION['user_id']);
 $user_id = $is_logged_in ? $_SESSION['user_id'] : 0;
 
@@ -51,7 +50,6 @@ include 'layout/header.php';
                             $originalTotal = 0;
                             
                             if ($is_logged_in) {
-                                // CẬP NHẬT: Thêm p.img AS product_img vào câu truy vấn
                                 $query = "
                                     SELECT ci.item_type,
                                            ci.quantity,
@@ -127,7 +125,6 @@ include 'layout/header.php';
                                             $originalTotal += $itemOriginal;
                                             $totalDiscount += ($itemOriginal - $itemTotal);
                                             
-                                            // CẬP NHẬT: Logic lấy hình ảnh động giống với products.php
                                             if ($isProduct) {
                                                 $imageFile = $item['product_img'] ?? '';
                                                 $physicalPath = __DIR__ . "/../assets/uploads/products/" . $imageFile;
@@ -304,7 +301,7 @@ include 'layout/header.php';
                                         <?php if ($base_discount_amount > 0 || $promotion_discount > 0): ?>
                                             <li class="subtotal" style="color: #ffffff;">Giá gốc: <span style="text-decoration: line-through; color: #999;"><?php echo number_format($subtotal_original, 0, ',', '.'); ?>đ</span></li>
                                             <?php if ($base_discount_amount > 0): ?>
-                                            <li class="subtotal" style="color: #ffffff;">Giảm giá hạng (<?php echo number_format($base_discount_percent, 0); ?>%)
+                                            <li class="subtotal" style="color: #ffffff;">Giảm giá hạng <?php echo htmlspecialchars($tier_info['tier_name'] ?? 'Thành viên'); ?> (<?php echo number_format($base_discount_percent, 0); ?>%)
                                                 <span style="color: #28a745; font-weight: bold;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
                                             </li>
                                             <?php endif; ?>
@@ -354,7 +351,6 @@ include 'layout/header.php';
 </style>
 
 <script>
-// Hàm tải lại ngầm HTML của riêng khu vực giỏ hàng
 function reloadCartData() {
     fetch(window.location.href)
     .then(response => response.text())

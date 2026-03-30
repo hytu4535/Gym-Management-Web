@@ -64,8 +64,27 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
   checkPermission('MANAGE_MEMBERS', 'delete');
 
     try {
+      $member_id = $_GET['id'];
+
+        // Gọi API xóa face profile
+        $face_service_url = "http://localhost:8000/unenroll";
+        $payload = json_encode(["member_id" => $member_id]);
+
+        $context = stream_context_create([
+            "http" => [
+                "method" => "POST",
+                "header" => "Content-Type: application/json\r\n",
+                "content" => $payload,
+                "timeout" => 5
+            ]
+        ]);
+
+        $response = @file_get_contents($face_service_url, false, $context);
+        // Tiếp tục xóa dù API xóa face thất bại
+
+        // Xóa hội viên từ database
         $stmt = $db->prepare("DELETE FROM members WHERE id = ?");
-        $stmt->execute([$_GET['id']]);
+        $stmt->execute([$member_id]);
         $message = "Xóa hội viên thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
@@ -138,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $messageType = "success";
       } catch (Exception $e) {
-        $message = "Lỗi: " . $e->getMessage();
+        $message = toVietnameseDbError($e, 'Không thể lưu hội viên.');
         $messageType = "danger";
     }
 }

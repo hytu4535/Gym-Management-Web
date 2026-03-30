@@ -35,7 +35,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         $message = "Xóa địa chỉ thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể xóa địa chỉ.');
         $messageType = "danger";
     }
 }
@@ -61,7 +61,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'set_default' && isset($_GET['i
         $message = "Đã đặt địa chỉ mặc định!";
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể cập nhật địa chỉ mặc định.');
         $messageType = "danger";
     }
 }
@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $messageType = "success";
         } catch (Exception $e) {
-        $message = "Lỗi: " . $e->getMessage();
+          $message = toVietnameseDbError($e, 'Không thể lưu địa chỉ.');
         $messageType = "danger";
     }
 }

@@ -78,6 +78,149 @@ function isValidScheduleRange($startTime, $endTime)
   return strtotime(normalizeScheduleTime($startTime)) < strtotime(normalizeScheduleTime($endTime));
 }
 
+function normalizeDayToken($value)
+{
+  $value = trim((string) $value);
+  if ($value === '') {
+    return '';
+  }
+
+  $value = function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+  $value = str_replace(['thu ', 'thứ '], 'thu ', $value);
+  $value = str_replace('chủ nhật', 'cn', $value);
+  $value = str_replace('chu nhat', 'cn', $value);
+
+  $map = [
+    'thu 2' => '2',
+    'thu 3' => '3',
+    'thu 4' => '4',
+    'thu 5' => '5',
+    'thu 6' => '6',
+    'thu 7' => '7',
+    'cn' => 'cn'
+  ];
+
+  return $map[$value] ?? $value;
+}
+
+function normalizeScheduleDaysValue($raw)
+{
+  if (is_array($raw)) {
+    $parts = $raw;
+  } else {
+    $parts = explode(',', (string) $raw);
+  }
+
+  $normalized = [];
+  foreach ($parts as $part) {
+    $token = normalizeDayToken($part);
+    if ($token !== '') {
+      $normalized[] = $token;
+    }
+  }
+
+  $normalized = array_values(array_unique($normalized));
+  return $normalized;
+}
+
+function formatScheduleDaysForStorage(array $days)
+{
+  $labels = [
+    '2' => 'Thứ 2',
+    '3' => 'Thứ 3',
+    '4' => 'Thứ 4',
+    '5' => 'Thứ 5',
+    '6' => 'Thứ 6',
+    '7' => 'Thứ 7',
+    'cn' => 'Chủ nhật'
+  ];
+
+  $result = [];
+  foreach ($days as $day) {
+    $result[] = $labels[$day] ?? $day;
+  }
+
+  return implode(', ', $result);
+}
+
+function hasScheduleDayIntersection(array $a, array $b)
+{
+  return !empty(array_intersect($a, $b));
+}
+
+function isTimeRangeOverlap($startA, $endA, $startB, $endB)
+{
+  if (!isValidScheduleRange($startA, $endA) || !isValidScheduleRange($startB, $endB)) {
+    return false;
+  }
+
+  $aStart = strtotime(normalizeScheduleTime($startA));
+  $aEnd = strtotime(normalizeScheduleTime($endA));
+  $bStart = strtotime(normalizeScheduleTime($startB));
+  $bEnd = strtotime(normalizeScheduleTime($endB));
+
+  return ($aStart < $bEnd) && ($bStart < $aEnd);
+}
+
+function findClassConflictMessage(PDO $db, ?int $trainerId, string $room, string $startTime, string $endTime, array $days, int $excludeClassId = 0)
+{
+  if (empty($days) || !isValidScheduleRange($startTime, $endTime)) {
+    return null;
+  }
+
+  if (($trainerId === null || $trainerId <= 0) && trim($room) === '') {
+    return null;
+  }
+
+  $query = "SELECT id, class_name, trainer_id, room, schedule_start_time, schedule_end_time, schedule_days
+            FROM class_schedules
+            WHERE status = 'active'";
+  $params = [];
+
+  if ($excludeClassId > 0) {
+    $query .= " AND id <> ?";
+    $params[] = $excludeClassId;
+  }
+
+  if ($trainerId !== null && $trainerId > 0 && trim($room) !== '') {
+    $query .= " AND (trainer_id = ? OR room = ?)";
+    $params[] = $trainerId;
+    $params[] = trim($room);
+  } elseif ($trainerId !== null && $trainerId > 0) {
+    $query .= " AND trainer_id = ?";
+    $params[] = $trainerId;
+  } elseif (trim($room) !== '') {
+    $query .= " AND room = ?";
+    $params[] = trim($room);
+  }
+
+  $stmt = $db->prepare($query);
+  $stmt->execute($params);
+  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  foreach ($rows as $row) {
+    $otherDays = normalizeScheduleDaysValue((string) ($row['schedule_days'] ?? ''));
+    if (!hasScheduleDayIntersection($days, $otherDays)) {
+      continue;
+    }
+
+    if (!isTimeRangeOverlap($startTime, $endTime, (string) ($row['schedule_start_time'] ?? ''), (string) ($row['schedule_end_time'] ?? ''))) {
+      continue;
+    }
+
+    $className = (string) ($row['class_name'] ?? ('#' . $row['id']));
+    if ($trainerId !== null && $trainerId > 0 && (int) ($row['trainer_id'] ?? 0) === $trainerId) {
+      return 'Huấn luyện viên đang bị trùng lịch với lớp "' . $className . '".';
+    }
+
+    if (trim($room) !== '' && trim((string) ($row['room'] ?? '')) === trim($room)) {
+      return 'Phòng tập đang bị trùng lịch với lớp "' . $className . '".';
+    }
+  }
+
+  return null;
+}
+
 function supportsStructuredScheduleTime(PDO $db)
 {
   static $supportsStructured = null;
@@ -106,7 +249,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
     $schedule_start_time = sanitize($_POST['schedule_start_time'] ?? '');
     $schedule_end_time = sanitize($_POST['schedule_end_time'] ?? '');
-        $schedule_days = sanitize($_POST['schedule_days'] ?? '');
+        $scheduleDays = normalizeScheduleDaysValue($_POST['schedule_days'] ?? []);
+        $schedule_days = formatScheduleDaysForStorage($scheduleDays);
         $capacity = max(1, intval($_POST['capacity'] ?? 1));
         $price_per_session = max(0, floatval($_POST['price_per_session'] ?? 0));
         $room = sanitize($_POST['room'] ?? '');
@@ -114,6 +258,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if (!isValidScheduleRange($schedule_start_time, $schedule_end_time)) {
       setFlashMessage('danger', 'Vui lòng nhập giờ bắt đầu và giờ kết thúc hợp lệ, giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
+      redirect('classes.php');
+      exit;
+    }
+
+    if (empty($scheduleDays)) {
+      setFlashMessage('danger', 'Vui lòng chọn ít nhất 1 ngày học trong tuần.');
+      redirect('classes.php');
+      exit;
+    }
+
+    $conflictMessage = findClassConflictMessage($db, $trainer_id, $room, $schedule_start_time, $schedule_end_time, $scheduleDays, 0);
+    if ($conflictMessage !== null) {
+      setFlashMessage('danger', $conflictMessage);
       redirect('classes.php');
       exit;
     }
@@ -148,7 +305,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
       $schedule_start_time = sanitize($_POST['schedule_start_time'] ?? '');
       $schedule_end_time = sanitize($_POST['schedule_end_time'] ?? '');
-        $schedule_days = sanitize($_POST['schedule_days'] ?? '');
+        $scheduleDays = normalizeScheduleDaysValue($_POST['schedule_days'] ?? []);
+        $schedule_days = formatScheduleDaysForStorage($scheduleDays);
         $capacity = max(1, intval($_POST['capacity'] ?? 1));
         $price_per_session = max(0, floatval($_POST['price_per_session'] ?? 0));
         $room = sanitize($_POST['room'] ?? '');
@@ -156,6 +314,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
       if (!isValidScheduleRange($schedule_start_time, $schedule_end_time)) {
         setFlashMessage('danger', 'Vui lòng nhập giờ bắt đầu và giờ kết thúc hợp lệ, giờ bắt đầu phải nhỏ hơn giờ kết thúc.');
+        redirect('classes.php');
+        exit;
+      }
+
+      if (empty($scheduleDays)) {
+        setFlashMessage('danger', 'Vui lòng chọn ít nhất 1 ngày học trong tuần.');
         redirect('classes.php');
         exit;
       }
@@ -175,6 +339,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
             if ((int) $currentClass['enrolled_count'] > $capacity) {
                 throw new Exception('Sức chứa mới không được nhỏ hơn số hội viên đã đăng ký (' . (int) $currentClass['enrolled_count'] . ').');
+            }
+
+            $registrationStmt = $db->prepare("SELECT COUNT(*) FROM class_registrations WHERE class_id = ? AND status = 'active'");
+            $registrationStmt->execute([$id]);
+            $activeRegistrations = (int) $registrationStmt->fetchColumn();
+
+            $currentPriceStmt = $db->prepare("SELECT price_per_session FROM class_schedules WHERE id = ?");
+            $currentPriceStmt->execute([$id]);
+            $currentPrice = (float) $currentPriceStmt->fetchColumn();
+
+            if ($activeRegistrations > 0 && ((float) $price_per_session !== (float) $currentPrice)) {
+              throw new Exception('Không thể thay đổi giá lớp khi đã có hội viên đăng ký.');
+            }
+
+            $conflictMessage = findClassConflictMessage($db, $trainer_id, $room, $schedule_start_time, $schedule_end_time, $scheduleDays, $id);
+            if ($conflictMessage !== null) {
+              throw new Exception($conflictMessage);
             }
 
             if ($structuredScheduleTime) {
@@ -199,9 +380,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $id = intval($_POST['id'] ?? 0);
 
         try {
-            $stmt = $db->prepare("DELETE FROM class_schedules WHERE id = ?");
-            $stmt->execute([$id]);
-            setFlashMessage('success', 'Xóa lớp tập thành công!');
+            $registrationStmt = $db->prepare("SELECT COUNT(*) FROM class_registrations WHERE class_id = ?");
+            $registrationStmt->execute([$id]);
+            $registrationCount = (int) $registrationStmt->fetchColumn();
+
+            if ($registrationCount > 0) {
+              $stmt = $db->prepare("UPDATE class_schedules SET status = 'inactive' WHERE id = ?");
+              $stmt->execute([$id]);
+              setFlashMessage('success', 'Lớp đã có đăng ký nên được chuyển sang Đóng lớp thay vì xóa.');
+            } else {
+              $stmt = $db->prepare("DELETE FROM class_schedules WHERE id = ?");
+              $stmt->execute([$id]);
+              setFlashMessage('success', 'Xóa lớp tập thành công!');
+            }
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: Không thể xóa lớp tập. ' . $e->getMessage());
         }
@@ -213,6 +404,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 $stmt = $db->query("SELECT cs.*, t.full_name AS trainer_name FROM class_schedules cs LEFT JOIN trainers t ON cs.trainer_id = t.id ORDER BY cs.id DESC");
 $classes = $stmt->fetchAll();
+
+$classMembersMap = [];
+$memberRowsStmt = $db->query("SELECT cr.class_id, m.full_name, m.phone, cr.registered_at, cr.status
+                              FROM class_registrations cr
+                              INNER JOIN members m ON m.id = cr.member_id
+                              ORDER BY cr.class_id ASC, cr.registered_at DESC");
+foreach ($memberRowsStmt->fetchAll(PDO::FETCH_ASSOC) as $memberRow) {
+  $classId = (int) ($memberRow['class_id'] ?? 0);
+  if ($classId <= 0) {
+    continue;
+  }
+  if (!isset($classMembersMap[$classId])) {
+    $classMembersMap[$classId] = [];
+  }
+  $classMembersMap[$classId][] = [
+    'full_name' => (string) ($memberRow['full_name'] ?? ''),
+    'phone' => (string) ($memberRow['phone'] ?? ''),
+    'registered_at' => (string) ($memberRow['registered_at'] ?? ''),
+    'status' => (string) ($memberRow['status'] ?? ''),
+  ];
+}
 
 $stmt = $db->query("SELECT id, full_name FROM trainers WHERE status = 'hoạt động' ORDER BY full_name ASC");
 $trainers = $stmt->fetchAll();
@@ -412,7 +624,17 @@ include 'layout/sidebar.php';
             </div>
             <div class="form-group">
               <label>Loại lớp <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" name="class_type" placeholder="VD: yoga, cardio, boxing" data-field="class_type">
+              <select class="form-control" name="class_type" data-field="class_type">
+                <option value="">-- Chọn loại lớp --</option>
+                <option value="yoga">Yoga</option>
+                <option value="cardio">Cardio</option>
+                <option value="boxing">Boxing</option>
+                <option value="hiit">HIIT</option>
+                <option value="strength">Strength</option>
+                <option value="pilates">Pilates</option>
+                <option value="zumba">Zumba</option>
+                <option value="khác">Khác</option>
+              </select>
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
@@ -437,7 +659,16 @@ include 'layout/sidebar.php';
             </div>
             <div class="form-group">
               <label>Lịch ngày</label>
-              <input type="text" class="form-control" name="schedule_days" placeholder="VD: Thứ 2, Thứ 4, Thứ 6" data-field="schedule_days">
+              <div class="row">
+                <div class="col-6"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="add-day-2" value="2"><label for="add-day-2" class="custom-control-label">Thứ 2</label></div></div>
+                <div class="col-6"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="add-day-3" value="3"><label for="add-day-3" class="custom-control-label">Thứ 3</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="add-day-4" value="4"><label for="add-day-4" class="custom-control-label">Thứ 4</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="add-day-5" value="5"><label for="add-day-5" class="custom-control-label">Thứ 5</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="add-day-6" value="6"><label for="add-day-6" class="custom-control-label">Thứ 6</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="add-day-7" value="7"><label for="add-day-7" class="custom-control-label">Thứ 7</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="add-day-cn" value="cn"><label for="add-day-cn" class="custom-control-label">Chủ nhật</label></div></div>
+              </div>
+              <input type="hidden" class="js-day-hidden" name="schedule_days" data-field="schedule_days">
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
@@ -491,7 +722,17 @@ include 'layout/sidebar.php';
             </div>
             <div class="form-group">
               <label>Loại lớp <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" name="class_type" id="edit-class_type" data-field="class_type">
+              <select class="form-control" name="class_type" id="edit-class_type" data-field="class_type">
+                <option value="">-- Chọn loại lớp --</option>
+                <option value="yoga">Yoga</option>
+                <option value="cardio">Cardio</option>
+                <option value="boxing">Boxing</option>
+                <option value="hiit">HIIT</option>
+                <option value="strength">Strength</option>
+                <option value="pilates">Pilates</option>
+                <option value="zumba">Zumba</option>
+                <option value="khác">Khác</option>
+              </select>
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
@@ -516,7 +757,16 @@ include 'layout/sidebar.php';
             </div>
             <div class="form-group">
               <label>Lịch ngày</label>
-              <input type="text" class="form-control" name="schedule_days" id="edit-schedule_days" data-field="schedule_days">
+              <div class="row">
+                <div class="col-6"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="edit-day-2" value="2"><label for="edit-day-2" class="custom-control-label">Thứ 2</label></div></div>
+                <div class="col-6"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="edit-day-3" value="3"><label for="edit-day-3" class="custom-control-label">Thứ 3</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="edit-day-4" value="4"><label for="edit-day-4" class="custom-control-label">Thứ 4</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="edit-day-5" value="5"><label for="edit-day-5" class="custom-control-label">Thứ 5</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="edit-day-6" value="6"><label for="edit-day-6" class="custom-control-label">Thứ 6</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="edit-day-7" value="7"><label for="edit-day-7" class="custom-control-label">Thứ 7</label></div></div>
+                <div class="col-6 mt-1"><div class="custom-control custom-checkbox"><input class="custom-control-input js-day-checkbox" type="checkbox" id="edit-day-cn" value="cn"><label for="edit-day-cn" class="custom-control-label">Chủ nhật</label></div></div>
+              </div>
+              <input type="hidden" class="js-day-hidden" name="schedule_days" id="edit-schedule_days" data-field="schedule_days">
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
@@ -575,12 +825,81 @@ include 'layout/sidebar.php';
       </div>
     </div>
   </div>
+
+  <div class="modal fade" id="classMembersModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Danh sách đăng ký lớp: <span id="classMembersTitle"></span></h5>
+          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+              <thead>
+                <tr>
+                  <th>Hội viên</th>
+                  <th>SĐT</th>
+                  <th>Ngày đăng ký</th>
+                  <th>Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody id="classMembersBody"></tbody>
+            </table>
+          </div>
+          <p id="classMembersEmpty" class="text-muted mb-0" style="display:none;">Chưa có hội viên đăng ký.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <?php include 'layout/footer.php'; ?>
 
 <script>
+const classMembersMap = <?= json_encode($classMembersMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+
 $(function() {
+  function normalizeDayTokenJs(value) {
+    const src = String(value || '').trim().toLowerCase();
+    if (src === 'chủ nhật' || src === 'chu nhat' || src === 'cn') return 'cn';
+    return src.replace('thứ', 'thu').replace('thu ', '').trim();
+  }
+
+  function syncDayHidden($scope) {
+    const values = [];
+    $scope.find('.js-day-checkbox:checked').each(function() {
+      values.push(String($(this).val()));
+    });
+    $scope.find('.js-day-hidden').val(values.join(','));
+  }
+
+  function setDayChecked($scope, dayString) {
+    const selected = String(dayString || '').split(',').map(function (item) {
+      return normalizeDayTokenJs(item);
+    });
+    $scope.find('.js-day-checkbox').prop('checked', false);
+    $scope.find('.js-day-checkbox').each(function () {
+      const current = normalizeDayTokenJs($(this).val());
+      if (selected.indexOf(current) !== -1) {
+        $(this).prop('checked', true);
+      }
+    });
+    syncDayHidden($scope);
+  }
+
+  $('#addClassModal, #editClassModal').on('change', '.js-day-checkbox', function() {
+    syncDayHidden($(this).closest('.form-group'));
+  });
+
+  $('#addClassModal').on('shown.bs.modal', function () {
+    $(this).find('.js-day-checkbox').prop('checked', false);
+    $(this).find('.js-day-hidden').val('');
+  });
+
   $('.btn-edit').on('click', function() {
     let startTime = String($(this).data('schedule_start_time') || '');
     let endTime = String($(this).data('schedule_end_time') || '');
@@ -591,12 +910,41 @@ $(function() {
     $('#edit-trainer_id').val($(this).data('trainer_id'));
     $('#edit-schedule_start_time').val(startTime);
     $('#edit-schedule_end_time').val(endTime);
-    $('#edit-schedule_days').val($(this).data('schedule_days'));
+    setDayChecked($('#editClassModal'), $(this).data('schedule_days'));
     $('#edit-capacity').val($(this).data('capacity'));
     $('#edit-price_per_session').val($(this).data('price_per_session'));
     $('#edit-enrolled_count').text($(this).data('enrolled_count'));
     $('#edit-room').val($(this).data('room'));
     $('#edit-status').val($(this).data('status'));
+  });
+
+  $('.btn-detail').on('click', function() {
+    const classId = String($(this).data('id'));
+    const className = $(this).data('name') || '';
+    const rows = classMembersMap[classId] || classMembersMap[Number(classId)] || [];
+
+    $('#classMembersTitle').text(className);
+    const $body = $('#classMembersBody');
+    $body.empty();
+
+    if (!rows.length) {
+      $('#classMembersEmpty').show();
+      return;
+    }
+
+    $('#classMembersEmpty').hide();
+    rows.forEach(function (row) {
+      const statusText = String(row.status || '') === 'active' ? 'Đang đăng ký' : 'Đã hủy';
+      const statusClass = String(row.status || '') === 'active' ? 'success' : 'secondary';
+      $body.append(
+        '<tr>' +
+          '<td>' + (row.full_name || '') + '</td>' +
+          '<td>' + (row.phone || '') + '</td>' +
+          '<td>' + (row.registered_at || '') + '</td>' +
+          '<td><span class="badge badge-' + statusClass + '">' + statusText + '</span></td>' +
+        '</tr>'
+      );
+    });
   });
 
   $('.btn-delete').on('click', function() {
@@ -608,7 +956,7 @@ $(function() {
 (function() {
   function getMsg(field) {
     if (field === 'class_name') return 'Vui lòng nhập tên lớp';
-    if (field === 'class_type') return 'Vui lòng nhập loại lớp';
+    if (field === 'class_type') return 'Vui lòng chọn loại lớp';
     if (field === 'capacity') return 'Vui lòng nhập sức chứa hợp lệ';
     if (field === 'trainer_id') return 'Vui lòng chọn huấn luyện viên';
     if (field === 'schedule_start_time') return 'Vui lòng nhập giờ bắt đầu';

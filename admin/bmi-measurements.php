@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $message = "Thêm kết quả đo BMI thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể lưu kết quả đo BMI.');
         $messageType = "danger";
     }
 }
@@ -170,9 +170,6 @@ include 'layout/sidebar.php';
                       <button class="btn btn-info btn-sm" onclick='viewDetail(<?php echo json_encode($measure); ?>)' data-toggle="modal" data-target="#viewModal">
                         <i class="fas fa-eye"></i>
                       </button>
-                      <a href="?action=delete&id=<?php echo $measure['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa?')">
-                        <i class="fas fa-trash"></i>
-                      </a>
                     </td>
                   </tr>
                   <?php endforeach; ?>

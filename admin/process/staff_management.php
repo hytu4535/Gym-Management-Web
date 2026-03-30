@@ -210,6 +210,24 @@ try {
             }
         }
 
+        $importRefStmt = $db->prepare('SELECT COUNT(*) FROM import_slips WHERE staff_id = ?');
+        $importRefStmt->execute([$id]);
+        $importRefCount = (int) $importRefStmt->fetchColumn();
+        if ($importRefCount > 0) {
+            failAndGoBack('Không thể xóa nhân viên đã phát sinh phiếu nhập.');
+        }
+
+
+        $hasOrderStaffIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'staff_id' LIMIT 1")->fetchColumn();
+        if ($hasOrderStaffIdColumn) {
+            $orderRefStmt = $db->prepare('SELECT COUNT(*) FROM orders WHERE staff_id = ?');
+            $orderRefStmt->execute([$id]);
+            if ((int) $orderRefStmt->fetchColumn() > 0) {
+                failAndGoBack('Không thể xóa nhân viên đã phát sinh đơn hàng.');
+            }
+        }
+
+
         $stmt = $db->prepare('DELETE FROM staff WHERE id = ?');
         $stmt->execute([$id]);
 

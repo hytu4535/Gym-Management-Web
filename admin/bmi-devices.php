@@ -28,7 +28,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         $message = "Xóa máy đo BMI thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể xóa máy đo BMI.');
         $messageType = "danger";
     }
 }
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể lưu máy đo BMI.');
         $messageType = "danger";
     }
 }

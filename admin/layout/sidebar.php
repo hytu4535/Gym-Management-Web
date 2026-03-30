@@ -66,8 +66,8 @@
           </li>
 
           <!-- Quản lý hội viên -->
-          <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php'])) ? 'menu-open' : ''; ?>">
-            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php'])) ? 'active' : ''; ?>">
+                    <li class="nav-item <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php', 'face-enroll.php', 'face-checkin.php', 'face-logs.php', 'face-manage.php'])) ? 'menu-open' : ''; ?>">
+            <a href="#" class="nav-link <?php echo (in_array(basename($_SERVER['PHP_SELF']), ['members.php', 'member-packages.php', 'member-tiers.php', 'bmi-devices.php', 'bmi-measurements.php', 'addresses.php', 'face-enroll.php', 'face-checkin.php', 'face-logs.php', 'face-manage.php'])) ? 'active' : ''; ?>">
               <i class="nav-icon fas fa-user-friends"></i>
               <p>
                 Quản lý hội viên
@@ -109,6 +109,30 @@
                 <a href="bmi-measurements.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'bmi-measurements.php') ? 'active' : ''; ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Lịch sử đo BMI</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="face-enroll.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'face-enroll.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Đăng ký khuôn mặt</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="face-checkin.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'face-checkin.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Điểm danh khuôn mặt</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="face-logs.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'face-logs.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Nhật ký quét mặt</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="face-manage.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'face-manage.php') ? 'active' : ''; ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Quản lý Face ID</p>
                 </a>
               </li>
             </ul>

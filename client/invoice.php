@@ -202,9 +202,21 @@ include 'layout/header.php';
                                             <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                         <tr>
+                                            <td colspan="4" class="text-right"><strong>Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
+                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($tier_discount_amount, 0, ',', '.'); ?>đ</strong></td>
+                                        </tr>
+                                        <?php if ($promotion_discount_amount > 0): ?>
+                                        <tr>
+                                            <td colspan="4" class="text-right"><strong><?php echo htmlspecialchars($promotion_name); ?>:</strong></td>
+                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</strong></td>
+                                        </tr>
+                                        <?php endif; ?>
+                                        <?php if ($has_physical_products || $shipping_fee > 0): ?>
+                                        <tr>
                                             <td colspan="4" class="text-right"><strong>Phí vận chuyển:</strong></td>
                                             <td class="text-right"><strong><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
+                                        <?php endif; ?>
                                         <tr class="total-row" style="background: #fdfaf3;">
                                             <td colspan="4" class="text-right"><strong style="color: #e7ab3c; font-size: 1.2rem;">Tổng cộng:</strong></td>
                                             <td class="text-right"><strong style="color: #e7ab3c; font-size: 1.2rem;"><?php echo number_format($final_total, 0, ',', '.'); ?>đ</strong></td>
@@ -221,6 +233,8 @@ include 'layout/header.php';
                                     <?php 
                                         if ($order['payment_method'] === 'cash') {
                                             echo 'Thanh toán tiền mặt khi nhận hàng (COD)';
+                                        } elseif ($order['payment_method'] === 'bank_transfer') {
+                                            echo 'Chuyển khoản ngân hàng';
                                         } else {
                                             echo 'Thanh toán trực tuyến (VNPAY/MOMO)';
                                         }

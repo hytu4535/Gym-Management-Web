@@ -67,7 +67,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         $message = "Xóa gói tập thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể xóa gói tập hội viên.');
         $messageType = "danger";
     }
 }
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể lưu gói tập hội viên.');
         $messageType = "danger";
     }
 }

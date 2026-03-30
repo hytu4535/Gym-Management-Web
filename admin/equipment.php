@@ -149,7 +149,6 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
                       <?php endif; ?>
                     </td>
                     <td>
-                      <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
                       <?php if ($canEditEquipment): ?>
                       <button class="btn btn-warning btn-sm edit-equipment-btn"
                         data-id="<?= $equipment['id'] ?>"

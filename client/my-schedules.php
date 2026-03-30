@@ -144,7 +144,7 @@ include 'layout/header.php';
 .intensity-cao        { background:#fd7e14; width:75%; }
 .intensity-rat-cao    { background:#dc3545; width:100%; }
 .site-btn:hover {
-  color: black;
+  color: orangered;
 }
 </style>
 

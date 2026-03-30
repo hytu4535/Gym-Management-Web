@@ -137,6 +137,9 @@ include 'layout/header.php';
     border-left: 4px solid #dc3545;
     opacity: 0.8;
 }
+.site-btn:hover {
+    color: orangered;
+}
 </style>
 
 <section class="profile-section spad">

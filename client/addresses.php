@@ -13,7 +13,22 @@ include 'layout/header.php';
 
 $user_id = $_SESSION['user_id'];
 
-// Lấy member_id từ bảng members
+// 1. Lấy thông tin từ bảng users (để đồng bộ avatar và email)
+$sql_user_data = "SELECT email, avatar FROM users WHERE id = ?";
+$stmt_user_data = $conn->prepare($sql_user_data);
+$stmt_user_data->bind_param("i", $user_id);
+$stmt_user_data->execute();
+$user_data = $stmt_user_data->get_result()->fetch_assoc();
+$stmt_user_data->close();
+
+$avatarPath = trim((string)($user_data['avatar'] ?? ''));
+$avatarUrl = '';
+if ($avatarPath !== '') {
+    $normalizedAvatarPath = ltrim(str_replace('\\', '/', $avatarPath), '/');
+    $avatarUrl = '../' . $normalizedAvatarPath;
+}
+
+// 2. Lấy member_id từ bảng members
 $stmt = $conn->prepare("SELECT id FROM members WHERE users_id=?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -64,6 +79,7 @@ $default_address = $default_addresses[0] ?? null;
                     <h2>Địa chỉ giao hàng</h2>
                     <div class="bt-option">
                         <a href="index.php">Trang chủ</a>
+                        <a href="profile.php">Hồ sơ</a>
                         <span>Địa chỉ</span>
                     </div>
                 </div>
@@ -73,49 +89,34 @@ $default_address = $default_addresses[0] ?? null;
 </section>
 
 <style>
+/* Đồng bộ CSS Sidebar từ trang Profile */
+.sidebar-item { display:block; padding:10px 15px; color:#333; border-radius:5px; margin-bottom:5px; text-decoration:none; transition: 0.2s; }
+.sidebar-item:hover, .sidebar-item.active { background:#f36100; color:#fff; text-decoration:none; }
+.sidebar-item i { margin-right:8px; width:16px; }
+.profile-sidebar { background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.08); position:sticky; top:20px; }
+.user-avatar { margin-bottom:15px; }
+.user-avatar-image,
+.user-avatar-placeholder {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 4px solid #f36100;
+    background: #fff;
+    object-fit: cover;
+    margin: 0 auto;
+}
+.user-avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f36100;
+}
+
+/* CSS cho nội dung địa chỉ bên phải */
 .addresses-section {
     background: transparent;
     padding-bottom: 40px;
 }
-.profile-sidebar {
-    background: #fff;
-    border-radius: 18px;
-    padding: 24px 18px;
-    box-shadow: 0 18px 40px rgba(15, 23, 42, .08);
-    position: sticky;
-    top: 20px;
-    border: 1px solid #e6edf5;
-}
-.user-avatar {
-    width: 88px;
-    height: 88px;
-    border-radius: 50%;
-    margin: 0 auto 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #fff2e8, #ffe1c8);
-    color: #f36100;
-}
-.user-avatar i { font-size: 58px; }
-.sidebar-item {
-    display: flex;
-    align-items: center;
-    padding: 11px 14px;
-    color: #334155;
-    border-radius: 12px;
-    margin-bottom: 8px;
-    text-decoration: none;
-    transition: all .2s ease;
-    font-weight: 500;
-}
-.sidebar-item:hover, .sidebar-item.active {
-    background: #f36100;
-    color: #fff;
-    text-decoration: none;
-    transform: translateX(2px);
-}
-.sidebar-item i { margin-right: 10px; width: 18px; text-align: center; }
 .address-shell {
     background: #fff;
     border-radius: 22px;
@@ -273,212 +274,232 @@ $default_address = $default_addresses[0] ?? null;
 }
 </style>
 
-<section class="addresses-section spad">
+<section class="profile-section spad">
     <div class="container">
         <div class="row">
-            <!-- Sidebar -->
             <div class="col-lg-3">
                 <div class="profile-sidebar">
                     <div class="user-info text-center">
                         <div class="user-avatar">
-                            <i class="fa fa-user-circle"></i>
+                            <?php if ($avatarUrl !== ''): ?>
+                                <img src="<?php echo htmlspecialchars($avatarUrl); ?>" alt="Avatar" class="user-avatar-image">
+                            <?php else: ?>
+                                <div class="user-avatar-placeholder">
+                                    <i class="fa fa-user-circle fa-5x"></i>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                        <h5 class="mt-2 mb-1"><?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Hội viên'); ?></h5>
-                        <p style="color:#64748b;font-size:13px;margin-bottom:0;"><?php echo htmlspecialchars($_SESSION['email'] ?? ''); ?></p>
+                        <h5 class="mt-3"><?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Hội viên'); ?></h5>
+                        <p style="color:#888;font-size:13px;"><?php echo htmlspecialchars($user_data['email'] ?? $_SESSION['email'] ?? ''); ?></p>
                     </div>
-                    <hr style="border-color:#edf2f7; margin: 18px 0;">
+                    <hr>
                     <div class="sidebar-menu">
-                        <a href="profile.php" class="sidebar-item"><i class="fa fa-user"></i> Thông tin cá nhân</a>
-                        <a href="my-membership.php" class="sidebar-item"><i class="fa fa-star"></i> Thông tin hội viên</a>
-                        <a href="my-packages.php" class="sidebar-item"><i class="fa fa-ticket"></i> Gói tập của tôi</a>
-                        <a href="my-schedules.php" class="sidebar-item"><i class="fa fa-calendar"></i> Lịch tập của tôi</a>
-                        <a href="order-history.php" class="sidebar-item"><i class="fa fa-shopping-bag"></i> Lịch sử mua hàng</a>
-                        <a href="addresses.php" class="sidebar-item active"><i class="fa fa-map-marker"></i> Địa chỉ</a>
-                        <a href="logout.php" class="sidebar-item text-danger"><i class="fa fa-sign-out"></i> Đăng xuất</a>
+                        <a href="profile.php" class="sidebar-item">
+                            <i class="fa fa-user"></i> Thông tin cá nhân
+                        </a>
+                        <a href="my-membership.php" class="sidebar-item">
+                            <i class="fa fa-star"></i> Thông tin hội viên
+                        </a>
+                        <a href="my-packages.php" class="sidebar-item">
+                            <i class="fa fa-ticket"></i> Gói tập của tôi
+                        </a>
+                        <a href="my-schedules.php" class="sidebar-item">
+                            <i class="fa fa-calendar"></i> Lịch tập của tôi
+                        </a>
+                        <a href="order-history.php" class="sidebar-item">
+                            <i class="fa fa-shopping-bag"></i> Lịch sử mua hàng
+                        </a>
+                        <a href="addresses.php" class="sidebar-item active">
+                            <i class="fa fa-map-marker"></i> Địa chỉ
+                        </a>
+                        <a href="logout.php" class="sidebar-item text-danger">
+                            <i class="fa fa-sign-out"></i> Đăng xuất
+                        </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Nội dung quản lý địa chỉ -->
             <div class="col-lg-9">
-                <div class="page-hero">
-                    <h4>Quản lý địa chỉ giao hàng</h4>
-                    <p>Thêm, sửa, chọn địa chỉ mặc định và xóa nhanh ngay trong một màn hình.</p>
-                </div>
-
-                <div class="row mb-4">
-                    <div class="col-md-4 mb-3 mb-md-0">
-                        <div class="stat-card">
-                            <div class="stat-icon"><i class="fa fa-address-book"></i></div>
-                            <div>
-                                <div class="stat-label">Tổng địa chỉ</div>
-                                <div class="stat-value"><?php echo $total_addresses; ?></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3 mb-md-0">
-                        <div class="stat-card">
-                            <div class="stat-icon"><i class="fa fa-star"></i></div>
-                            <div>
-                                <div class="stat-label">Địa chỉ mặc định</div>
-                                <div class="stat-value"><?php echo $default_address ? '1' : '0'; ?></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="stat-card">
-                            <div class="stat-icon"><i class="fa fa-truck"></i></div>
-                            <div>
-                                <div class="stat-label">Phục vụ giao hàng</div>
-                                <div class="stat-value"><?php echo $total_addresses > 0 ? 'Có' : 'Chưa'; ?></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-lg-5 mb-4">
-                        <div class="address-form-card h-100">
-                            <div class="address-card-header">
-                                <h5 class="mb-1" style="font-weight:700;color:#0f172a;">Thêm hoặc sửa địa chỉ</h5>
-                                <p class="form-hint mb-0">Điền đầy đủ thông tin để dùng cho đơn hàng và đặt mặc định.</p>
-                            </div>
-                            <div class="address-card-body">
-                                <div id="message-container" class="message-wrap"></div>
-
-                                <form id="address-form" data-address-picker="1" data-mode="client" action="ajax/address-actions.php" novalidate>
-                                    <input type="hidden" name="id" id="address-id">
-                                    <div class="form-group">
-                                        <label for="full_address">Địa chỉ chi tiết</label>
-                                        <input type="text" name="full_address" id="full_address" class="form-control" placeholder="Số nhà, tên đường, thôn/xóm...">
-                                        <small class="text-danger d-none form-field-error" data-error-for="full_address"></small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="city">Tỉnh / Thành phố</label>
-                                        <select name="city" id="city" class="form-control">
-                                            <option value="">-- Chọn Tỉnh / Thành phố --</option>
-                                        </select>
-                                        <small class="text-danger d-none form-field-error" data-error-for="city"></small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="district">Quận / Huyện</label>
-                                        <select name="district" id="district" class="form-control">
-                                            <option value="">-- Chọn Quận / Huyện --</option>
-                                        </select>
-                                        <small class="text-danger d-none form-field-error" data-error-for="district"></small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="ward">Phường / Xã</label>
-                                        <select name="ward" id="ward" class="form-control">
-                                            <option value="">-- Chọn Phường / Xã --</option>
-                                        </select>
-                                        <small class="text-danger d-none form-field-error" data-error-for="ward"></small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="type">Loại địa chỉ</label>
-                                        <select name="type" id="type" class="form-control">
-                                            <option value="home">Nhà riêng</option>
-                                            <option value="work">Cơ quan</option>
-                                            <option value="other">Khác</option>
-                                        </select>
-                                        <small class="text-danger d-none form-field-error" data-error-for="type"></small>
-                                    </div>
-                                    <div class="form-actions mt-4">
-                                        <button type="submit" id="submit-btn" class="btn btn-success" style="border-radius:12px;padding:10px 18px;">
-                                            <i class="fa fa-save mr-1"></i> Lưu địa chỉ
-                                        </button>
-                                        <button type="button" id="reset-btn" class="btn btn-soft">
-                                            <i class="fa fa-undo mr-1"></i> Làm mới
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
+                <div class="profile-content" style="background-color: aliceblue; padding: 30px; border-radius: 8px;">
+                    <div class="page-hero">
+                        <h4>Quản lý địa chỉ giao hàng</h4>
+                        <p>Thêm, sửa, chọn địa chỉ mặc định và xóa nhanh ngay trong một màn hình.</p>
                     </div>
 
-                    <div class="col-lg-7">
-                        <div class="address-list-card">
-                            <div class="address-card-header d-flex align-items-center justify-content-between">
+                    <div class="row mb-4">
+                        <div class="col-md-4 mb-3 mb-md-0">
+                            <div class="stat-card">
+                                <div class="stat-icon"><i class="fa fa-address-book"></i></div>
                                 <div>
-                                    <h5 class="mb-1" style="font-weight:700;color:#0f172a;">Danh sách địa chỉ</h5>
-                                    <p class="form-hint mb-0">Địa chỉ mặc định sẽ được ưu tiên khi đặt hàng.</p>
+                                    <div class="stat-label">Tổng địa chỉ</div>
+                                    <div class="stat-value"><?php echo $total_addresses; ?></div>
                                 </div>
                             </div>
-                            <div class="address-card-body">
-                                <?php if (empty($addresses)): ?>
-                                    <div class="empty-address">
-                                        <i class="fa fa-map-marker fa-2x mb-3" style="color:#f36100;"></i>
-                                        <h6 class="mb-2" style="color:#0f172a; font-weight:700;">Chưa có địa chỉ nào</h6>
-                                        <p class="mb-0">Thêm địa chỉ đầu tiên để dùng cho giao hàng và thanh toán.</p>
+                        </div>
+                        <div class="col-md-4 mb-3 mb-md-0">
+                            <div class="stat-card">
+                                <div class="stat-icon"><i class="fa fa-star"></i></div>
+                                <div>
+                                    <div class="stat-label">Địa chỉ mặc định</div>
+                                    <div class="stat-value"><?php echo $default_address ? '1' : '0'; ?></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-card">
+                                <div class="stat-icon"><i class="fa fa-truck"></i></div>
+                                <div>
+                                    <div class="stat-label">Phục vụ giao hàng</div>
+                                    <div class="stat-value"><?php echo $total_addresses > 0 ? 'Có' : 'Chưa'; ?></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-lg-5 mb-4">
+                            <div class="address-form-card h-100">
+                                <div class="address-card-header">
+                                    <h5 class="mb-1" style="font-weight:700;color:#0f172a;">Thêm hoặc sửa địa chỉ</h5>
+                                    <p class="form-hint mb-0">Điền đầy đủ thông tin để dùng cho đơn hàng và đặt mặc định.</p>
+                                </div>
+                                <div class="address-card-body">
+                                    <div id="message-container" class="message-wrap"></div>
+
+                                    <form id="address-form" data-address-picker="1" data-mode="client" action="ajax/address-actions.php" novalidate>
+                                        <input type="hidden" name="id" id="address-id">
+                                        <div class="form-group">
+                                            <label for="full_address">Địa chỉ chi tiết</label>
+                                            <input type="text" name="full_address" id="full_address" class="form-control" placeholder="Số nhà, tên đường, thôn/xóm...">
+                                            <small class="text-danger d-none form-field-error" data-error-for="full_address"></small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="city">Tỉnh / Thành phố</label>
+                                            <select name="city" id="city" class="form-control">
+                                                <option value="">-- Chọn Tỉnh / Thành phố --</option>
+                                            </select>
+                                            <small class="text-danger d-none form-field-error" data-error-for="city"></small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="district">Quận / Huyện</label>
+                                            <select name="district" id="district" class="form-control">
+                                                <option value="">-- Chọn Quận / Huyện --</option>
+                                            </select>
+                                            <small class="text-danger d-none form-field-error" data-error-for="district"></small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="ward">Phường / Xã</label>
+                                            <select name="ward" id="ward" class="form-control">
+                                                <option value="">-- Chọn Phường / Xã --</option>
+                                            </select>
+                                            <small class="text-danger d-none form-field-error" data-error-for="ward"></small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="type">Loại địa chỉ</label>
+                                            <select name="type" id="type" class="form-control">
+                                                <option value="home">Nhà riêng</option>
+                                                <option value="work">Cơ quan</option>
+                                                <option value="other">Khác</option>
+                                            </select>
+                                            <small class="text-danger d-none form-field-error" data-error-for="type"></small>
+                                        </div>
+                                        <div class="form-actions mt-4">
+                                            <button type="submit" id="submit-btn" class="btn btn-success" style="border-radius:12px;padding:10px 18px;">
+                                                <i class="fa fa-save mr-1"></i> Lưu địa chỉ
+                                            </button>
+                                            <button type="button" id="reset-btn" class="btn btn-soft">
+                                                <i class="fa fa-undo mr-1"></i> Làm mới
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-7">
+                            <div class="address-list-card">
+                                <div class="address-card-header d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <h5 class="mb-1" style="font-weight:700;color:#0f172a;">Danh sách địa chỉ</h5>
+                                        <p class="form-hint mb-0">Địa chỉ mặc định sẽ được ưu tiên khi đặt hàng.</p>
                                     </div>
-                                <?php else: ?>
-                                    <?php foreach ($addresses as $addr): ?>
-                                        <div class="address-list-item">
-                                            <div class="address-main">
-                                                <div class="address-pin"><i class="fa fa-map-marker"></i></div>
-                                                <div class="flex-grow-1">
-                                                    <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
-                                                        <div class="address-title">#<?php echo $addr['id']; ?> <?php echo htmlspecialchars($addr['full_address']); ?></div>
-                                                        <?php if ($addr['is_default']): ?>
-                                                            <span class="badge badge-success" style="border-radius:999px;padding:7px 12px;">Mặc định</span>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <?php
-                                                        $addressTypeLabel = 'Nhà riêng';
-                                                        if (($addr['type'] ?? 'home') === 'work') {
-                                                            $addressTypeLabel = 'Cơ quan';
-                                                        } elseif (($addr['type'] ?? 'home') === 'other') {
-                                                            $addressTypeLabel = 'Khác';
-                                                        }
-                                                    ?>
-                                                    <div class="address-meta">
-                                                        <?php echo htmlspecialchars($addr['ward'] ?? ''); ?>, <?php echo htmlspecialchars($addr['district']); ?>, <?php echo htmlspecialchars($addr['city']); ?>
-                                                        <span class="badge badge-light ml-2" style="border-radius:999px;padding:5px 10px;">&nbsp;<?php echo $addressTypeLabel; ?>&nbsp;</span>
-                                                    </div>
-                                                    <div class="address-actions">
-                                                        <button class="btn-address btn-edit edit-btn"
-                                                                data-id="<?php echo $addr['id']; ?>"
-                                                                data-full="<?php echo htmlspecialchars($addr['full_address']); ?>"
-                                                                data-district="<?php echo htmlspecialchars($addr['district']); ?>"
-                                                                data-city="<?php echo htmlspecialchars($addr['city']); ?>"
-                                                                data-ward="<?php echo htmlspecialchars($addr['ward'] ?? ''); ?>"
-                                                                data-type="<?php echo htmlspecialchars($addr['type'] ?? 'home'); ?>"
-                                                                data-default="<?php echo (int) $addr['is_default']; ?>">
-                                                            <i class="fa fa-pencil mr-1"></i> Sửa
-                                                        </button>
-                                                        <button class="btn-address btn-default default-btn"
-                                                                data-id="<?php echo $addr['id']; ?>">
-                                                            <i class="fa fa-star mr-1"></i> Đặt mặc định
-                                                        </button>
-                                                        <button class="btn-address btn-delete delete-btn"
-                                                                data-id="<?php echo $addr['id']; ?>">
-                                                            <i class="fa fa-trash mr-1"></i> Xóa
-                                                        </button>
+                                </div>
+                                <div class="address-card-body">
+                                    <?php if (empty($addresses)): ?>
+                                        <div class="empty-address">
+                                            <i class="fa fa-map-marker fa-2x mb-3" style="color:#f36100;"></i>
+                                            <h6 class="mb-2" style="color:#0f172a; font-weight:700;">Chưa có địa chỉ nào</h6>
+                                            <p class="mb-0">Thêm địa chỉ đầu tiên để dùng cho giao hàng và thanh toán.</p>
+                                        </div>
+                                    <?php else: ?>
+                                        <?php foreach ($addresses as $addr): ?>
+                                            <div class="address-list-item">
+                                                <div class="address-main">
+                                                    <div class="address-pin"><i class="fa fa-map-marker"></i></div>
+                                                    <div class="flex-grow-1">
+                                                        <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+                                                            <div class="address-title">#<?php echo $addr['id']; ?> <?php echo htmlspecialchars($addr['full_address']); ?></div>
+                                                            <?php if ($addr['is_default']): ?>
+                                                                <span class="badge badge-success" style="border-radius:999px;padding:7px 12px;">Mặc định</span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <?php
+                                                            $addressTypeLabel = 'Nhà riêng';
+                                                            if (($addr['type'] ?? 'home') === 'work') {
+                                                                $addressTypeLabel = 'Cơ quan';
+                                                            } elseif (($addr['type'] ?? 'home') === 'other') {
+                                                                $addressTypeLabel = 'Khác';
+                                                            }
+                                                        ?>
+                                                        <div class="address-meta">
+                                                            <?php echo htmlspecialchars($addr['ward'] ?? ''); ?>, <?php echo htmlspecialchars($addr['district']); ?>, <?php echo htmlspecialchars($addr['city']); ?>
+                                                            <span class="badge badge-light ml-2" style="border-radius:999px;padding:5px 10px;">&nbsp;<?php echo $addressTypeLabel; ?>&nbsp;</span>
+                                                        </div>
+                                                        <div class="address-actions">
+                                                            <button class="btn-address btn-edit edit-btn"
+                                                                    data-id="<?php echo $addr['id']; ?>"
+                                                                    data-full="<?php echo htmlspecialchars($addr['full_address']); ?>"
+                                                                    data-district="<?php echo htmlspecialchars($addr['district']); ?>"
+                                                                    data-city="<?php echo htmlspecialchars($addr['city']); ?>"
+                                                                    data-ward="<?php echo htmlspecialchars($addr['ward'] ?? ''); ?>"
+                                                                    data-type="<?php echo htmlspecialchars($addr['type'] ?? 'home'); ?>"
+                                                                    data-default="<?php echo (int) $addr['is_default']; ?>">
+                                                                <i class="fa fa-pencil mr-1"></i> Sửa
+                                                            </button>
+                                                            <button class="btn-address btn-default default-btn"
+                                                                    data-id="<?php echo $addr['id']; ?>">
+                                                                <i class="fa fa-star mr-1"></i> Đặt mặc định
+                                                            </button>
+                                                            <button class="btn-address btn-delete delete-btn"
+                                                                    data-id="<?php echo $addr['id']; ?>">
+                                                                <i class="fa fa-trash mr-1"></i> Xóa
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                    <?php if ($total_pages > 1): ?>
-                                        <div class="pagination-wrap">
-                                            <nav aria-label="Phân trang địa chỉ">
-                                                <ul class="pagination mb-0">
-                                                    <li class="page-item <?php echo ($page <= 1) ? 'disabled' : ''; ?>">
-                                                        <a class="page-link" href="?page=<?php echo max(1, $page - 1); ?>" aria-label="Trang trước">&laquo;</a>
-                                                    </li>
-                                                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                                                        <li class="page-item <?php echo ($i === $page) ? 'active' : ''; ?>">
-                                                            <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                                        <?php endforeach; ?>
+                                        <?php if ($total_pages > 1): ?>
+                                            <div class="pagination-wrap">
+                                                <nav aria-label="Phân trang địa chỉ">
+                                                    <ul class="pagination mb-0">
+                                                        <li class="page-item <?php echo ($page <= 1) ? 'disabled' : ''; ?>">
+                                                            <a class="page-link" href="?page=<?php echo max(1, $page - 1); ?>" aria-label="Trang trước">&laquo;</a>
                                                         </li>
-                                                    <?php endfor; ?>
-                                                    <li class="page-item <?php echo ($page >= $total_pages) ? 'disabled' : ''; ?>">
-                                                        <a class="page-link" href="?page=<?php echo min($total_pages, $page + 1); ?>" aria-label="Trang sau">&raquo;</a>
-                                                    </li>
-                                                </ul>
-                                            </nav>
-                                        </div>
+                                                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                                                            <li class="page-item <?php echo ($i === $page) ? 'active' : ''; ?>">
+                                                                <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                                                            </li>
+                                                        <?php endfor; ?>
+                                                        <li class="page-item <?php echo ($page >= $total_pages) ? 'disabled' : ''; ?>">
+                                                            <a class="page-link" href="?page=<?php echo min($total_pages, $page + 1); ?>" aria-label="Trang sau">&raquo;</a>
+                                                        </li>
+                                                    </ul>
+                                                </nav>
+                                            </div>
+                                        <?php endif; ?>
                                     <?php endif; ?>
-                                <?php endif; ?>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -548,7 +569,6 @@ document.getElementById('reset-btn').addEventListener('click', function() {
     resetAddressForm();
 });
 
-
 // Nút sửa: load dữ liệu vào form
 document.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', function(){
@@ -612,8 +632,6 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
 if (window.location.hash === '#new') {
     resetAddressForm();
 }
-
-
 </script>
 
 <?php include 'layout/footer.php'; ?>

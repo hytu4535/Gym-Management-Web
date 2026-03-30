@@ -19,6 +19,25 @@ require_once '../includes/functions.php';
 $filterKeyword = trim((string) ($_GET['keyword'] ?? ''));
 $filterStatus = trim((string) ($_GET['status'] ?? ''));
 
+function canFeedbackAction($action)
+{
+    $permissions = $_SESSION['permissions'] ?? [];
+    if (!is_array($permissions)) {
+        return false;
+    }
+
+    if (in_array('MANAGE_ALL', $permissions, true)) {
+        return true;
+    }
+
+    $actionPermissions = $_SESSION['user_action_permissions']['MANAGE_FEEDBACK'] ?? null;
+    if (is_array($actionPermissions)) {
+        return !empty($actionPermissions[$action]);
+    }
+
+    return in_array('MANAGE_FEEDBACK', $permissions, true);
+}
+
 // Handle AJAX actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -27,6 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
     switch ($action) {
         case 'update_status':
+            if (!canFeedbackAction('edit')) {
+                echo json_encode(['success' => false, 'message' => 'Không có quyền thực hiện thao tác này']);
+                exit;
+            }
+
             if (!isset($_POST['csrf_token']) || !verifyCSRFToken($_POST['csrf_token'])) {
                 echo json_encode(['success' => false, 'message' => 'CSRF token mismatch']);
                 exit;
@@ -45,6 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             break;
             
         case 'delete':
+            if (!canFeedbackAction('delete')) {
+                echo json_encode(['success' => false, 'message' => 'Không có quyền thực hiện thao tác này']);
+                exit;
+            }
+
             $feedbackId = $_POST['id'] ?? 0;
             if (!$feedbackId) {
                 echo json_encode(['success' => false, 'message' => 'ID không hợp lệ']);

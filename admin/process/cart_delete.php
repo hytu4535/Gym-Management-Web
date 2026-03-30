@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_SALES', 'delete');
+
 require_once '../../config/db.php';
 
 if (isset($_GET['id'])) {
@@ -9,7 +12,8 @@ if (isset($_GET['id'])) {
     if ($conn->query($sql_cart) === TRUE) {
         echo "<script>alert('Đã xóa giỏ hàng thành công!'); window.location.href='../carts.php';</script>";
     } else {
-        echo "<script>alert('Lỗi: " . $conn->error . "'); window.location.href='../carts.php';</script>";
+        $friendly = processFriendlyDbError($conn->error, 'Không thể xóa giỏ hàng.');
+        echo "<script>alert('" . addslashes($friendly) . "'); window.location.href='../carts.php';</script>";
     }
 } else {
     header("Location: ../carts.php");

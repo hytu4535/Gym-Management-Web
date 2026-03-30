@@ -13,6 +13,25 @@ include '../includes/auth_permission.php';
 // chỉ cho phép user có quyền MANAGE_MEMBERS
 checkPermission('MANAGE_MEMBERS');
 
+$permissions = $_SESSION['permissions'] ?? [];
+$hasManageAll = in_array('MANAGE_ALL', $permissions, true);
+$memberActionSet = $_SESSION['user_action_permissions']['MANAGE_MEMBERS'] ?? null;
+
+if ($hasManageAll) {
+  $canAddMemberPackage = true;
+  $canEditMemberPackage = true;
+  $canDeleteMemberPackage = true;
+} elseif (is_array($memberActionSet)) {
+  $canAddMemberPackage = !empty($memberActionSet['add']);
+  $canEditMemberPackage = !empty($memberActionSet['edit']);
+  $canDeleteMemberPackage = !empty($memberActionSet['delete']);
+} else {
+  $legacyManageMembers = in_array('MANAGE_MEMBERS', $permissions, true);
+  $canAddMemberPackage = $legacyManageMembers;
+  $canEditMemberPackage = $legacyManageMembers;
+  $canDeleteMemberPackage = $legacyManageMembers;
+}
+
 // Xử lý các hành động
 $db = getDB();
 $message = '';
@@ -40,19 +59,27 @@ $memberPackageWhereSql = !empty($memberPackageWhereClauses) ? ' WHERE ' . implod
 
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'delete');
+
     try {
         $stmt = $db->prepare("DELETE FROM member_packages WHERE id = ?");
         $stmt->execute([$_GET['id']]);
         $message = "Xóa gói tập thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể xóa gói tập hội viên.');
         $messageType = "danger";
     }
 }
 
 // Xử lý thêm/sửa
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['id']) && !empty($_POST['id'])) {
+      checkPermission('MANAGE_MEMBERS', 'edit');
+    } else {
+      checkPermission('MANAGE_MEMBERS', 'add');
+    }
+
     $member_id = $_POST['member_id'];
     $package_id = $_POST['package_id'];
     $start_date = $_POST['start_date'];
@@ -73,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể lưu gói tập hội viên.');
         $messageType = "danger";
     }
 }
@@ -124,7 +151,7 @@ include 'layout/sidebar.php';
             <div class="col-md-4"><div class="form-group mb-0"><label>Hội viên</label><select name="member_id" class="form-control"><option value="">-- Tất cả --</option>';
           foreach ($members as $member) {
             $selected = (string) $filterMemberId === (string) $member['id'] ? 'selected' : '';
-            $filterFieldsHtml .= '<option value="' . (int) $member['id'] . '" ' . $selected . '>' . htmlspecialchars($member['full_name']) . '</option>';
+            $filterFieldsHtml .= '<option value="' . (int) $member['id'] . '" ' . $selected . '>' . htmlspecialchars((string) ($member['full_name'] ?? '')) . '</option>';
           }
           $filterFieldsHtml .= '</select></div></div>
             <div class="col-md-4"><div class="form-group mb-0"><label>Gói tập</label><select name="package_id" class="form-control"><option value="">-- Tất cả --</option>';
@@ -151,9 +178,11 @@ include 'layout/sidebar.php';
               <div class="card-header">
                 <h3 class="card-title">Danh sách gói tập của hội viên</h3>
                 <div class="card-tools">
+                  <?php if ($canAddMemberPackage): ?>
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#packageModal" onclick="resetForm()">
                     <i class="fas fa-plus"></i> Thêm Gói Tập
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
               <div class="card-body">
@@ -175,8 +204,8 @@ include 'layout/sidebar.php';
                   <?php foreach ($memberPackages as $mp): ?>
                   <tr>
                     <td><?php echo $mp['id']; ?></td>
-                    <td><?php echo htmlspecialchars($mp['full_name']); ?></td>
-                    <td><?php echo htmlspecialchars($mp['package_name']); ?></td>
+                    <td><?php echo htmlspecialchars((string) ($mp['full_name'] ?? '')); ?></td>
+                    <td><?php echo htmlspecialchars((string) ($mp['package_name'] ?? '')); ?></td>
                     <td><?php echo $mp['duration_months']; ?> tháng</td>
                     <td><?php echo number_format($mp['price'], 0, ',', '.'); ?> VNĐ</td>
                     <td><?php echo date('d/m/Y', strtotime($mp['start_date'])); ?></td>
@@ -191,12 +220,16 @@ include 'layout/sidebar.php';
                       <span class="badge badge-<?php echo $class; ?>"><?php echo $text; ?></span>
                     </td>
                     <td>
+                      <?php if ($canEditMemberPackage): ?>
                       <button class="btn btn-warning btn-sm" onclick='editPackage(<?php echo json_encode($mp); ?>)' data-toggle="modal" data-target="#packageModal">
                         <i class="fas fa-edit"></i>
                       </button>
+                      <?php endif; ?>
+                      <?php if ($canDeleteMemberPackage): ?>
                       <a href="?action=delete&id=<?php echo $mp['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa?')">
                         <i class="fas fa-trash"></i>
                       </a>
+                      <?php endif; ?>
                     </td>
                   </tr>
                   <?php endforeach; ?>
@@ -225,7 +258,7 @@ include 'layout/sidebar.php';
             <select name="member_id" id="member_id" class="form-control" required>
               <option value="">--- Chọn hội viên ---</option>
               <?php foreach ($members as $member): ?>
-              <option value="<?php echo $member['id']; ?>"><?php echo htmlspecialchars($member['full_name']); ?></option>
+              <option value="<?php echo $member['id']; ?>"><?php echo htmlspecialchars((string) ($member['full_name'] ?? '')); ?></option>
               <?php endforeach; ?>
             </select>
           </div>
@@ -235,7 +268,7 @@ include 'layout/sidebar.php';
               <option value="">--- Chọn gói tập ---</option>
               <?php foreach ($packages as $pkg): ?>
               <option value="<?php echo $pkg['id']; ?>" data-months="<?php echo $pkg['duration_months']; ?>">
-                <?php echo htmlspecialchars($pkg['package_name']) . " - " . number_format($pkg['price'], 0, ',', '.') . " VNĐ"; ?>
+                <?php echo htmlspecialchars((string) ($pkg['package_name'] ?? '')) . " - " . number_format($pkg['price'], 0, ',', '.') . " VNĐ"; ?>
               </option>
               <?php endforeach; ?>
             </select>

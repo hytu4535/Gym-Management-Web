@@ -464,7 +464,16 @@ include 'layout/sidebar.php';
 
 <script>
 $(function(){
-  if ($.fn.select2) $('.select2').select2({theme:'bootstrap4', placeholder:'Chọn...', allowClear:true});
+  if ($.fn.select2) {
+    $('.select2').not('.select2-hidden-accessible').each(function() {
+      $(this).select2({
+        theme: 'bootstrap4',
+        placeholder: 'Chọn...',
+        allowClear: true,
+        dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body)
+      });
+    });
+  }
 
   function renderPickerLabel($picker){
     function fmt(v){

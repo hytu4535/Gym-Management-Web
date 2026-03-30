@@ -1,6 +1,42 @@
 <?php
 session_start();
 include '../includes/database.php';
+include '../includes/functions.php';
+
+function migrateLegacyRolePermissionsToActionModel(PDO $db, int $roleId): void {
+    $hasLegacyRolePermissionsTable = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'role_permissions' LIMIT 1")->fetchColumn();
+    $hasPermissionTable = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('permission', 'permissions') LIMIT 1")->fetchColumn();
+    if (!$hasLegacyRolePermissionsTable || !$hasPermissionTable) {
+      return;
+    }
+
+    $existingCountStmt = $db->prepare("SELECT COUNT(*) FROM role_action_permissions WHERE role_id = ?");
+    $existingCountStmt->execute([$roleId]);
+    if ((int) $existingCountStmt->fetchColumn() > 0) {
+      return;
+    }
+
+    $permissionTable = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('permission', 'permissions') ORDER BY CASE WHEN TABLE_NAME = 'permission' THEN 0 ELSE 1 END LIMIT 1")->fetchColumn();
+    if (!$permissionTable) {
+      return;
+    }
+
+    $legacyRowsStmt = $db->prepare("SELECT DISTINCT p.code FROM role_permissions rp JOIN `$permissionTable` p ON rp.permission_id = p.id WHERE rp.role_id = ?");
+    $legacyRowsStmt->execute([$roleId]);
+    $codes = $legacyRowsStmt->fetchAll(PDO::FETCH_COLUMN);
+    if (empty($codes)) {
+      return;
+    }
+
+    $insertStmt = $db->prepare("INSERT INTO role_action_permissions (role_id, permission_code, can_view, can_add, can_edit, can_delete) VALUES (?, ?, 1, 0, 0, 0)");
+    foreach ($codes as $code) {
+      $permissionCode = trim((string) $code);
+      if ($permissionCode === '') {
+        continue;
+      }
+      $insertStmt->execute([$roleId, $permissionCode]);
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = trim($_POST['username']);
@@ -18,16 +54,69 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
-    // So sánh mật khẩu plain text
-    if ($user && $user['status'] === 'active' && $password === $user['password']) {
-        // Lấy danh sách quyền từ bảng role_permissions
-        $sql = "SELECT p.code 
-                FROM role_permissions rp
-                JOIN permission p ON rp.permission_id = p.id
-                WHERE rp.role_id = ?";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([$user['role_id']]);
-        $permissions = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $isPasswordValid = $user ? password_verify($password, $user['password']) : false;
+    $isLegacyPasswordValid = $user && !$isPasswordValid && $password === $user['password'];
+
+    // Xác thực bằng bcrypt, vẫn hỗ trợ dữ liệu cũ chưa hash
+    if ($user && $user['status'] === 'active' && ($isPasswordValid || $isLegacyPasswordValid)) {
+      $permissions = [];
+      $userActionPermissions = [];
+
+      $roleName = strtolower(trim((string) ($user['role_name'] ?? '')));
+      $isAdminRole = ((int) ($user['role_id'] ?? 0) === 4)
+        || $roleName === 'admin'
+        || $roleName === 'quản trị viên'
+        || $roleName === 'quan tri vien';
+      if ($isAdminRole) {
+        $permissions = ['MANAGE_ALL'];
+        $userActionPermissions['MANAGE_ALL'] = [
+          'view' => true,
+          'add' => true,
+          'edit' => true,
+          'delete' => true,
+        ];
+      } else {
+        migrateLegacyRolePermissionsToActionModel($db, (int) $user['role_id']);
+        $hasRoleActionPermissionTable = true;
+
+        if ($hasRoleActionPermissionTable) {
+          $stmt = $db->prepare("SELECT permission_code, can_view, can_add, can_edit, can_delete FROM role_action_permissions WHERE role_id = ?");
+          $stmt->execute([$user['role_id']]);
+          $permissionRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+          foreach ($permissionRows as $row) {
+            $code = (string) ($row['permission_code'] ?? '');
+            if ($code === '') {
+              continue;
+            }
+
+            $actionSet = [
+              'view' => (int) ($row['can_view'] ?? 0) === 1,
+              'add' => (int) ($row['can_add'] ?? 0) === 1,
+              'edit' => (int) ($row['can_edit'] ?? 0) === 1,
+              'delete' => (int) ($row['can_delete'] ?? 0) === 1,
+            ];
+
+            $userActionPermissions[$code] = $actionSet;
+            if ($actionSet['view'] || $actionSet['add'] || $actionSet['edit'] || $actionSet['delete']) {
+              $permissions[] = $code;
+            }
+          }
+        }
+
+        // Fallback cuối cùng cho dữ liệu cũ trong trường hợp migration bất thường.
+        $hasRolePermissionsTable = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'role_permissions' LIMIT 1")->fetchColumn();
+        $permissionTable = $db->query("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('permission', 'permissions') ORDER BY CASE WHEN TABLE_NAME = 'permission' THEN 0 ELSE 1 END LIMIT 1")->fetchColumn();
+        if (empty($permissions) && $hasRolePermissionsTable && $permissionTable) {
+          $sql = "SELECT p.code 
+              FROM role_permissions rp
+              JOIN `$permissionTable` p ON rp.permission_id = p.id
+              WHERE rp.role_id = ?";
+          $stmt = $db->prepare($sql);
+          $stmt->execute([$user['role_id']]);
+          $permissions = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+      }
 
         // Lưu vào session
         $_SESSION['admin_logged_in'] = true;
@@ -35,7 +124,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['admin_username'] = $user['username'];
         $_SESSION['role'] = $user['role_name'];
         $_SESSION['role_id'] = $user['role_id']; // thêm dòng này để lưu role_id
+        $_SESSION['is_admin_role'] = $isAdminRole;
         $_SESSION['permissions'] = $permissions;
+      $_SESSION['user_action_permissions'] = $userActionPermissions;
 
         header("Location: index.php");
         exit();
@@ -52,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
   <meta charset="UTF-8">
   <title>Admin Login</title>
-  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../client/assets/css/style.css">
   <style>
     body {
       background: #f0f2f5;

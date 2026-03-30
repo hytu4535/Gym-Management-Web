@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_SALES', 'edit');
+
 require_once '../../config/db.php';
 
 if (isset($_POST['btn_edit_product'])) {
@@ -44,33 +47,32 @@ if (isset($_POST['btn_edit_product'])) {
         }
     }
 
-    $checkDescriptionColumn = $conn->query("SHOW COLUMNS FROM products LIKE 'description'");
-    $hasDescriptionColumn = $checkDescriptionColumn && $checkDescriptionColumn->num_rows > 0;
+    $hasShortDescriptionColumn = (bool) ($conn->query("SHOW COLUMNS FROM products LIKE 'short_description'")->num_rows ?? 0);
+    $hasDescriptionColumn = (bool) ($conn->query("SHOW COLUMNS FROM products LIKE 'description'")->num_rows ?? 0);
+
+    $updateParts = [
+        "name = '$name'",
+        "category_id = $category_id",
+    ];
+
+    if ($hasShortDescriptionColumn) {
+        $updateParts[] = "short_description = '$short_description'";
+    }
 
     if ($hasDescriptionColumn) {
-        $sql = "UPDATE products SET 
-                name = '$name', 
-                category_id = $category_id, 
-                short_description = '$short_description',
-                description = '$description',
-                img = '$img_name',
-                unit = '$unit',
-                selling_price = $selling_price, 
-                stock_quantity = $stock_quantity,
-                status = '$status'
-                WHERE id = $id";
-    } else {
-        $sql = "UPDATE products SET 
-                name = '$name', 
-                category_id = $category_id, 
-                short_description = '$short_description',
-                img = '$img_name',
-                unit = '$unit',
-                selling_price = $selling_price, 
-                stock_quantity = $stock_quantity,
-                status = '$status'
-                WHERE id = $id";
+        $resolvedDescription = $description !== '' ? $description : $short_description;
+        $updateParts[] = "description = '$resolvedDescription'";
     }
+
+    $updateParts = array_merge($updateParts, [
+        "img = '$img_name'",
+        "unit = '$unit'",
+        "selling_price = $selling_price",
+        "stock_quantity = $stock_quantity",
+        "status = '$status'",
+    ]);
+
+    $sql = "UPDATE products SET " . implode(', ', $updateParts) . " WHERE id = $id";
 
     if ($conn->query($sql) === TRUE) {
         echo "<script>alert('Cập nhật thành công!'); window.location.href='../products.php';</script>";

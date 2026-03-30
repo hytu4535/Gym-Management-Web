@@ -57,14 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $item_type = isset($_POST['item_type']) ? trim($_POST['item_type']) : 'product';
-    if (!in_array($item_type, ['product', 'package', 'service'], true)) {
+    if (!in_array($item_type, ['product', 'package', 'service', 'class'], true)) {
         jsonResponse(false, 'Loại mục không hợp lệ!');
     }
 
     $product_id = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
     $package_id = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
     $service_id = isset($_POST['service_id']) ? (int)$_POST['service_id'] : 0;
-    $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : $product_id);
+    $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : ($item_type === 'class' ? (int)($_POST['class_id'] ?? 0) : $product_id));
     $quantity = isset($_POST['quantity']) && is_numeric($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
     if ($quantity < 1) {
         $quantity = 1;
@@ -115,6 +115,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($registered) {
                 throw new Exception('Bạn đang sử dụng gói tập này rồi.');
             }
+        } elseif ($item_type === 'class') {
+            $stmt_class = $conn->prepare("SELECT id, class_name, price_per_session FROM class_schedules WHERE id = ? AND status = 'active'");
+            $stmt_class->bind_param("i", $item_id);
+            $stmt_class->execute();
+            $class = $stmt_class->get_result()->fetch_assoc();
+            $stmt_class->close();
+
+            if (!$class) {
+                throw new Exception('Lớp tập không tồn tại hoặc đã ngưng hoạt động.');
+            }
         } else {
             $stmt_service = $conn->prepare("SELECT id FROM services WHERE id = ? AND status = 'hoạt động'");
             $stmt_service->bind_param("i", $item_id);
@@ -143,6 +153,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Dịch vụ này đã có trong giỏ hàng.');
             }
 
+            if ($item_type === 'class') {
+                throw new Exception('Lớp tập này đã có trong giỏ hàng.');
+            }
+
             $new_qty = $item_res['quantity'] + $quantity;
             if ($new_qty > $product['stock_quantity']) {
                 throw new Exception('Vượt quá tồn kho!');
@@ -168,6 +182,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $successMessage = 'Đã thêm gói tập vào giỏ hàng!';
         } elseif ($item_type === 'service') {
             $successMessage = 'Đã thêm dịch vụ vào giỏ hàng!';
+        } elseif ($item_type === 'class') {
+            $successMessage = 'Đã thêm lớp tập vào giỏ hàng!';
         } else {
             $successMessage = 'Đã thêm vào giỏ!';
         }

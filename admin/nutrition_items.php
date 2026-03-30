@@ -20,6 +20,8 @@ $db = getDB();
 // CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
+    checkPermission('MANAGE_SERVICES_NUTRITION', 'add');
+
         $name = sanitize($_POST['name']);
         $serving = sanitize($_POST['serving_desc']);
         $calories = !empty($_POST['calories']) ? intval($_POST['calories']) : null;
@@ -41,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'edit') {
+      checkPermission('MANAGE_SERVICES_NUTRITION', 'edit');
+
         $id = intval($_POST['id']);
         $name = sanitize($_POST['name']);
         $serving = sanitize($_POST['serving_desc']);
@@ -63,6 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'delete') {
+      checkPermission('MANAGE_SERVICES_NUTRITION', 'delete');
+
         $id = intval($_POST['id']);
         try {
             $stmt = $db->prepare("DELETE FROM nutrition_items WHERE id = ?");

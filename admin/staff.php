@@ -1,3 +1,4 @@
+
 <?php
 session_start();
 $page_title = "Quản lý Staff";
@@ -7,7 +8,52 @@ include '../includes/database.php';
 include '../includes/auth_permission.php';
 checkPermission('MANAGE_STAFF');
 
+$resolveStaffActionPermission = static function (string $requiredAction): bool {
+  $permissions = $_SESSION['permissions'] ?? [];
+  $actionPermissions = $_SESSION['user_action_permissions'] ?? [];
+
+  if (!is_array($permissions)) {
+    return false;
+  }
+
+  if (!empty($_SESSION['is_admin_role']) || strtolower((string) ($_SESSION['role'] ?? '')) === 'admin') {
+    return true;
+  }
+
+  $actionKeyMap = [
+    'view' => 'view',
+    'add' => 'add',
+    'create' => 'add',
+    'edit' => 'edit',
+    'update' => 'edit',
+    'delete' => 'delete',
+    'remove' => 'delete',
+  ];
+
+  $normalizedAction = strtolower(trim($requiredAction));
+  $normalizedAction = $actionKeyMap[$normalizedAction] ?? 'view';
+
+  if (is_array($actionPermissions) && !empty($actionPermissions)) {
+    if (isset($actionPermissions['MANAGE_STAFF']) && is_array($actionPermissions['MANAGE_STAFF'])) {
+      return !empty($actionPermissions['MANAGE_STAFF'][$normalizedAction]);
+    }
+
+    return $normalizedAction === 'view' && in_array('MANAGE_STAFF', $permissions, true);
+  }
+
+  return $normalizedAction === 'view' && in_array('MANAGE_STAFF', $permissions, true);
+};
+
+$canAddStaff = $resolveStaffActionPermission('add');
+$canEditStaff = $resolveStaffActionPermission('edit');
+$canDeleteStaff = $resolveStaffActionPermission('delete');
+
 $db = getDB();
+$hasDepartmentIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff' AND COLUMN_NAME = 'department_id' LIMIT 1")->fetchColumn();
+$hasUserFullNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'full_name' LIMIT 1")->fetchColumn();
+$staffUserIdColumnName = 'users_id';
+$staffUserIdSelectSql = 's.users_id AS users_id';
+$staffUserJoinSql = ' LEFT JOIN users u ON s.users_id = u.id';
 
 // Bộ lọc danh sách
 $filterName = trim((string) ($_GET['name'] ?? ''));
@@ -41,7 +87,7 @@ if ($filterPosition !== '') {
     $whereParams[] = '%' . $filterPosition . '%';
 }
 
-if ($filterDepartment !== '' && ctype_digit($filterDepartment)) {
+if ($hasDepartmentIdColumn && $filterDepartment !== '' && ctype_digit($filterDepartment)) {
     $whereClauses[] = 's.department_id = ?';
     $whereParams[] = (int) $filterDepartment;
 }
@@ -53,19 +99,29 @@ if ($filterStatus !== '') {
 
 $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
 
+$departmentSelectSql = $hasDepartmentIdColumn
+  ? 's.department_id, d.name AS department_name'
+  : 'NULL AS department_id, NULL AS department_name';
+$departmentJoinSql = $hasDepartmentIdColumn
+  ? ' LEFT JOIN departments d ON s.department_id = d.id'
+  : '';
+
 $stmt = $db->prepare(
-    "SELECT s.id, s.users_id, s.full_name, s.position, s.department_id, s.status, u.username, u.email, u.phone, d.name AS department_name
-     FROM staff s
-     LEFT JOIN users u ON s.users_id = u.id
-     LEFT JOIN departments d ON s.department_id = d.id" . $whereSql . " ORDER BY s.id DESC"
+  "SELECT s.id, $staffUserIdSelectSql, s.full_name, s.position, $departmentSelectSql, s.status, u.username, u.email, u.phone, u.role_id AS linked_role_id
+   FROM staff s
+   " . $staffUserJoinSql . $departmentJoinSql . $whereSql . " ORDER BY s.id DESC"
 );
 $stmt->execute($whereParams);
 $staffList = $stmt->fetchAll();
-$usedUserIds = array_map('intval', $db->query("SELECT users_id FROM staff")->fetchAll(PDO::FETCH_COLUMN));
+$usedUserIds = [];
+if ($staffUserIdColumnName !== null) {
+  $usedUserIds = array_map('intval', $db->query("SELECT $staffUserIdColumnName FROM staff")->fetchAll(PDO::FETCH_COLUMN));
+}
 
-$users = $db->query("SELECT id, username, full_name, email, phone FROM users ORDER BY email ASC, username ASC")->fetchAll();
+$usersNameSelect = $hasUserFullNameColumn ? 'full_name' : 'username AS full_name';
+$users = $db->query("SELECT u.id, u.username, $usersNameSelect, u.email, u.phone, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id ORDER BY u.email ASC, u.username ASC")->fetchAll();
 $roles = $db->query("SELECT id, name, description FROM roles WHERE status = 'active' ORDER BY id ASC")->fetchAll();
-$departments = $db->query("SELECT id, name FROM departments ORDER BY id ASC")->fetchAll();
+$departments = $hasDepartmentIdColumn ? $db->query("SELECT id, name FROM departments ORDER BY id ASC")->fetchAll() : [];
 
 function staffStatusLabel($status)
 {
@@ -105,15 +161,16 @@ include 'layout/sidebar.php';
           <div class="col-md-2"><div class="form-group mb-0"><label>Họ tên</label><input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Họ tên"></div></div>
           <div class="col-md-2"><div class="form-group mb-0"><label>Email</label><input type="text" name="email" class="form-control" value="' . htmlspecialchars($filterEmail) . '" placeholder="Email"></div></div>
           <div class="col-md-2"><div class="form-group mb-0"><label>SĐT</label><input type="text" name="phone" class="form-control" value="' . htmlspecialchars($filterPhone) . '" placeholder="SĐT"></div></div>
-          <div class="col-md-2"><div class="form-group mb-0"><label>Chức vụ</label><input type="text" name="position" class="form-control" value="' . htmlspecialchars($filterPosition) . '" placeholder="Chức vụ"></div></div>
-          <div class="col-md-2"><div class="form-group mb-0"><label>Phòng ban</label><select name="department_id" class="form-control"><option value="">-- Tất cả --</option>';
-        foreach ($departments as $departmentOption) {
-            $selected = $filterDepartment !== '' && (int) $filterDepartment === (int) $departmentOption['id'] ? 'selected' : '';
-            $filterFieldsHtml .= '<option value="' . (int) $departmentOption['id'] . '" ' . $selected . '>' . htmlspecialchars($departmentOption['name']) . '</option>';
+          <div class="col-md-2"><div class="form-group mb-0"><label>Chức vụ</label><input type="text" name="position" class="form-control" value="' . htmlspecialchars($filterPosition) . '" placeholder="Chức vụ"></div></div>';
+        if ($hasDepartmentIdColumn) {
+            $filterFieldsHtml .= '<div class="col-md-2"><div class="form-group mb-0"><label>Phòng ban</label><select name="department_id" class="form-control"><option value="">-- Tất cả --</option>';
+            foreach ($departments as $departmentOption) {
+                $selected = $filterDepartment !== '' && (int) $filterDepartment === (int) $departmentOption['id'] ? 'selected' : '';
+                $filterFieldsHtml .= '<option value="' . (int) $departmentOption['id'] . '" ' . $selected . '>' . htmlspecialchars($departmentOption['name']) . '</option>';
+            }
+            $filterFieldsHtml .= '</select></div></div>';
         }
-        $filterFieldsHtml .= '</select></div></div>
-          <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Đang làm</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Đã nghỉ việc</option><option value="on_leave" ' . ($filterStatus === 'on_leave' ? 'selected' : '') . '>Tạm nghỉ</option></select></div></div>
-        ';
+        $filterFieldsHtml .= '<div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Đang làm</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Đã nghỉ việc</option><option value="on_leave" ' . ($filterStatus === 'on_leave' ? 'selected' : '') . '>Tạm nghỉ</option></select></div></div>';
         include 'layout/filter-card.php';
       ?>
 
@@ -121,9 +178,11 @@ include 'layout/sidebar.php';
         <div class="card-header">
           <h3 class="card-title">Danh sách Staff</h3>
           <div class="card-tools">
+            <?php if ($canAddStaff): ?>
             <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#staffModal" onclick="resetStaffForm()">
               <i class="fas fa-plus"></i> Thêm Staff
             </button>
+            <?php endif; ?>
           </div>
         </div>
         <div class="card-body">
@@ -135,7 +194,7 @@ include 'layout/sidebar.php';
                 <th>Email</th>
                 <th>SĐT</th>
                 <th>Chức vụ</th>
-                <th>Phòng ban</th>
+                <?php if ($hasDepartmentIdColumn): ?><th>Phòng ban</th><?php endif; ?>
                 <th>Trạng thái</th>
                 <th>Hành động</th>
               </tr>
@@ -153,21 +212,25 @@ include 'layout/sidebar.php';
                     <td><?php echo htmlspecialchars($staff['email'] ?? ''); ?></td>
                     <td><?php echo htmlspecialchars($staff['phone'] ?? ''); ?></td>
                     <td><?php echo htmlspecialchars($staff['position'] ?? ''); ?></td>
-                    <td><?php echo htmlspecialchars($staff['department_name'] ?? ''); ?></td>
+                    <?php if ($hasDepartmentIdColumn): ?><td><?php echo htmlspecialchars($staff['department_name'] ?? ''); ?></td><?php endif; ?>
                     <td><span class="badge badge-<?php echo $statusInfo['class']; ?>"><?php echo $statusInfo['label']; ?></span></td>
                     <td>
+                      <?php if ($canEditStaff): ?>
                       <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#staffModal" onclick='editStaff(<?php echo $staffJson; ?>)'>
                         <i class="fas fa-edit"></i>
                       </button>
+                      <?php endif; ?>
+                      <?php if ($canDeleteStaff): ?>
                       <a href="process/staff_management.php?action=delete&id=<?php echo (int) $staff['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Xóa staff này?');">
                         <i class="fas fa-trash"></i>
                       </a>
+                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; ?>
               <?php else: ?>
                 <tr>
-                  <td colspan="8" class="text-center">Chưa có staff nào.</td>
+                  <td colspan="<?php echo $hasDepartmentIdColumn ? '8' : '7'; ?>" class="text-center">Chưa có staff nào.</td>
                 </tr>
               <?php endif; ?>
             </tbody>
@@ -201,7 +264,7 @@ include 'layout/sidebar.php';
                   $userLabel = trim((string) ($user['username'] ?? '')) . ' / ' . trim((string) ($user['email'] ?? ''));
                   $isUsed = in_array((int) $user['id'], $usedUserIds, true);
                 ?>
-                <option value="<?php echo (int) $user['id']; ?>" data-used="<?php echo $isUsed ? '1' : '0'; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>">
+                <option value="<?php echo (int) $user['id']; ?>" data-used="<?php echo $isUsed ? '1' : '0'; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>" data-position="<?php echo htmlspecialchars((string) ($user['role_name'] ?? ''), ENT_QUOTES); ?>">
                   <?php echo htmlspecialchars($userLabel); ?>
                 </option>
               <?php endforeach; ?>
@@ -220,23 +283,27 @@ include 'layout/sidebar.php';
           </div>
           <div class="form-group">
             <label>Chức vụ</label>
-            <select name="position" id="position" class="form-control" required>
+            <select id="position_display" class="form-control" disabled>
               <option value="">--- Chọn chức vụ ---</option>
               <?php foreach ($roles as $role): ?>
                 <?php $roleLabel = $role['name'] . (!empty($role['description']) ? ' - ' . $role['description'] : ''); ?>
                 <option value="<?php echo htmlspecialchars($role['name'], ENT_QUOTES); ?>"><?php echo htmlspecialchars($roleLabel); ?></option>
               <?php endforeach; ?>
             </select>
+            <input type="hidden" name="position" id="position" value="">
+            <small class="text-muted d-block">Chức vụ được tự động lấy theo tài khoản / email đã chọn.</small>
           </div>
-          <div class="form-group">
-            <label>Phòng ban</label>
-            <select name="department_id" id="department_id" class="form-control" required>
-              <option value="">--- Chọn phòng ban ---</option>
-              <?php foreach ($departments as $department): ?>
-                <option value="<?php echo (int) $department['id']; ?>"><?php echo htmlspecialchars($department['name']); ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
+          <?php if ($hasDepartmentIdColumn): ?>
+            <div class="form-group">
+              <label>Phòng ban</label>
+              <select name="department_id" id="department_id" class="form-control" required>
+                <option value="">--- Chọn phòng ban ---</option>
+                <?php foreach ($departments as $department): ?>
+                  <option value="<?php echo (int) $department['id']; ?>"><?php echo htmlspecialchars($department['name']); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          <?php endif; ?>
           <div class="form-group">
             <label>Trạng thái</label>
             <select name="status" id="status" class="form-control" required>
@@ -283,8 +350,11 @@ include 'layout/sidebar.php';
     document.getElementById('staff_id').value = '';
     document.getElementById('staff_form_mode').value = 'add';
     $('#users_id').prop('disabled', false).val(null).trigger('change');
-    $('#position').val('').trigger('change');
-    $('#department_id').val('').trigger('change');
+    $('#position').val('');
+    $('#position_display').val('');
+    if ($('#department_id').length) {
+      $('#department_id').val('').trigger('change');
+    }
     $('#status').val('active').trigger('change');
     document.getElementById('full_name').value = '';
     document.getElementById('phone_display').value = '';
@@ -297,8 +367,11 @@ include 'layout/sidebar.php';
     document.getElementById('staff_id').value = staff.id || '';
     document.getElementById('staff_form_mode').value = 'edit';
     $('#users_id').prop('disabled', true).val(String(staff.users_id || '')).trigger('change');
-    $('#position').val(staff.position || '').trigger('change');
-    $('#department_id').val(staff.department_id || '').trigger('change');
+    $('#position').val(staff.position || '');
+    $('#position_display').val(staff.position || '');
+    if ($('#department_id').length) {
+      $('#department_id').val(staff.department_id || '').trigger('change');
+    }
     $('#status').val(staff.status || 'active').trigger('change');
     syncSelectedUserInfo();
     clearUserValidation();
@@ -317,12 +390,27 @@ include 'layout/sidebar.php';
     var selectedOption = userSelect && userSelect.options[userSelect.selectedIndex] ? userSelect.options[userSelect.selectedIndex] : null;
     var fullNameInput = document.getElementById('full_name');
     var phoneInput = document.getElementById('phone_display');
+    var positionInput = document.getElementById('position');
+    var positionDisplay = document.getElementById('position_display');
     var error = document.getElementById('users_id_error');
     var formMode = document.getElementById('staff_form_mode').value || 'add';
     var isUsed = selectedOption && selectedOption.getAttribute('data-used') === '1';
+    var positionValue = selectedOption ? (selectedOption.getAttribute('data-position') || '') : '';
 
     fullNameInput.value = selectedOption ? (selectedOption.getAttribute('data-name') || '') : '';
     phoneInput.value = selectedOption ? (selectedOption.getAttribute('data-phone') || '') : '';
+    if (positionInput) {
+      positionInput.value = positionValue;
+    }
+
+    if (positionDisplay && positionValue) {
+      var hasMatchingOption = Array.from(positionDisplay.options).some(function (option) {
+        return option.value === positionValue;
+      });
+      if (hasMatchingOption) {
+        positionDisplay.value = positionValue;
+      }
+    }
 
     if (formMode === 'add' && userSelect && !userSelect.disabled && userSelect.value && isUsed) {
       error.classList.remove('d-none');

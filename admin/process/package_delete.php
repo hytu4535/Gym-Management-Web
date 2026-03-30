@@ -1,8 +1,21 @@
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_PACKAGES', 'delete');
+
 require_once '../../config/db.php';
 
 if (isset($_GET['id'])) {
     $id = (int)$_GET['id'];
+
+    $usageSql = "SELECT COUNT(*) AS total FROM member_packages WHERE package_id = $id";
+    $usageResult = $conn->query($usageSql);
+    $usageCount = $usageResult ? (int) ($usageResult->fetch_assoc()['total'] ?? 0) : 0;
+
+    if ($usageCount > 0) {
+        echo "<script>alert('Không thể xóa! Gói tập đang được sử dụng bởi hội viên.'); window.location.href='../packages.php';</script>";
+        exit;
+    }
+
     $sql = "DELETE FROM membership_packages WHERE id = $id";
 
     if ($conn->query($sql) === TRUE) {

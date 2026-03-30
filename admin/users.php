@@ -19,9 +19,21 @@ include 'layout/sidebar.php';
 
 $db = getDB();
 
-// Kiểm tra cột phone tồn tại
-$checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
-$hasPhoneColumn = !empty($checkColumn);
+// Kiểm tra các cột theo đúng database hiện tại để tránh lệch schema
+$columnCheckStmt = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME = ? LIMIT 1");
+
+$columnCheckStmt->execute(['phone']);
+$hasPhoneColumn = !empty($columnCheckStmt->fetch());
+
+$columnCheckStmt->execute(['full_name']);
+$hasFullNameColumn = !empty($columnCheckStmt->fetch());
+
+$columnCheckStmt->execute(['name']);
+$hasNameColumn = !empty($columnCheckStmt->fetch());
+
+$displayNameSelect = $hasFullNameColumn
+  ? 'u.full_name AS full_name'
+  : ($hasNameColumn ? 'u.name AS full_name' : 'u.username AS full_name');
 
 // Bộ lọc
 $filterUsername = trim((string) ($_GET['username'] ?? ''));
@@ -75,14 +87,14 @@ $totalPages = ceil($totalRecords / $itemsPerPage);
 
 // Lấy danh sách users
 if ($hasPhoneColumn) {
-  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.phone, u.password, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, $displayNameSelect, u.email, u.phone, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 } else {
-  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.password, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, $displayNameSelect, u.email, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
@@ -232,7 +244,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <th>Tên đăng nhập</th>
                 <th>Email</th>
                 <th>Số điện thoại</th>
-                <th>Mật khẩu</th>
                 <th>Vai trò</th>
                 <th>Trạng thái</th>
                 <th>Ngày tạo</th>
@@ -246,15 +257,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <td><?= $u['username'] ?></td>
                 <td><?= $u['email'] ?></td>
                 <td><?= htmlspecialchars($u['phone'] ?? '') ?></td>
-                <td>
-                  <div class="password-display-group" data-id="<?= $u['id'] ?>">
-                    <span class="password-masked">••••••••</span>
-                    <span class="password-actual" style="display: none;"><?= htmlspecialchars(substr($u['password'], 0, 15)) . (strlen($u['password']) > 15 ? '...' : '') ?></span>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="togglePasswordDisplay(<?= $u['id'] ?>)" style="padding: 2px 8px; margin-left: 5px;">
-                      <i class="fas fa-eye"></i>
-                    </button>
-                  </div>
-                </td>
                 <td><span class="badge badge-info"><?= $u['role'] ?></span></td>
                 <td>
                   <?php if($u['status']=='active'): ?>

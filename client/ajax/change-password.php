@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 header('Content-Type: application/json');
+require_once '../../includes/functions.php';
 require_once '../../config/db.php';
 
 if (!isset($_SESSION['user_id'])) {
@@ -72,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // 4. Hash mật khẩu mới
-        $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
+        $hashed_password = hashPassword($new_password);
 
         // 5. Update DB
         $stmt2 = $conn->prepare("UPDATE users SET password=? WHERE id=?");

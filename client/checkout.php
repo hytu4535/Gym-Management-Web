@@ -5,7 +5,6 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once '../config/db.php';
 require_once '../includes/discount_helper.php';
 
-
 if (!isset($_SESSION['user_id'])) {
     echo "<script>alert('Vui lòng đăng nhập để tiến hành thanh toán!'); window.location.href='login.php';</script>";
     exit;
@@ -34,7 +33,6 @@ if ($nextResult && $nextRow = $nextResult->fetch_assoc()) {
 }
 $plannedTransferCode = generateTransferCode($nextOrderId);
 
-
 $cart_sql = "
     SELECT ci.item_type,
            ci.quantity,
@@ -48,13 +46,20 @@ $cart_sql = "
            s.id AS service_id,
            s.name AS service_name,
            s.price AS service_price,
-           s.type AS service_type
+            s.type AS service_type,
+            cs.id AS class_id,
+            cs.class_name,
+            cs.price_per_session AS class_price,
+            cs.schedule_days AS class_schedule_days,
+            cs.schedule_start_time AS class_start_time,
+            cs.schedule_end_time AS class_end_time
     FROM members m
     JOIN carts c ON m.id = c.member_id AND c.status = 'active'
     JOIN cart_items ci ON c.id = ci.cart_id
     LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
     LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
     LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+        LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
     WHERE m.users_id = ?
 ";
 $stmt_cart = $conn->prepare($cart_sql);
@@ -90,6 +95,12 @@ while ($row = $cart_result->fetch_assoc()) {
         $row['original_price'] = (float) $row['package_price'];
         $row['discount_percent'] = 0;
         $row['has_discount'] = false;
+    } elseif ($row['item_type'] === 'class') {
+        $row['display_name'] = $row['class_name'];
+        $row['final_price'] = (float) $row['class_price'];
+        $row['original_price'] = (float) $row['class_price'];
+        $row['discount_percent'] = 0;
+        $row['has_discount'] = false;
     } else {
         $row['display_name'] = $row['service_name'];
         $row['final_price'] = (float) $row['service_price'];
@@ -105,16 +116,36 @@ while ($row = $cart_result->fetch_assoc()) {
 }
 $stmt_cart->close();
 
-$total_discount = $subtotal_original - $subtotal;
-
-// Áp dụng promotion (nếu có chọn trong session)
 $selected_promotion_id = isset($_SESSION['selected_promotion']) ? (int)$_SESSION['selected_promotion'] : 0;
-$cart_total = calculateCartTotal($user_id, $conn, $selected_promotion_id);
+$tier_info = getMemberTierDiscount($user_id, $conn);
+$cart_subtotal = $subtotal;
+$base_discount_percent = (float) ($tier_info['base_discount'] ?? 0);
+$base_discount_amount = round($cart_subtotal * $base_discount_percent / 100, 0);
+$subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
+$promotion_discount = 0;
+$promotion_info = null;
 
-$subtotal = $cart_total['final_subtotal']; // Tổng sau base + promotion
+if ($selected_promotion_id > 0) {
+    $promotion_info = getPromotionById($selected_promotion_id, $conn);
+    if ($promotion_info && (int) $promotion_info['tier_id'] === (int) $tier_info['tier_id']) {
+        if ($promotion_info['discount_type'] === 'percentage') {
+            $promotion_discount = round(($subtotal_after_base * (float) $promotion_info['discount_value']) / 100, 0);
+        } elseif ($promotion_info['discount_type'] === 'fixed') {
+            $promotion_discount = round((float) $promotion_info['discount_value'], 0);
+        }
+
+        if ($promotion_discount > $subtotal_after_base) {
+            $promotion_discount = $subtotal_after_base;
+        }
+    } else {
+        $promotion_info = null;
+    }
+}
+
+$subtotal = max($subtotal_after_base - $promotion_discount, 0);
 $shipping_fee = $hasPhysicalProducts ? 30000 : 0;
 $total = $subtotal + $shipping_fee;
-
+$total_discount = $base_discount_amount + $promotion_discount;
 
 $user_sql = "SELECT m.id AS member_id, m.full_name, m.phone, u.email 
              FROM members m 
@@ -272,7 +303,7 @@ include 'layout/header.php';
                         </div>
                         <?php else: ?>
                         <div class="alert alert-info mb-4">
-                            Đơn hàng này chỉ gồm gói tập/dịch vụ, nên không cần địa chỉ giao hàng.
+                            <i class="fa fa-info-circle mr-1"></i> Đơn hàng này chỉ gồm gói tập/dịch vụ, nên không yêu cầu địa chỉ giao nhận.
                         </div>
                         <?php endif; ?>
 
@@ -286,10 +317,10 @@ include 'layout/header.php';
                 <div class="col-lg-4">
                     <div class="checkout-cart" style="background: #f5f5f5; padding: 30px; border-radius: 5px;">
                         <h5 style="border-bottom: 1px solid #e1e1e1; padding-bottom: 15px; margin-bottom: 20px;">Đơn hàng của bạn</h5>
+                            <input type="hidden" name="selected_promotion_id" id="selected-promotion-id" value="<?php echo (int) $selected_promotion_id; ?>">
                         
                         <?php 
-                        $tier_info = getMemberTierDiscount($user_id, $conn);
-                        $total_saved = $cart_total['base_discount_amount'] + $cart_total['promotion_discount'];
+                        $total_saved = $total_discount;
                         
                         if ($total_saved > 0): 
                         ?>
@@ -321,25 +352,25 @@ include 'layout/header.php';
                         <ul class="total-cost mt-3" style="list-style: none; padding: 0; border-top: 1px solid #e1e1e1; padding-top: 20px;">
                             <li style="display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px;">
                                 Giá gốc 
-                                <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_total['subtotal_original'], 0, ',', '.'); ?>đ</span>
+                                <span style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_subtotal, 0, ',', '.'); ?>đ</span>
                             </li>
-                            <?php if ($cart_total['base_discount_amount'] > 0): ?>
+                            <?php if ($base_discount_amount > 0): ?>
                             <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #28a745;">
-                                Giảm hạng (<?php echo $tier_info['tier_name']; ?> <?php echo number_format($tier_info['base_discount'], 0); ?>%)
-                                <span>-<?php echo number_format($cart_total['base_discount_amount'], 0, ',', '.'); ?>đ</span>
+                                Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%)
+                                <span>-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</span>
                             </li>
                             <?php endif; ?>
-                            <?php if ($cart_total['has_promotion']): ?>
+                            <?php if ($promotion_discount > 0 && $promotion_info): ?>
                             <li style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #ff4444; font-weight: bold; background: #fff3cd; padding: 8px; border-radius: 4px;">
-                                <span><i class="fa fa-gift"></i> <?php echo $cart_total['promotion_info']['name']; ?></span>
-                                <span>-<?php echo number_format($cart_total['promotion_discount'], 0, ',', '.'); ?>đ</span>
+                                <span><i class="fa fa-gift"></i> <?php echo htmlspecialchars($promotion_info['name']); ?></span>
+                                <span>-<?php echo number_format($promotion_discount, 0, ',', '.'); ?>đ</span>
                             </li>
                             <?php endif; ?>
-                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px; font-weight: bold;">
-                                Tạm tính 
-                                <span><?php echo number_format($subtotal, 0, ',', '.'); ?>đ</span>
-                            </li>
-                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px;"><?php echo $hasPhysicalProducts ? 'Phí vận chuyển' : 'Phí giao hàng'; ?> <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
+                            
+                            <?php if ($hasPhysicalProducts): ?>
+                            <li style="display: flex; justify-content: space-between; margin-bottom: 15px;">Phí vận chuyển <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></li>
+                            <?php endif; ?>
+                            
                             <li style="display: flex; justify-content: space-between; font-weight: bold; font-size: 18px; color: #e7ab3c; border-top: 1px solid #e1e1e1; padding-top: 15px;">Tổng cộng <span><?php echo number_format($total, 0, ',', '.'); ?>đ</span></li>
                         </ul>
 
@@ -426,6 +457,15 @@ document.querySelectorAll('input[name="payment_method"]').forEach(function(radio
     });
 });
 
+document.querySelectorAll('.promotion-radio').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var hiddenPromotion = document.getElementById('selected-promotion-id');
+        if (hiddenPromotion) {
+            hiddenPromotion.value = this.value;
+        }
+    });
+});
+
 document.getElementById('checkout-form').addEventListener('submit', function(e) {
     var useNewAddressCheckbox = document.getElementById('use-new-address');
     var useNewAddress = useNewAddressCheckbox ? useNewAddressCheckbox.checked : false;
@@ -439,6 +479,7 @@ document.getElementById('checkout-form').addEventListener('submit', function(e) 
         if (!newAddress || !city || !district) {
             e.preventDefault(); 
             alert('Vui lòng nhập đầy đủ: Địa chỉ, Thành phố và Quận/Huyện!');
+            return; 
         }
     } else if (addressSelect && !addressSelect.value) {
         e.preventDefault();

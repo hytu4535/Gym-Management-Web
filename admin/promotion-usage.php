@@ -41,7 +41,7 @@ if ($filterFromDate !== '') { $promotionUsageWhereClauses[] = 'DATE(pu.applied_a
 if ($filterToDate !== '') { $promotionUsageWhereClauses[] = 'DATE(pu.applied_at) <= ?'; $promotionUsageParams[] = $filterToDate; }
 $promotionUsageWhereSql = !empty($promotionUsageWhereClauses) ? ' WHERE ' . implode(' AND ', $promotionUsageWhereClauses) : '';
 
-$usageSql = "SELECT pu.id, pu.member_id, pu.promotion_id, pu.order_id, pu.applied_amount, pu.applied_at, m.full_name AS member_name, mt.name AS tier_name, tp.name AS promotion_name FROM promotion_usage pu INNER JOIN members m ON m.id = pu.member_id LEFT JOIN member_tiers mt ON mt.id = m.tier_id INNER JOIN tier_promotions tp ON tp.id = pu.promotion_id" . $promotionUsageWhereSql . " ORDER BY pu.applied_at DESC, pu.id DESC";
+$usageSql = "SELECT pu.id, pu.member_id, pu.promotion_id, pu.order_id, pu.applied_amount, pu.applied_at, m.full_name AS member_name, mt.name AS tier_name, COALESCE(tp.name, '(Khuyến mãi đã xóa)') AS promotion_name FROM promotion_usage pu INNER JOIN members m ON m.id = pu.member_id LEFT JOIN member_tiers mt ON mt.id = m.tier_id LEFT JOIN tier_promotions tp ON tp.id = pu.promotion_id" . $promotionUsageWhereSql . " ORDER BY pu.applied_at DESC, pu.id DESC";
 $usageStmt = $db->prepare($usageSql);
 $usageStmt->execute($promotionUsageParams);
 $promotionUsages = $usageStmt->fetchAll();

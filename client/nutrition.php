@@ -142,7 +142,7 @@ include 'layout/header.php';
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content" style="background:#151515;border:1px solid #2a2a2a;color:#fff;">
             <div class="modal-header" style="border-bottom:1px solid #2a2a2a;">
-                <h5 class="modal-title" id="planMealsModalLabel">Món ăn theo thực đơn</h5>
+                <h5 class="modal-title" style="color:#fff;" id="planMealsModalLabel">Món ăn theo thực đơn</h5>
                 <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -184,7 +184,7 @@ include 'layout/header.php';
     <div class="modal-dialog" role="document">
         <div class="modal-content" style="background:#151515;border:1px solid #2a2a2a;color:#fff;">
             <div class="modal-header" style="border-bottom:1px solid #2a2a2a;">
-                <h5 class="modal-title" id="planDescriptionModalLabel">Mô tả thực đơn</h5>
+                <h5 class="modal-title" style="color:#fff;" id="planDescriptionModalLabel">Mô tả thực đơn</h5>
                 <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>

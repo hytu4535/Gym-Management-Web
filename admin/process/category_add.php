@@ -1,4 +1,8 @@
+
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_SALES', 'add');
+
 require_once '../../config/db.php';
 
 if (isset($_POST['btn_add_category'])) {

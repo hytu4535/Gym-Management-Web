@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_SALES', 'delete');
+
 require_once '../../config/db.php';
 
 if (isset($_GET['id'])) {
@@ -34,7 +37,8 @@ if (isset($_GET['id'])) {
                     window.location.href='../products.php';
                   </script>";
         } else {
-            echo "<script>alert('Lỗi khi ẩn sản phẩm: " . $conn->error . "'); window.location.href='../products.php';</script>";
+            $friendly = processFriendlyDbError($conn->error, 'Không thể ẩn sản phẩm.');
+            echo "<script>alert('" . addslashes($friendly) . "'); window.location.href='../products.php';</script>";
         }
     } else {
         // ========================================
@@ -63,7 +67,8 @@ if (isset($_GET['id'])) {
                     window.location.href='../products.php';
                   </script>";
         } else {
-            echo "<script>alert('Lỗi khi xóa sản phẩm: " . $conn->error . "'); window.location.href='../products.php';</script>";
+                        $friendly = processFriendlyDbError($conn->error, 'Không thể xóa sản phẩm.');
+                        echo "<script>alert('" . addslashes($friendly) . "'); window.location.href='../products.php';</script>";
         }
     }
 } else {

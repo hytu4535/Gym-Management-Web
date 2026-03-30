@@ -20,19 +20,27 @@ $messageType = '';
 
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'delete');
+
     try {
         $stmt = $db->prepare("DELETE FROM bmi_devices WHERE id = ?");
         $stmt->execute([$_GET['id']]);
         $message = "Xóa máy đo BMI thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể xóa máy đo BMI.');
         $messageType = "danger";
     }
 }
 
 // Xử lý thêm/sửa
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['id']) && !empty($_POST['id'])) {
+      checkPermission('MANAGE_MEMBERS', 'edit');
+    } else {
+      checkPermission('MANAGE_MEMBERS', 'add');
+    }
+
     $device_code = $_POST['device_code'];
     $location = $_POST['location'];
     $status = $_POST['status'];
@@ -51,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể lưu máy đo BMI.');
         $messageType = "danger";
     }
 }

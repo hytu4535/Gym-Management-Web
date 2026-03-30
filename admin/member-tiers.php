@@ -20,6 +20,8 @@ $messageType = '';
 
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'delete');
+
   $deleteId = (int) $_GET['id'];
 
   try {
@@ -40,13 +42,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])
       $messageType = "warning";
     }
   } catch (Exception $e) {
-    $message = "Lỗi: " . $e->getMessage();
+      $message = toVietnameseDbError($e, 'Không thể xóa hạng hội viên.');
     $messageType = "danger";
   }
 }
 
 // Xử lý cập nhật
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (isset($_POST['id']) && !empty($_POST['id'])) {
+      checkPermission('MANAGE_MEMBERS', 'edit');
+    } else {
+      checkPermission('MANAGE_MEMBERS', 'add');
+    }
+
     $id = $_POST['id'];
     $name = $_POST['name'];
     $level = $_POST['level'];
@@ -83,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       } elseif ($isDuplicateName) {
         $message = "Lỗi: Trùng tên hạng, đang có hạng khác có tên hạng này";
       } else {
-        $message = "Lỗi: " . $e->getMessage();
+          $message = toVietnameseDbError($e, 'Không thể lưu hạng hội viên.');
       }
       $messageType = "danger";
     }

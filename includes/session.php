@@ -41,7 +41,7 @@ function loginUser($userId, $username, $role) {
     
     try {
         $db = getDB();
-        $stmt = $db->prepare("UPDATE users SET last_login = NOW() WHERE user_id = ?");
+        $stmt = $db->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
         $stmt->execute([$userId]);
     } catch (Exception $e) {
         error_log("Failed to update last login: " . $e->getMessage());

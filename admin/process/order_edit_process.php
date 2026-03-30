@@ -56,6 +56,38 @@ if (isset($_POST['btn_update_order'])) {
     $sql = "UPDATE orders SET status = '$new_status' WHERE id = $id";
 
     if ($conn->query($sql) === TRUE) {
+        $memberIdStmt = $conn->prepare("SELECT member_id FROM orders WHERE id = ? LIMIT 1");
+        $memberIdStmt->bind_param("i", $id);
+        $memberIdStmt->execute();
+        $memberIdResult = $memberIdStmt->get_result();
+        $memberRow = $memberIdResult ? $memberIdResult->fetch_assoc() : null;
+        $memberIdStmt->close();
+
+        if ($memberRow) {
+            $memberId = (int) $memberRow['member_id'];
+
+            $spentStmt = $conn->prepare("SELECT COALESCE(SUM(total_amount), 0) AS total_spent FROM orders WHERE member_id = ? AND status IN ('confirmed', 'delivered')");
+            $spentStmt->bind_param("i", $memberId);
+            $spentStmt->execute();
+            $spentRow = $spentStmt->get_result()->fetch_assoc();
+            $spentStmt->close();
+            $totalSpent = (float) ($spentRow['total_spent'] ?? 0);
+
+            $tierStmt = $conn->prepare("SELECT id FROM member_tiers WHERE min_spent <= ? ORDER BY min_spent DESC LIMIT 1");
+            $tierStmt->bind_param("d", $totalSpent);
+            $tierStmt->execute();
+            $tierResult = $tierStmt->get_result();
+            $tierRow = $tierResult ? $tierResult->fetch_assoc() : null;
+            $tierStmt->close();
+
+            $tierId = (int) ($tierRow['id'] ?? 1);
+
+            $updateMemberStmt = $conn->prepare("UPDATE members SET total_spent = ?, tier_id = ? WHERE id = ?");
+            $updateMemberStmt->bind_param("dii", $totalSpent, $tierId, $memberId);
+            $updateMemberStmt->execute();
+            $updateMemberStmt->close();
+        }
+
         echo "<script>
                 alert('Cập nhật trạng thái đơn hàng thành công!');
                 window.location.href = '../orders.php';

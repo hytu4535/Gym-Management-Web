@@ -53,6 +53,12 @@ function getTierByTotalSpent($db, $total_spent) {
     return $tier ? $tier['id'] : 1; // Mặc định là tier 1 (Đồng)
 }
 
+function getMemberTotalSpentFromOrders($db, $memberId) {
+  $stmt = $db->prepare("SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE member_id = ? AND status IN ('confirmed', 'delivered')");
+  $stmt->execute([(int) $memberId]);
+  return (float) $stmt->fetchColumn();
+}
+
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
   checkPermission('MANAGE_MEMBERS', 'delete');
@@ -117,9 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         if (isset($_POST['id']) && !empty($_POST['id'])) {
             // Cập nhật - Lấy total_spent hiện tại và tính tier
-            $stmt = $db->prepare("SELECT total_spent FROM members WHERE id = ?");
-            $stmt->execute([$_POST['id']]);
-            $total_spent = $stmt->fetchColumn() ?: 0;
+            $total_spent = getMemberTotalSpentFromOrders($db, $memberId);
             $tier_id = getTierByTotalSpent($db, $total_spent);
             
           $stmt = $db->prepare("UPDATE members SET $memberUserIdColumn=?, full_name=?, phone=?, address=?, height=?, weight=?, status=?, tier_id=? WHERE id=?");
@@ -156,10 +160,16 @@ if ($filterStatus !== '') { $whereClauses[] = 'm.status = ?'; $whereParams[] = $
 $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
 
 // Lấy danh sách hội viên
-$stmt = $db->prepare("SELECT m.*, COALESCE(m.total_spent, 0) AS total_spent, u.email, u.phone AS user_phone, t.name as tier_name, t.level as tier_level 
+$stmt = $db->prepare("SELECT m.*, COALESCE(os.total_spent, m.total_spent, 0) AS total_spent, u.email, u.phone AS user_phone, t.name as tier_name, t.level as tier_level 
                     FROM members m 
                     LEFT JOIN users u ON m.$memberUserIdColumn = u.id 
-                    LEFT JOIN member_tiers t ON m.tier_id = t.id" . $whereSql . " ORDER BY m.id DESC");
+          LEFT JOIN member_tiers t ON m.tier_id = t.id
+          LEFT JOIN (
+            SELECT member_id, SUM(total_amount) AS total_spent
+            FROM orders
+            WHERE status IN ('confirmed', 'delivered')
+            GROUP BY member_id
+          ) os ON os.member_id = m.id" . $whereSql . " ORDER BY m.id DESC");
 $stmt->execute($whereParams);
 $members = $stmt->fetchAll();
 $usedUserIds = array_map('intval', array_column($members, $memberUserIdColumn));

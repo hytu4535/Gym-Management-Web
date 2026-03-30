@@ -1,138 +1,17 @@
 <?php
-session_start();
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_ALL', 'view');
+
 include '../../includes/database.php';
 require_once '../../includes/functions.php';
 $db = getDB();
 
-if (!isset($_SESSION['admin_logged_in']) || (int) ($_SESSION['admin_user_id'] ?? 0) <= 0) {
-    header("Location: ../login.php");
-    exit();
-}
-
-$isAdminSession = in_array('MANAGE_ALL', $_SESSION['permissions'] ?? [], true) || (int) ($_SESSION['role_id'] ?? 0) === 4 || strtolower((string) ($_SESSION['role'] ?? '')) === 'admin';
-if (!$isAdminSession) {
-    header("Location: ../no_permission.php");
-    exit();
-}
-
-$db->exec("CREATE TABLE IF NOT EXISTS `user_permissions` (
-    `id` int NOT NULL AUTO_INCREMENT,
-    `user_id` int NOT NULL,
-    `permission_code` varchar(50) NOT NULL,
-    `can_view` tinyint(1) NOT NULL DEFAULT 0,
-    `can_add` tinyint(1) NOT NULL DEFAULT 0,
-    `can_edit` tinyint(1) NOT NULL DEFAULT 0,
-    `can_delete` tinyint(1) NOT NULL DEFAULT 0,
-    `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uniq_user_permission_code` (`user_id`,`permission_code`),
-    KEY `idx_user_permissions_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
-$permissionModules = [
-    'MANAGE_STAFF',
-    'MANAGE_MEMBERS',
-    'MANAGE_PACKAGES',
-    'MANAGE_TRAINERS',
-    'MANAGE_SERVICES_NUTRITION',
-    'MANAGE_SALES',
-    'MANAGE_INVENTORY',
-    'MANAGE_EQUIPMENT',
-    'MANAGE_FEEDBACK',
-    'VIEW_REPORTS',
-    'MANAGE_ALL',
-];
-
 if ($action == 'update_permissions') {
-    $userId = (int) ($_POST['user_id'] ?? 0);
-    $postedPermissions = $_POST['permissions'] ?? [];
-
-    if ($userId <= 0) {
-        $_SESSION['validation_errors'] = ['general' => 'Không tìm thấy user để cập nhật phân quyền.'];
-        header("Location: ../users.php");
-        exit();
-    }
-
-    $userStmt = $db->prepare("SELECT u.id, u.role_id, r.name AS role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ? LIMIT 1");
-    $userStmt->execute([$userId]);
-    $targetUser = $userStmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$targetUser) {
-        $_SESSION['validation_errors'] = ['general' => 'User không tồn tại.'];
-        header("Location: ../users.php");
-        exit();
-    }
-
-    $isAdminRole = ((int) $targetUser['role_id'] === 4) || (strtolower((string) ($targetUser['role_name'] ?? '')) === 'admin');
-    if ($isAdminRole) {
-        $_SESSION['validation_errors'] = ['general' => 'Tài khoản Admin luôn có toàn bộ quyền và không cần chỉnh sửa tại đây.'];
-        header("Location: ../users.php");
-        exit();
-    }
-
-    $db->beginTransaction();
-    try {
-        $deleteStmt = $db->prepare("DELETE FROM user_permissions WHERE user_id = ?");
-        $deleteStmt->execute([$userId]);
-
-        $insertStmt = $db->prepare("INSERT INTO user_permissions (user_id, permission_code, can_view, can_add, can_edit, can_delete) VALUES (?, ?, ?, ?, ?, ?)");
-
-        foreach ($permissionModules as $moduleCode) {
-            $moduleData = $postedPermissions[$moduleCode] ?? [];
-            $canView = !empty($moduleData['view']) ? 1 : 0;
-            $canAdd = !empty($moduleData['add']) ? 1 : 0;
-            $canEdit = !empty($moduleData['edit']) ? 1 : 0;
-            $canDelete = !empty($moduleData['delete']) ? 1 : 0;
-
-            if ($canView || $canAdd || $canEdit || $canDelete) {
-                $insertStmt->execute([$userId, $moduleCode, $canView, $canAdd, $canEdit, $canDelete]);
-            }
-        }
-
-        $db->commit();
-
-        if ((int) ($_SESSION['admin_user_id'] ?? 0) === $userId) {
-            $actionPerms = [];
-            $permissionCodes = [];
-
-            $loadStmt = $db->prepare("SELECT permission_code, can_view, can_add, can_edit, can_delete FROM user_permissions WHERE user_id = ?");
-            $loadStmt->execute([$userId]);
-            $rows = $loadStmt->fetchAll(PDO::FETCH_ASSOC);
-
-            foreach ($rows as $row) {
-                $code = (string) ($row['permission_code'] ?? '');
-                if ($code === '') {
-                    continue;
-                }
-
-                $actionSet = [
-                    'view' => (int) ($row['can_view'] ?? 0) === 1,
-                    'add' => (int) ($row['can_add'] ?? 0) === 1,
-                    'edit' => (int) ($row['can_edit'] ?? 0) === 1,
-                    'delete' => (int) ($row['can_delete'] ?? 0) === 1,
-                ];
-                $actionPerms[$code] = $actionSet;
-
-                if ($actionSet['view'] || $actionSet['add'] || $actionSet['edit'] || $actionSet['delete']) {
-                    $permissionCodes[] = $code;
-                }
-            }
-
-            $_SESSION['user_action_permissions'] = $actionPerms;
-            $_SESSION['permissions'] = $permissionCodes;
-        }
-
-        $_SESSION['flash_message'] = ['type' => 'success', 'text' => 'Cập nhật phân quyền user thành công!'];
-        header("Location: ../users.php");
-        exit();
-    } catch (Throwable $e) {
-        $db->rollBack();
-        $_SESSION['validation_errors'] = ['general' => 'Không thể cập nhật phân quyền user. Vui lòng thử lại.'];
-        header("Location: ../users.php");
-        exit();
-    }
+    $_SESSION['validation_errors'] = ['general' => 'Phân quyền theo user đã bị tắt. Vui lòng phân quyền theo vai trò tại trang Vai trò.'];
+    header("Location: ../roles.php");
+    exit();
 }
 
 // Kiểm tra khả năng tương thích schema cũ/mới
@@ -140,6 +19,8 @@ $checkPhoneColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUM
 $hasPhoneColumn = !empty($checkPhoneColumn);
 
 if ($action == 'add') {
+    processRequirePermission('MANAGE_ALL', 'add');
+
     $username = $_POST['username'] ?? '';
     $full_name = $_POST['full_name'] ?? '';
     $email = $_POST['email'] ?? '';
@@ -241,6 +122,8 @@ if ($action == 'add') {
 }
 
 if ($action == 'delete') {
+    processRequirePermission('MANAGE_ALL', 'delete');
+
     $id = $_GET['id'] ?? '';
     if (empty($id)) {
         $_SESSION['validation_errors'] = ['general' => 'Yêu cầu không hợp lệ'];
@@ -277,6 +160,8 @@ if ($action == 'delete') {
 }
 
 if ($action == 'toggle_status') {
+    processRequirePermission('MANAGE_ALL', 'edit');
+
     $id = $_POST['id'] ?? $_GET['id'] ?? '';
 
     if (empty($id)) {
@@ -305,6 +190,8 @@ if ($action == 'toggle_status') {
 
 // xử lý edit
 if ($action == 'edit') {
+    processRequirePermission('MANAGE_ALL', 'edit');
+
     $id = $_POST['id'] ?? '';
     $role_id = $_POST['role_id'] ?? '';
     $full_name = $_POST['full_name'] ?? '';

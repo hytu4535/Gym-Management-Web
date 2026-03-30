@@ -1,20 +1,8 @@
 <?php
-session_start();
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_PACKAGES', 'edit');
+
 require_once '../../config/db.php';
-
-if (!isset($_SESSION['admin_logged_in']) || (int) ($_SESSION['admin_user_id'] ?? 0) <= 0) {
-    header("Location: ../login.php");
-    exit();
-}
-
-$hasManageAll = in_array('MANAGE_ALL', $_SESSION['permissions'] ?? [], true);
-$packageActionSet = $_SESSION['user_action_permissions']['MANAGE_PACKAGES'] ?? [];
-$canEditPackage = $hasManageAll || !empty($packageActionSet['edit']);
-if (!$canEditPackage) {
-    header("Location: ../no_permission.php");
-    exit();
-}
-
 
 if (isset($_POST['btn_edit_package'])) {
     

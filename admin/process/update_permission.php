@@ -1,5 +1,7 @@
 <?php
-session_start();
+require_once __DIR__ . '/_permission_guard.php';
+processRequirePermission('MANAGE_ALL', 'edit');
+
 include '../../includes/database.php';
 
 $db = getDB();

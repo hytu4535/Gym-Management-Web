@@ -57,13 +57,16 @@
         return;
       }
 
+      var tableId = $(selector).attr('id') || '';
+      var disableLengthMenu = tableId === 'memberTable' || tableId === 'packageTable';
+
       if ($.fn.DataTable.isDataTable(selector)) {
         return $(selector).DataTable();
       }
 
       return $(selector).DataTable({
         responsive: true,
-        lengthChange: true,
+        lengthChange: !disableLengthMenu,
         autoWidth: false,
         pageLength: 10,
         language: {

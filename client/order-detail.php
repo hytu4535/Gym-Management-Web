@@ -210,7 +210,6 @@ include 'layout/header.php';
                         <p class="d-flex justify-content-between">Giảm giá theo phiếu sử dụng: <span style="color:#ff4444;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</span></p>
                         <p class="d-flex justify-content-between">Số tiền đã giảm: <span style="color:#28a745;">-<?php echo number_format($total_discount_amount, 0, ',', '.'); ?>đ</span></p>
                         <p class="d-flex justify-content-between">Phí vận chuyển: <span><?php echo number_format($shipping_fee, 0, ',', '.'); ?>đ</span></p>
-                        <?php endif; ?>
                         <h5 class="d-flex justify-content-between mt-2 pt-2 border-top" style="color:#f36100;">Tổng cộng: <span><?php echo number_format($order['total_amount'], 0, ',', '.'); ?>đ</span></h5>
                     </div>
                 </div>

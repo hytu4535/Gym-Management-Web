@@ -1330,6 +1330,8 @@ CREATE TABLE `training_schedules` (
   `member_id` int NOT NULL,
   `trainer_id` int DEFAULT NULL,
   `training_date` datetime NOT NULL,
+  `end_time` datetime NOT NULL,
+  `status` enum('pending','confirmed','completed','canceled') NOT NULL DEFAULT 'pending',
   `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
   PRIMARY KEY (`id`),
   KEY `member_id` (`member_id`),
@@ -1345,7 +1347,7 @@ CREATE TABLE `training_schedules` (
 
 LOCK TABLES `training_schedules` WRITE;
 /*!40000 ALTER TABLE `training_schedules` DISABLE KEYS */;
-INSERT INTO `training_schedules` VALUES (1,2,1,'2026-02-20 11:00:00','test'),(2,3,1,'2026-03-21 13:33:00','nnnnnnnnnnnnn'),(3,3,2,'2026-03-21 17:33:00',''),(4,1,3,'2026-03-19 15:41:00','tui dang fa hihi'),(5,1,1,'2026-03-20 11:10:00','aaaaaaaaaa'),(6,1,2,'2026-03-23 04:34:00','kkkkk');
+INSERT INTO `training_schedules` (`id`, `member_id`, `trainer_id`, `training_date`, `end_time`, `status`, `note`) VALUES (1,2,1,'2026-02-20 11:00:00','2026-02-20 12:00:00','completed','test'),(2,3,1,'2026-03-21 13:33:00','2026-03-21 14:33:00','confirmed','nnnnnnnnnnnnn'),(3,3,2,'2026-03-21 17:33:00','2026-03-21 18:33:00','confirmed',''),(4,1,3,'2026-03-19 15:41:00','2026-03-19 16:41:00','completed','tui dang fa hihi'),(5,1,1,'2026-03-20 11:10:00','2026-03-20 12:10:00','completed','aaaaaaaaaa'),(6,1,2,'2026-03-23 04:34:00','2026-03-23 05:34:00','pending','kkkkk');
 /*!40000 ALTER TABLE `training_schedules` ENABLE KEYS */;
 UNLOCK TABLES;
 

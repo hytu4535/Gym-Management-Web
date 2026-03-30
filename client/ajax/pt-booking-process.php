@@ -59,6 +59,45 @@ if (!$member) {
 }
 $memberId = (int) $member['id'];
 
+$trainingDayStart = $trainingDate->format('Y-m-d 00:00:00');
+$trainingDayEnd = $trainingDate->format('Y-m-d 23:59:59');
+
+$dailyLimitStmt = $conn->prepare(
+    'SELECT id FROM training_schedules
+     WHERE member_id = ? AND training_date BETWEEN ? AND ?
+     LIMIT 1'
+);
+$dailyLimitStmt->bind_param('iss', $memberId, $trainingDayStart, $trainingDayEnd);
+$dailyLimitStmt->execute();
+$existingDailySchedule = $dailyLimitStmt->get_result()->fetch_assoc();
+$dailyLimitStmt->close();
+
+if ($existingDailySchedule) {
+    response_json(false, 'Bạn chỉ được đặt 1 lịch PT trong mỗi ngày.');
+}
+
+$trainingEndDate = clone $trainingDate;
+$trainingEndDate->modify('+60 minutes');
+
+$trainerOverlapStmt = $conn->prepare(
+    'SELECT id FROM training_schedules
+     WHERE trainer_id = ?
+       AND status <> ?
+       AND NOT (COALESCE(end_time, DATE_ADD(training_date, INTERVAL 60 MINUTE)) <= ? OR training_date >= ?)
+     LIMIT 1'
+);
+$overlapStart = $trainingDate->format('Y-m-d H:i:s');
+$overlapEnd = $trainingEndDate->format('Y-m-d H:i:s');
+$canceledStatus = 'canceled';
+$trainerOverlapStmt->bind_param('isss', $trainerId, $canceledStatus, $overlapStart, $overlapEnd);
+$trainerOverlapStmt->execute();
+$existingTrainerSchedule = $trainerOverlapStmt->get_result()->fetch_assoc();
+$trainerOverlapStmt->close();
+
+if ($existingTrainerSchedule) {
+    response_json(false, 'Huấn luyện viên này đã có lịch dạy trùng thời gian.');
+}
+
 $trainerStmt = $conn->prepare('SELECT id FROM trainers WHERE id = ? LIMIT 1');
 $trainerStmt->bind_param('i', $trainerId);
 $trainerStmt->execute();
@@ -73,8 +112,8 @@ try {
     $conn->begin_transaction();
 
     $insertStmt = $conn->prepare(
-        'INSERT INTO training_schedules (member_id, trainer_id, training_date, note)
-         VALUES (?, ?, ?, ?)'
+           'INSERT INTO training_schedules (member_id, trainer_id, training_date, end_time, note, status)
+            VALUES (?, ?, ?, ?, ?, ?)'
     );
 
     if (!$insertStmt) {
@@ -82,7 +121,9 @@ try {
     }
 
     $trainingDateSql = $trainingDate->format('Y-m-d H:i:s');
-    $insertStmt->bind_param('iiss', $memberId, $trainerId, $trainingDateSql, $note);
+    $trainingEndSql = $trainingEndDate->format('Y-m-d H:i:s');
+    $status = 'pending';
+    $insertStmt->bind_param('iissss', $memberId, $trainerId, $trainingDateSql, $trainingEndSql, $note, $status);
     $insertStmt->execute();
     $insertStmt->close();
 

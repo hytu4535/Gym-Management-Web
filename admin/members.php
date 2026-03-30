@@ -13,10 +13,38 @@ include '../includes/auth_permission.php';
 // chỉ cho phép user có quyền MANAGE_MEMBERS
 checkPermission('MANAGE_MEMBERS');
 
+$permissions = $_SESSION['permissions'] ?? [];
+$hasManageAll = !empty($_SESSION['is_admin_role']) || strtolower((string) ($_SESSION['role'] ?? '')) === 'admin';
+$memberActionSet = $_SESSION['user_action_permissions']['MANAGE_MEMBERS'] ?? null;
+
+if ($hasManageAll) {
+  $canAddMember = true;
+  $canEditMember = true;
+  $canDeleteMember = true;
+} elseif (is_array($memberActionSet)) {
+  $canAddMember = !empty($memberActionSet['add']);
+  $canEditMember = !empty($memberActionSet['edit']);
+  $canDeleteMember = !empty($memberActionSet['delete']);
+} else {
+  // Fallback cho dữ liệu quyền cũ: chỉ cho xem, không cho thao tác thay đổi dữ liệu.
+  $canAddMember = false;
+  $canEditMember = false;
+  $canDeleteMember = false;
+}
+
 // Xử lý các hành động
 $db = getDB();
 $message = '';
 $messageType = '';
+$memberUserIdColumn = 'users_id';
+$hasUserFullNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'full_name' LIMIT 1")->fetchColumn();
+$hasUserNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'name' LIMIT 1")->fetchColumn();
+$hasUserPhoneColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'phone' LIMIT 1")->fetchColumn();
+
+$userDisplayNameSelect = $hasUserFullNameColumn
+  ? 'full_name AS full_name'
+  : ($hasUserNameColumn ? 'name AS full_name' : 'username AS full_name');
+$userPhoneSelect = $hasUserPhoneColumn ? 'phone' : "'' AS phone";
 
 // Hàm tự động xác định tier dựa trên total_spent
 function getTierByTotalSpent($db, $total_spent) {
@@ -27,13 +55,19 @@ function getTierByTotalSpent($db, $total_spent) {
 
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'delete');
+
     try {
         $stmt = $db->prepare("DELETE FROM members WHERE id = ?");
         $stmt->execute([$_GET['id']]);
         $message = "Xóa hội viên thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-        $message = "Lỗi: " . $e->getMessage();
+        if ((int) $e->getCode() === 23000 || str_contains($e->getMessage(), '1451')) {
+          $message = "Không thể xóa hội viên này vì còn dữ liệu liên quan trong đơn hàng, địa chỉ hoặc bảng khác.";
+        } else {
+          $message = "Lỗi: " . $e->getMessage();
+        }
         $messageType = "danger";
     }
 }
@@ -46,6 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $height = $_POST['height'];
   $weight = $_POST['weight'];
   $status = $_POST['status'];
+
+  if ($memberId > 0) {
+    checkPermission('MANAGE_MEMBERS', 'edit');
+  } else {
+    checkPermission('MANAGE_MEMBERS', 'add');
+  }
     
     try {
         // Chặn trùng tài khoản/email giữa các hội viên
@@ -53,13 +93,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           throw new Exception("Vui lòng chọn tài khoản hợp lệ.");
         }
 
-        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE users_id = ? AND id <> ?");
+        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE $memberUserIdColumn = ? AND id <> ?");
         $duplicateStmt->execute([$users_id, $memberId]);
         if ((int) $duplicateStmt->fetchColumn() > 0) {
           throw new Exception("Tên đăng nhập / email này đã được sử dụng bởi tài khoản khác.");
         }
 
-        $userStmt = $db->prepare("SELECT full_name, phone FROM users WHERE id = ?");
+        $userStmt = $db->prepare("SELECT $userDisplayNameSelect, $userPhoneSelect FROM users WHERE id = ?");
         $userStmt->execute([$users_id]);
         $user = $userStmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
@@ -82,13 +122,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $total_spent = $stmt->fetchColumn() ?: 0;
             $tier_id = getTierByTotalSpent($db, $total_spent);
             
-          $stmt = $db->prepare("UPDATE members SET users_id=?, full_name=?, phone=?, address=?, height=?, weight=?, status=?, tier_id=? WHERE id=?");
+          $stmt = $db->prepare("UPDATE members SET $memberUserIdColumn=?, full_name=?, phone=?, address=?, height=?, weight=?, status=?, tier_id=? WHERE id=?");
           $stmt->execute([$users_id, $full_name, $phone, null, $height, $weight, $status, $tier_id, $_POST['id']]);
             $message = "Cập nhật hội viên thành công!";
         } else {
             // Thêm mới - Mặc định tier 1 (Đồng) vì total_spent = 0
             $tier_id = 1;
-            $stmt = $db->prepare("INSERT INTO members (users_id, full_name, phone, address, height, weight, status, tier_id, join_date, total_spent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 0)");
+            $stmt = $db->prepare("INSERT INTO members ($memberUserIdColumn, full_name, phone, address, height, weight, status, tier_id, join_date, total_spent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 0)");
           $stmt->execute([$users_id, $full_name, $phone, null, $height, $weight, $status, $tier_id]);
             $message = "Thêm hội viên thành công!";
         }
@@ -116,18 +156,18 @@ if ($filterStatus !== '') { $whereClauses[] = 'm.status = ?'; $whereParams[] = $
 $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
 
 // Lấy danh sách hội viên
-$stmt = $db->prepare("SELECT m.*, u.email, u.phone AS user_phone, t.name as tier_name, t.level as tier_level 
+$stmt = $db->prepare("SELECT m.*, COALESCE(m.total_spent, 0) AS total_spent, u.email, u.phone AS user_phone, t.name as tier_name, t.level as tier_level 
                     FROM members m 
-                    LEFT JOIN users u ON m.users_id = u.id 
+                    LEFT JOIN users u ON m.$memberUserIdColumn = u.id 
                     LEFT JOIN member_tiers t ON m.tier_id = t.id" . $whereSql . " ORDER BY m.id DESC");
 $stmt->execute($whereParams);
 $members = $stmt->fetchAll();
-$usedUserIds = array_map('intval', array_column($members, 'users_id'));
+$usedUserIds = array_map('intval', array_column($members, $memberUserIdColumn));
 
 $tiersFilter = $db->query("SELECT id, name FROM member_tiers ORDER BY level ASC")->fetchAll();
 
 // Lấy danh sách users cho form
-$users = $db->query("SELECT id, username, full_name, email, phone FROM users ORDER BY email ASC")->fetchAll();
+$users = $db->query("SELECT id, username, $userDisplayNameSelect, email, $userPhoneSelect FROM users ORDER BY email ASC")->fetchAll();
 
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
@@ -185,9 +225,11 @@ include 'layout/sidebar.php';
               <div class="card-header">
                 <h3 class="card-title">Danh sách Hội Viên</h3>
                 <div class="card-tools">
+                  <?php if ($canAddMember): ?>
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#memberModal" onclick="resetForm()">
                     <i class="fas fa-plus"></i> Thêm Hội Viên
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
               <div class="card-body">
@@ -229,12 +271,16 @@ include 'layout/sidebar.php';
                       </span>
                     </td>
                     <td>
+                      <?php if ($canEditMember): ?>
                       <button class="btn btn-warning btn-sm" onclick='editMember(<?php echo json_encode($member); ?>)' data-toggle="modal" data-target="#memberModal">
                         <i class="fas fa-edit"></i>
                       </button>
+                      <?php endif; ?>
+                      <?php if ($canDeleteMember): ?>
                       <a href="?action=delete&id=<?php echo $member['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa?')">
                         <i class="fas fa-trash"></i>
                       </a>
+                      <?php endif; ?>
                     </td>
                   </tr>
                   <?php endforeach; ?>

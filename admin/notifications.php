@@ -18,6 +18,9 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
+$memberUserIdColumn = 'user_id';
+$staffUserIdColumn = 'user_id';
+
 $filterKeyword = trim((string) ($_GET['keyword'] ?? ''));
 $filterReadStatus = trim((string) ($_GET['read_status'] ?? ''));
 
@@ -42,11 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recipient_group'])) {
       exit;
     }
 
+    $memberJoinSql = $memberUserIdColumn !== null ? "LEFT JOIN members m ON m.$memberUserIdColumn = u.id" : "LEFT JOIN members m ON 1 = 0";
+    $staffJoinSql = $staffUserIdColumn !== null ? "LEFT JOIN staff st ON st.$staffUserIdColumn = u.id" : "LEFT JOIN staff st ON 1 = 0";
+
     $targetStmt = $db->prepare(" 
       SELECT DISTINCT u.id
       FROM users u
-      LEFT JOIN members m ON m.users_id = u.id
-      LEFT JOIN staff st ON st.users_id = u.id
+      $memberJoinSql
+      $staffJoinSql
       WHERE u.status = 'active'
         AND (
           u.username = ?

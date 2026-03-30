@@ -10,6 +10,46 @@ include '../includes/auth_permission.php';
 // Dùng cùng quyền với nhóm quản lý luyện tập hiện có.
 checkPermission('MANAGE_TRAINERS');
 
+$resolveTrainerActionPermission = static function (string $requiredAction): bool {
+  $permissions = $_SESSION['permissions'] ?? [];
+  $actionPermissions = $_SESSION['user_action_permissions'] ?? [];
+
+  if (!is_array($permissions)) {
+    return false;
+  }
+
+  if (!empty($_SESSION['is_admin_role']) || strtolower((string) ($_SESSION['role'] ?? '')) === 'admin') {
+    return true;
+  }
+
+  $actionKeyMap = [
+    'view' => 'view',
+    'add' => 'add',
+    'create' => 'add',
+    'edit' => 'edit',
+    'update' => 'edit',
+    'delete' => 'delete',
+    'remove' => 'delete',
+  ];
+
+  $normalizedAction = strtolower(trim($requiredAction));
+  $normalizedAction = $actionKeyMap[$normalizedAction] ?? 'view';
+
+  if (is_array($actionPermissions) && !empty($actionPermissions)) {
+    if (isset($actionPermissions['MANAGE_TRAINERS']) && is_array($actionPermissions['MANAGE_TRAINERS'])) {
+      return !empty($actionPermissions['MANAGE_TRAINERS'][$normalizedAction]);
+    }
+
+    return $normalizedAction === 'view' && in_array('MANAGE_TRAINERS', $permissions, true);
+  }
+
+  return $normalizedAction === 'view' && in_array('MANAGE_TRAINERS', $permissions, true);
+};
+
+$canAddClass = $resolveTrainerActionPermission('add');
+$canEditClass = $resolveTrainerActionPermission('edit');
+$canDeleteClass = $resolveTrainerActionPermission('delete');
+
 include '../includes/functions.php';
 
 $db = getDB();
@@ -59,6 +99,8 @@ function supportsStructuredScheduleTime(PDO $db)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
+    checkPermission('MANAGE_TRAINERS', 'add');
+
         $class_name = sanitize($_POST['class_name'] ?? '');
         $class_type = sanitize($_POST['class_type'] ?? '');
         $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
@@ -98,6 +140,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'edit') {
+      checkPermission('MANAGE_TRAINERS', 'edit');
+
         $id = intval($_POST['id'] ?? 0);
         $class_name = sanitize($_POST['class_name'] ?? '');
         $class_type = sanitize($_POST['class_type'] ?? '');
@@ -150,6 +194,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'delete') {
+      checkPermission('MANAGE_TRAINERS', 'delete');
+
         $id = intval($_POST['id'] ?? 0);
 
         try {
@@ -264,9 +310,11 @@ include 'layout/sidebar.php';
             <div class="card-header">
               <h3 class="card-title">Danh sách lớp tập</h3>
               <div class="card-tools">
+                <?php if ($canAddClass): ?>
                 <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addClassModal">
                   <i class="fas fa-plus"></i> Thêm lớp tập
                 </button>
+                <?php endif; ?>
               </div>
             </div>
             <div class="card-body">
@@ -309,6 +357,7 @@ include 'layout/sidebar.php';
                       <?php endif; ?>
                     </td>
                     <td>
+                      <?php if ($canEditClass): ?>
                       <button class="btn btn-warning btn-sm btn-edit"
                         data-id="<?= $class['id'] ?>"
                         data-class_name="<?= htmlspecialchars($class['class_name'], ENT_QUOTES, 'UTF-8') ?>"
@@ -325,12 +374,15 @@ include 'layout/sidebar.php';
                         data-toggle="modal" data-target="#editClassModal">
                         <i class="fas fa-edit"></i>
                       </button>
+                      <?php endif; ?>
+                      <?php if ($canDeleteClass): ?>
                       <button class="btn btn-danger btn-sm btn-delete"
                         data-id="<?= $class['id'] ?>"
                         data-name="<?= htmlspecialchars($class['class_name'], ENT_QUOTES, 'UTF-8') ?>"
                         data-toggle="modal" data-target="#deleteClassModal">
                         <i class="fas fa-trash"></i>
                       </button>
+                      <?php endif; ?>
                     </td>
                   </tr>
                   <?php endforeach; ?>

@@ -93,6 +93,8 @@ function processServiceImageUpload($fileInputName, $existingPath = null) {
 // Xử lý thêm dịch vụ
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
+    checkPermission('MANAGE_SERVICES_NUTRITION', 'add');
+
         $name = sanitize($_POST['name']);
         $type = $_POST['type'];
         $price = floatval($_POST['price']);
@@ -114,6 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'edit') {
+      checkPermission('MANAGE_SERVICES_NUTRITION', 'edit');
+
         $id = intval($_POST['id']);
         $name = sanitize($_POST['name']);
         $type = $_POST['type'];
@@ -137,6 +141,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'delete') {
+      checkPermission('MANAGE_SERVICES_NUTRITION', 'delete');
+
         $id = intval($_POST['id']);
         try {
         $stmt = $db->prepare("SELECT img FROM services WHERE id = ? LIMIT 1");

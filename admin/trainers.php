@@ -119,6 +119,8 @@ $trainerWhereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereCl
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
+  checkPermission('MANAGE_TRAINERS', 'add');
+
     $type = sanitize($_POST['type'] ?? 'Nội bộ');
     $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
     $full_name = sanitize($_POST['full_name'] ?? '');
@@ -170,6 +172,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'edit') {
+      checkPermission('MANAGE_TRAINERS', 'edit');
+
         $id = intval($_POST['id']);
       $type = sanitize($_POST['type'] ?? 'Nội bộ');
       $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
@@ -222,6 +226,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'delete') {
+      checkPermission('MANAGE_TRAINERS', 'delete');
+
         $id = intval($_POST['id']);
         try {
             $stmt = $db->prepare("DELETE FROM trainers WHERE id = ?");

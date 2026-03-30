@@ -15,11 +15,6 @@ checkPermission('MANAGE_MEMBERS');
 
 // Xử lý các hành động
 $db = getDB();
-$formErrors = [];
-$formValues = [];
-
-require_once '../includes/address_schema.php';
-ensureAddressSchemaPdo($db);
 $message = '';
 $messageType = '';
 
@@ -32,60 +27,28 @@ $filter_status = trim((string) ($_GET['filter_status'] ?? ''));
 
 // Xử lý xóa
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'delete');
+
     try {
-    $stmt = $db->prepare("SELECT member_id, is_default FROM addresses WHERE id = ?");
-    $stmt->execute([$_GET['id']]);
-    $targetAddress = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$targetAddress) {
-      throw new Exception('Địa chỉ không tồn tại.');
-    }
-
-    $db->beginTransaction();
-
-    $stmt = $db->prepare("DELETE FROM addresses WHERE id = ?");
-    $stmt->execute([$_GET['id']]);
-
-    if ((int) $targetAddress['is_default'] === 1) {
-      $stmt = $db->prepare("SELECT id FROM addresses WHERE member_id = ? ORDER BY id DESC LIMIT 1");
-      $stmt->execute([(int) $targetAddress['member_id']]);
-      $newDefaultId = $stmt->fetchColumn();
-
-      if ($newDefaultId) {
-        $stmt = $db->prepare("UPDATE addresses SET is_default = 1 WHERE id = ?");
-        $stmt->execute([$newDefaultId]);
-      }
-    }
-
-    $db->commit();
+        $stmt = $db->prepare("DELETE FROM addresses WHERE id = ?");
+        $stmt->execute([$_GET['id']]);
         $message = "Xóa địa chỉ thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-    if ($db->inTransaction()) {
-      $db->rollBack();
-    }
         $message = "Lỗi: " . $e->getMessage();
         $messageType = "danger";
-  } catch (Exception $e) {
-    if ($db->inTransaction()) {
-      $db->rollBack();
-    }
-    $message = "Lỗi: " . $e->getMessage();
-    $messageType = "danger";
     }
 }
 
 // Xử lý đặt mặc định
 if (isset($_GET['action']) && $_GET['action'] == 'set_default' && isset($_GET['id'])) {
+  checkPermission('MANAGE_MEMBERS', 'edit');
+
     try {
         // Lấy member_id của địa chỉ
-    $stmt = $db->prepare("SELECT member_id FROM addresses WHERE id = ?");
+        $stmt = $db->prepare("SELECT member_id FROM addresses WHERE id = ?");
         $stmt->execute([$_GET['id']]);
         $member_id = $stmt->fetchColumn();
-
-    if (!$member_id) {
-      throw new Exception('Địa chỉ không tồn tại.');
-    }
         
         // Bỏ mặc định tất cả địa chỉ của member
         $stmt = $db->prepare("UPDATE addresses SET is_default = 0 WHERE member_id = ?");
@@ -100,23 +63,23 @@ if (isset($_GET['action']) && $_GET['action'] == 'set_default' && isset($_GET['i
     } catch (PDOException $e) {
         $message = "Lỗi: " . $e->getMessage();
         $messageType = "danger";
-    } catch (Exception $e) {
-      $message = "Lỗi: " . $e->getMessage();
-      $messageType = "danger";
     }
 }
 
 // Xử lý thêm/sửa
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+  if (isset($_POST['id']) && !empty($_POST['id'])) {
+    checkPermission('MANAGE_MEMBERS', 'edit');
+  } else {
+    checkPermission('MANAGE_MEMBERS', 'add');
+  }
+
   $member_id = isset($_POST['member_id']) ? (int) $_POST['member_id'] : 0;
   $address_id = isset($_POST['id']) && $_POST['id'] !== '' ? (int) $_POST['id'] : 0;
   $full_address = trim((string) ($_POST['full_address'] ?? ''));
   $city = trim((string) ($_POST['city'] ?? ''));
   $district = trim((string) ($_POST['district'] ?? ''));
-  $ward = trim((string) ($_POST['ward'] ?? ''));
-  $type = trim((string) ($_POST['type'] ?? 'home'));
     $is_default = isset($_POST['is_default']) ? 1 : 0;
-    $allowedTypes = ['home', 'work', 'other'];
     
     try {
     if ($member_id <= 0) {
@@ -125,14 +88,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($full_address === '') {
       throw new Exception("Địa chỉ đầy đủ là bắt buộc.");
-    }
-
-    if ($city === '' || $district === '' || $ward === '') {
-      throw new Exception("Vui lòng chọn đầy đủ Tỉnh/Thành, Quận/Huyện và Phường/Xã.");
-    }
-
-    if (!in_array($type, $allowedTypes, true)) {
-      throw new Exception("Loại địa chỉ không hợp lệ.");
     }
 
     $memberCheckStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE id = ?");
@@ -144,10 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $full_address = preg_replace('/\s+/u', ' ', $full_address);
     $city = $city === '' ? null : preg_replace('/\s+/u', ' ', $city);
     $district = $district === '' ? null : preg_replace('/\s+/u', ' ', $district);
-    $ward = $ward === '' ? null : preg_replace('/\s+/u', ' ', $ward);
 
-    $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM addresses WHERE member_id = ? AND full_address = ? AND IFNULL(city, '') = ? AND IFNULL(district, '') = ? AND IFNULL(ward, '') = ? AND IFNULL(type, '') = ? AND id <> ?");
-    $duplicateStmt->execute([$member_id, $full_address, $city ?? '', $district ?? '', $ward ?? '', $type, $address_id]);
+    $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM addresses WHERE member_id = ? AND full_address = ? AND IFNULL(city, '') = ? AND IFNULL(district, '') = ? AND id <> ?");
+    $duplicateStmt->execute([$member_id, $full_address, $city ?? '', $district ?? '', $address_id]);
     if ((int) $duplicateStmt->fetchColumn() > 0) {
       throw new Exception("Địa chỉ này đã tồn tại cho hội viên đã chọn.");
     }
@@ -160,8 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       }
 
             // Cập nhật
-        $stmt = $db->prepare("UPDATE addresses SET member_id=?, full_address=?, city=?, district=?, ward=?, type=?, is_default=? WHERE id=?");
-      $stmt->execute([$member_id, $full_address, $city, $district, $ward, $type, $is_default, $address_id]);
+            $stmt = $db->prepare("UPDATE addresses SET member_id=?, full_address=?, city=?, district=?, is_default=? WHERE id=?");
+      $stmt->execute([$member_id, $full_address, $city, $district, $is_default, $address_id]);
             $message = "Cập nhật địa chỉ thành công!";
         } else {
             // Nếu đặt mặc định, bỏ mặc định các địa chỉ khác
@@ -171,8 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
             
             // Thêm mới
-        $stmt = $db->prepare("INSERT INTO addresses (member_id, full_address, city, district, ward, type, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$member_id, $full_address, $city, $district, $ward, $type, $is_default]);
+            $stmt = $db->prepare("INSERT INTO addresses (member_id, full_address, city, district, is_default) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$member_id, $full_address, $city, $district, $is_default]);
             $message = "Thêm địa chỉ thành công!";
         }
         $messageType = "success";
@@ -308,8 +262,6 @@ include 'layout/sidebar.php';
                     <th>Địa Chỉ Đầy Đủ</th>
                     <th>Thành Phố</th>
                     <th>Quận/Huyện</th>
-                    <th>Phường/Xã</th>
-                    <th>Loại</th>
                     <th>Trạng thái</th>
                     <th>Hành động</th>
                   </tr>
@@ -322,18 +274,6 @@ include 'layout/sidebar.php';
                     <td><?php echo htmlspecialchars($address['full_address']); ?></td>
                     <td><?php echo htmlspecialchars($address['city'] ?? 'N/A'); ?></td>
                     <td><?php echo htmlspecialchars($address['district'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($address['ward'] ?? 'N/A'); ?></td>
-                    <td>
-                      <?php
-                        $typeLabel = 'Nhà riêng';
-                        if (($address['type'] ?? 'home') === 'work') {
-                          $typeLabel = 'Cơ quan';
-                        } elseif (($address['type'] ?? 'home') === 'other') {
-                          $typeLabel = 'Khác';
-                        }
-                      ?>
-                      <span class="badge badge-light"><?php echo $typeLabel; ?></span>
-                    </td>
                     <td>
                       <?php if ($address['is_default']): ?>
                         <span class="badge badge-success"><i class="fas fa-check"></i> Mặc định</span>
@@ -373,12 +313,12 @@ include 'layout/sidebar.php';
         <h4 class="modal-title" id="modalTitle">Thêm Địa Chỉ</h4>
         <button type="button" class="close" data-dismiss="modal">&times;</button>
       </div>
-      <form method="POST" id="addressForm" data-address-picker="1" data-mode="admin" novalidate>
+      <form method="POST" id="addressForm">
         <div class="modal-body">
           <input type="hidden" name="id" id="address_id">
           <div class="form-group">
             <label>Hội viên <span class="text-danger">*</span></label>
-            <select name="member_id" id="member_id" class="form-control">
+            <select name="member_id" id="member_id" class="form-control" required>
               <option value="">--- Chọn hội viên ---</option>
               <?php foreach ($members as $member): ?>
               <option value="<?php echo $member['id']; ?>">
@@ -386,52 +326,22 @@ include 'layout/sidebar.php';
               </option>
               <?php endforeach; ?>
             </select>
-            <small class="text-danger d-none form-field-error" data-error-for="member_id"></small>
           </div>
           <div class="form-group">
             <label>Địa chỉ đầy đủ <span class="text-danger">*</span></label>
-            <textarea name="full_address" id="full_address" class="form-control" rows="3" maxlength="255" placeholder="Số nhà, tên đường..."></textarea>
-            <small class="text-danger d-none form-field-error" data-error-for="full_address"></small>
+            <textarea name="full_address" id="full_address" class="form-control" rows="3" required maxlength="255" placeholder="Số nhà, tên đường..."></textarea>
           </div>
           <div class="row">
             <div class="col-md-6">
               <div class="form-group">
-                <label>Tỉnh / Thành phố</label>
-                <select name="city" id="city" class="form-control">
-                  <option value="">-- Chọn Tỉnh / Thành phố --</option>
-                </select>
-                <small class="text-danger d-none form-field-error" data-error-for="city"></small>
+                <label>Thành phố</label>
+                <input type="text" name="city" id="city" class="form-control" maxlength="100" placeholder="TP. Hồ Chí Minh">
               </div>
             </div>
             <div class="col-md-6">
               <div class="form-group">
-                <label>Quận / Huyện</label>
-                <select name="district" id="district" class="form-control">
-                  <option value="">-- Chọn Quận / Huyện --</option>
-                </select>
-                <small class="text-danger d-none form-field-error" data-error-for="district"></small>
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Phường / Xã</label>
-                <select name="ward" id="ward" class="form-control">
-                  <option value="">-- Chọn Phường / Xã --</option>
-                </select>
-                <small class="text-danger d-none form-field-error" data-error-for="ward"></small>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Loại địa chỉ</label>
-                <select name="type" id="type" class="form-control">
-                  <option value="home">Nhà riêng</option>
-                  <option value="work">Cơ quan</option>
-                  <option value="other">Khác</option>
-                </select>
-                <small class="text-danger d-none form-field-error" data-error-for="type"></small>
+                <label>Quận/Huyện</label>
+                <input type="text" name="district" id="district" class="form-control" maxlength="100" placeholder="Quận 1">
               </div>
             </div>
           </div>
@@ -451,31 +361,34 @@ include 'layout/sidebar.php';
   </div>
 </div>
 
-<script src="../assets/js/address-picker.js"></script>
-
 <script>
 function resetForm() {
   document.getElementById('modalTitle').innerText = 'Thêm Địa Chỉ';
   document.getElementById('addressSubmitBtn').disabled = false;
   document.getElementById('addressSubmitBtn').innerText = 'Lưu';
-  AddressPicker.resetForm(document.getElementById('addressForm'));
+  document.getElementById('address_id').value = '';
+  document.getElementById('member_id').value = '';
+  document.getElementById('full_address').value = '';
+  document.getElementById('city').value = '';
+  document.getElementById('district').value = '';
+  document.getElementById('is_default').checked = false;
 }
 
 function editAddress(address) {
   document.getElementById('modalTitle').innerText = 'Sửa Địa Chỉ';
   document.getElementById('addressSubmitBtn').disabled = false;
   document.getElementById('addressSubmitBtn').innerText = 'Lưu';
-  AddressPicker.fillForm(document.getElementById('addressForm'), address);
+  document.getElementById('address_id').value = address.id;
+  document.getElementById('member_id').value = address.member_id;
+  document.getElementById('full_address').value = address.full_address;
+  document.getElementById('city').value = address.city || '';
+  document.getElementById('district').value = address.district || '';
+  document.getElementById('is_default').checked = address.is_default == 1;
 }
 
 // Initialize DataTable
 $(document).ready(function() {
-  $('#addressForm').on('submit', function(e) {
-    if (!AddressPicker.validateForm(this)) {
-      e.preventDefault();
-      return;
-    }
-
+  $('#addressForm').on('submit', function() {
     var submitBtn = $('#addressSubmitBtn');
     submitBtn.prop('disabled', true);
     submitBtn.text('Đang lưu...');

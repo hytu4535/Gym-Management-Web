@@ -23,6 +23,8 @@ require_once '../includes/functions.php';
 $db = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_maintenance_id'])) {
+  checkPermission('MANAGE_SALES', 'edit');
+
   $maintenanceId = intval($_POST['edit_maintenance_id']);
   $equipmentId = intval($_POST['edit_equipment_id']);
   $maintenanceDate = sanitize($_POST['edit_maintenance_date']);
@@ -49,6 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_maintenance_id']
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['equipment_id'])) {
+  checkPermission('MANAGE_SALES', 'add');
+
   $equipmentId = intval($_POST['equipment_id']);
   $maintenanceDate = sanitize($_POST['maintenance_date']);
   $description = sanitize($_POST['description']);
@@ -74,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['equipment_id'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_maintenance_id'])) {
+  checkPermission('MANAGE_SALES', 'delete');
+
   $maintenanceId = intval($_POST['delete_maintenance_id']);
   $deleteStmt = $db->prepare("DELETE FROM equipment_maintenance WHERE id = ?");
 

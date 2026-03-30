@@ -22,7 +22,24 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
+$tierPromotionTable = null;
+$hasTierPromotionSingularTable = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tier_promotion' LIMIT 1")->fetchColumn();
+$hasTierPromotionPluralTable = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tier_promotions' LIMIT 1")->fetchColumn();
+if ($hasTierPromotionSingularTable) {
+  $tierPromotionTable = 'tier_promotion';
+} elseif ($hasTierPromotionPluralTable) {
+  $tierPromotionTable = 'tier_promotions';
+}
+
+$hasTierPromotionsTable = $tierPromotionTable !== null;
+$tierPromotionTableMessage = '';
+if (!$hasTierPromotionsTable) {
+  $tierPromotionTableMessage = 'Database hiện chưa có bảng tier_promotion/tier_promotions. Vui lòng import/migrate schema để dùng chức năng khuyến mãi theo hạng.';
+}
+
+if ($hasTierPromotionsTable && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
+  checkPermission('MANAGE_SALES', 'add');
+
   $name = sanitize($_POST['name']);
   $tierId = intval($_POST['tier_id']);
   $discountType = sanitize($_POST['discount_type']);
@@ -57,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
     exit;
   }
 
-  $insertStmt = $db->prepare("INSERT INTO tier_promotions (name, tier_id, discount_type, discount_value, applicable_items, start_date, end_date, usage_limit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  $insertStmt = $db->prepare("INSERT INTO {$tierPromotionTable} (name, tier_id, discount_type, discount_value, applicable_items, start_date, end_date, usage_limit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
   if ($insertStmt->execute([$name, $tierId, $discountType, $discountValue, null, $startDate, $endDate, $usageLimit, $status])) {
     echo "<script>alert('Thêm khuyến mãi theo hạng thành công!');window.location='tier-promotions.php';</script>";
   } else {
@@ -66,67 +83,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_promotion'])) {
   exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id'])) {
+if ($hasTierPromotionsTable && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id'])) {
+  checkPermission('MANAGE_SALES', 'edit');
+
   $promotionId = intval($_POST['edit_promotion_id']);
   $name = sanitize($_POST['edit_name']);
+  $tierId = intval($_POST['edit_tier_id']);
+  $discountType = sanitize($_POST['edit_discount_type']);
+  $discountValue = floatval($_POST['edit_discount_value']);
+  $startDate = sanitize($_POST['edit_start_date']);
+  $endDate = sanitize($_POST['edit_end_date']);
+  $usageLimit = isset($_POST['edit_usage_limit']) && $_POST['edit_usage_limit'] !== '' ? intval($_POST['edit_usage_limit']) : null;
   $status = sanitize($_POST['edit_status']);
-
-  $promotionCheckStmt = $db->prepare("SELECT tp.*, COALESCE(pu_stats.usage_count, 0) AS usage_count FROM tier_promotions tp LEFT JOIN (SELECT promotion_id, COUNT(*) AS usage_count FROM promotion_usage GROUP BY promotion_id) pu_stats ON pu_stats.promotion_id = tp.id WHERE tp.id = ?");
-  $promotionCheckStmt->execute([$promotionId]);
-  $currentPromotion = $promotionCheckStmt->fetch();
-
-  if (!$currentPromotion) {
-    echo "<script>alert('Không tìm thấy khuyến mãi cần cập nhật!');window.location='tier-promotions.php';</script>";
-    exit;
-  }
-
-  $isUsed = ((int) ($currentPromotion['usage_count'] ?? 0)) > 0;
-
-  if ($isUsed) {
-    $tierId = (int) $currentPromotion['tier_id'];
-    $discountType = (string) $currentPromotion['discount_type'];
-    $discountValue = (float) $currentPromotion['discount_value'];
-    $startDate = (string) $currentPromotion['start_date'];
-    $endDate = (string) $currentPromotion['end_date'];
-    $usageLimit = $currentPromotion['usage_limit'] !== null ? (int) $currentPromotion['usage_limit'] : null;
-  } else {
-    $tierId = intval($_POST['edit_tier_id']);
-    $discountType = sanitize($_POST['edit_discount_type']);
-    $discountValue = floatval($_POST['edit_discount_value']);
-    $startDate = sanitize($_POST['edit_start_date']);
-    $endDate = sanitize($_POST['edit_end_date']);
-    $usageLimit = isset($_POST['edit_usage_limit']) && $_POST['edit_usage_limit'] !== '' ? intval($_POST['edit_usage_limit']) : null;
-  }
 
   $allowedTypes = ['percentage', 'fixed', 'package'];
   $allowedStatus = ['active', 'inactive', 'expired'];
 
-  if ((!$isUsed && !in_array($discountType, $allowedTypes, true)) || !in_array($status, $allowedStatus, true)) {
+  if (!in_array($discountType, $allowedTypes, true) || !in_array($status, $allowedStatus, true)) {
     echo "<script>alert('Loại giảm hoặc trạng thái không hợp lệ!');window.location='tier-promotions.php';</script>";
     exit;
   }
 
-  if (!$isUsed && $discountValue <= 0) {
+  if ($discountValue <= 0) {
     echo "<script>alert('Giá trị giảm phải lớn hơn 0!');window.location='tier-promotions.php';</script>";
     exit;
   }
 
-  if (!$isUsed && strtotime($startDate) > strtotime($endDate)) {
+  if (strtotime($startDate) > strtotime($endDate)) {
     echo "<script>alert('Ngày bắt đầu không được lớn hơn ngày kết thúc!');window.location='tier-promotions.php';</script>";
     exit;
   }
 
-  if ($isUsed) {
-    $updateStmt = $db->prepare("UPDATE tier_promotions SET name = ?, status = ? WHERE id = ?");
-    if ($updateStmt->execute([$name, $status, $promotionId])) {
-      echo "<script>alert('Khuyến mãi đã được sử dụng. Chỉ cập nhật tên và trạng thái thành công!');window.location='tier-promotions.php';</script>";
-    } else {
-      echo "<script>alert('Lỗi khi cập nhật khuyến mãi!');window.location='tier-promotions.php';</script>";
-    }
-    exit;
-  }
-
-  $updateStmt = $db->prepare("UPDATE tier_promotions SET name = ?, tier_id = ?, discount_type = ?, discount_value = ?, applicable_items = ?, start_date = ?, end_date = ?, usage_limit = ?, status = ? WHERE id = ?");
+  $updateStmt = $db->prepare("UPDATE {$tierPromotionTable} SET name = ?, tier_id = ?, discount_type = ?, discount_value = ?, applicable_items = ?, start_date = ?, end_date = ?, usage_limit = ?, status = ? WHERE id = ?");
   if ($updateStmt->execute([$name, $tierId, $discountType, $discountValue, null, $startDate, $endDate, $usageLimit, $status, $promotionId])) {
     echo "<script>alert('Cập nhật khuyến mãi thành công!');window.location='tier-promotions.php';</script>";
   } else {
@@ -135,25 +123,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_promotion_id']))
   exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_promotion_id'])) {
+if ($hasTierPromotionsTable && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_promotion_id'])) {
+  checkPermission('MANAGE_SALES', 'delete');
+
   $promotionId = intval($_POST['delete_promotion_id']);
-  $promotionCheckStmt = $db->prepare("SELECT COALESCE(pu_stats.usage_count, 0) AS usage_count FROM tier_promotions tp LEFT JOIN (SELECT promotion_id, COUNT(*) AS usage_count FROM promotion_usage GROUP BY promotion_id) pu_stats ON pu_stats.promotion_id = tp.id WHERE tp.id = ?");
-  $promotionCheckStmt->execute([$promotionId]);
-  $promotionUsageCount = (int) $promotionCheckStmt->fetchColumn();
-
-  if ($promotionUsageCount > 0) {
-    $disableStmt = $db->prepare("UPDATE tier_promotions SET status = 'inactive' WHERE id = ?");
-
-    if ($disableStmt->execute([$promotionId])) {
-      echo "<script>alert('Khuyến mãi đã có người sử dụng nên đã được chuyển sang trạng thái ẩn (inactive)!');window.location='tier-promotions.php';</script>";
-    } else {
-      echo "<script>alert('Lỗi khi cập nhật trạng thái khuyến mãi!');window.location='tier-promotions.php';</script>";
-    }
-
-    exit;
-  }
-
-  $deleteStmt = $db->prepare("DELETE FROM tier_promotions WHERE id = ?");
+  $deleteStmt = $db->prepare("DELETE FROM {$tierPromotionTable} WHERE id = ?");
 
   if ($deleteStmt->execute([$promotionId])) {
     echo "<script>alert('Xóa khuyến mãi thành công!');window.location='tier-promotions.php';</script>";
@@ -194,9 +168,12 @@ if ($filterStatus !== '') {
 }
 $promotionWhereSql = !empty($promotionWhereClauses) ? ' WHERE ' . implode(' AND ', $promotionWhereClauses) : '';
 
-$promotionsStmt = $db->prepare("SELECT tp.*, mt.name AS tier_name, COALESCE(pu_stats.usage_count, 0) AS usage_count FROM tier_promotions tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id LEFT JOIN (SELECT promotion_id, COUNT(*) AS usage_count FROM promotion_usage GROUP BY promotion_id) pu_stats ON pu_stats.promotion_id = tp.id" . $promotionWhereSql . " ORDER BY tp.id DESC");
-$promotionsStmt->execute($promotionParams);
-$promotions = $promotionsStmt->fetchAll();
+$promotions = [];
+if ($hasTierPromotionsTable) {
+  $promotionsStmt = $db->prepare("SELECT tp.*, mt.name AS tier_name FROM {$tierPromotionTable} tp INNER JOIN member_tiers mt ON mt.id = tp.tier_id" . $promotionWhereSql . " ORDER BY tp.id DESC");
+  $promotionsStmt->execute($promotionParams);
+  $promotions = $promotionsStmt->fetchAll();
+}
 
 function resolveTierDisplayName($tierId, $tierName) {
   $fallbackMap = [
@@ -239,6 +216,14 @@ function resolveTierDisplayName($tierId, $tierName) {
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php if ($tierPromotionTableMessage !== ''): ?>
+          <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <?= htmlspecialchars($tierPromotionTableMessage) ?>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        <?php endif; ?>
         <?php
           $filterMode = 'server';
           $filterAction = 'tier-promotions.php';
@@ -261,7 +246,7 @@ function resolveTierDisplayName($tierId, $tierName) {
               <div class="card-header">
                 <h3 class="card-title">Danh sách Chương Trình Khuyến Mãi</h3>
                 <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addPromotionModal">
+                  <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addPromotionModal" <?= $hasTierPromotionsTable ? '' : 'disabled' ?>>
                     <i class="fas fa-plus"></i> Thêm Khuyến Mãi
                   </button>
                 </div>
@@ -314,13 +299,12 @@ function resolveTierDisplayName($tierId, $tierName) {
                       <?php endif; ?>
                     </td>
                     <td>
-                      <button type="button" class="btn btn-warning btn-sm edit-promotion-btn"
+                      <button class="btn btn-warning btn-sm edit-promotion-btn"
                         data-id="<?= $promotion['id'] ?>"
                         data-name="<?= htmlspecialchars($promotion['name'], ENT_QUOTES, 'UTF-8') ?>"
                         data-tier-id="<?= $promotion['tier_id'] ?>"
                         data-discount-type="<?= $promotion['discount_type'] ?>"
                         data-discount-value="<?= $promotion['discount_value'] ?>"
-                        data-usage-count="<?= (int) $promotion['usage_count'] ?>"
 
                         data-start-date="<?= $promotion['start_date'] ?>"
                         data-end-date="<?= $promotion['end_date'] ?>"
@@ -429,7 +413,6 @@ function resolveTierDisplayName($tierId, $tierName) {
           <div class="form-group">
             <label for="edit_name">Tên Chương Trình</label>
             <input type="text" class="form-control" id="edit_name" name="edit_name" required>
-            <small id="edit_promotion_usage_notice" class="text-danger d-none">Khuyến mãi này đã được sử dụng. Bạn chỉ có thể chỉnh sửa tên và trạng thái.</small>
           </div>
           <div class="form-group">
             <label for="edit_tier_id">Hạng Áp Dụng</label>
@@ -490,17 +473,7 @@ function resolveTierDisplayName($tierId, $tierName) {
 
 <script>
 $(document).ready(function() {
-  function setPromotionEditLockedState(isLocked) {
-    $('#edit_tier_id, #edit_discount_type, #edit_discount_value, #edit_start_date, #edit_end_date, #edit_usage_limit').prop('disabled', isLocked);
-    $('#edit_promotion_usage_notice').toggleClass('d-none', !isLocked);
-  }
-
-  $(document).on('click', '.edit-promotion-btn', function(event) {
-    event.preventDefault();
-
-    var usageCount = parseInt($(this).data('usage-count'), 10) || 0;
-    var isLocked = usageCount > 0;
-
+  $('.edit-promotion-btn').on('click', function() {
     $('#edit_promotion_id').val($(this).data('id'));
     $('#edit_name').val($(this).data('name'));
     $('#edit_tier_id').val($(this).data('tier-id'));
@@ -510,13 +483,7 @@ $(document).ready(function() {
     $('#edit_end_date').val($(this).data('end-date'));
     $('#edit_usage_limit').val($(this).data('usage-limit'));
     $('#edit_status').val($(this).data('status'));
-
-    setPromotionEditLockedState(isLocked);
     $('#editPromotionModal').modal('show');
-  });
-
-  $('#editPromotionModal').on('hidden.bs.modal', function() {
-    setPromotionEditLockedState(false);
   });
 });
 </script>

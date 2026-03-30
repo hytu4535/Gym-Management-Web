@@ -14,6 +14,25 @@ include '../includes/auth_permission.php';
 // chỉ cho phép user có quyền MANAGE_EQUIPMENT
 checkPermission('MANAGE_EQUIPMENT');
 
+$permissions = $_SESSION['permissions'] ?? [];
+$hasManageAll = in_array('MANAGE_ALL', $permissions, true);
+$equipmentActionSet = $_SESSION['user_action_permissions']['MANAGE_EQUIPMENT'] ?? null;
+
+if ($hasManageAll) {
+  $canAddEquipment = true;
+  $canEditEquipment = true;
+  $canDeleteEquipment = true;
+} elseif (is_array($equipmentActionSet)) {
+  $canAddEquipment = !empty($equipmentActionSet['add']);
+  $canEditEquipment = !empty($equipmentActionSet['edit']);
+  $canDeleteEquipment = !empty($equipmentActionSet['delete']);
+} else {
+  $legacyManageEquipment = in_array('MANAGE_EQUIPMENT', $permissions, true);
+  $canAddEquipment = $legacyManageEquipment;
+  $canEditEquipment = $legacyManageEquipment;
+  $canDeleteEquipment = $legacyManageEquipment;
+}
+
 // layout chung
 include 'layout/header.php';
 include 'layout/sidebar.php';
@@ -88,9 +107,11 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
               <div class="card-header">
                 <h3 class="card-title">Danh sách thiết bị</h3>
                 <div class="card-tools">
+                  <?php if ($canAddEquipment): ?>
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addEquipmentModal">
                     <i class="fas fa-plus"></i> Thêm thiết bị
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
               <div class="card-body">
@@ -129,6 +150,7 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
                     </td>
                     <td>
                       <button class="btn btn-info btn-sm"><i class="fas fa-eye"></i></button>
+                      <?php if ($canEditEquipment): ?>
                       <button class="btn btn-warning btn-sm edit-equipment-btn"
                         data-id="<?= $equipment['id'] ?>"
                         data-name="<?= htmlspecialchars($equipment['name']) ?>"
@@ -136,11 +158,14 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
                         data-status="<?= $equipment['status'] ?>">
                         <i class="fas fa-edit"></i>
                       </button>
+                      <?php endif; ?>
+                      <?php if ($canDeleteEquipment): ?>
                       <button class="btn btn-danger btn-sm delete-equipment-btn"
                         data-id="<?= $equipment['id'] ?>"
                         data-name="<?= htmlspecialchars($equipment['name']) ?>">
                         <i class="fas fa-trash"></i>
                       </button>
+                      <?php endif; ?>
                     </td>
                   </tr>
                   <?php endforeach; ?>
@@ -308,6 +333,11 @@ $(document).ready(function() {
 <!-- Handle sửa thiết bị (PHP) -->
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_equipment_id'])) {
+    if (!$canEditEquipment) {
+      echo "<script>alert('Bạn không có quyền này');window.location='no_permission.php';</script>";
+      exit;
+    }
+
     require_once '../includes/functions.php';
     $id = intval($_POST['edit_equipment_id']);
     $name = sanitize($_POST['edit_equipment_name']);
@@ -330,6 +360,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_equipment_id']))
 <!-- Handle xóa thiết bị (PHP) -->
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_equipment_id'])) {
+    if (!$canDeleteEquipment) {
+      echo "<script>alert('Bạn không có quyền này');window.location='no_permission.php';</script>";
+      exit;
+    }
+
     require_once '../includes/functions.php';
     $id = intval($_POST['delete_equipment_id']);
     $db = getDB();
@@ -386,6 +421,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_equipment_id']
 <!-- Handle thêm thiết bị (PHP) -->
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['equipment_name'])) {
+    if (!$canAddEquipment) {
+      echo "<script>alert('Bạn không có quyền này');window.location='no_permission.php';</script>";
+      exit;
+    }
+
     require_once '../includes/functions.php';
     $name = sanitize($_POST['equipment_name']);
     $quantity = intval($_POST['equipment_quantity']);

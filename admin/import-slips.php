@@ -26,10 +26,7 @@ function importStatusLabelByIndex($statusIndex) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_id'])) {
-  if (!$canEditImport) {
-    header('Location: no_permission.php');
-    exit;
-  }
+  checkPermission('MANAGE_INVENTORY', 'edit');
 
   $importSlipId = intval($_POST['update_import_status_id']);
   $newStatusAction = sanitize($_POST['new_status_action'] ?? '');
@@ -112,10 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_import_status_
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
-  if (!$canAddImport) {
-    header('Location: no_permission.php');
-    exit;
-  }
+  checkPermission('MANAGE_INVENTORY', 'add');
 
   $supplierId = intval($_POST['supplier_id']);
   $staffId = intval($_POST['staff_id']);

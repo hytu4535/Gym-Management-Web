@@ -19,32 +19,21 @@ include 'layout/sidebar.php';
 
 $db = getDB();
 
-$permissionModules = [
-  'MANAGE_STAFF' => 'Quản lí nhân viên',
-  'MANAGE_MEMBERS' => 'Quản lí hội viên',
-  'MANAGE_PACKAGES' => 'Quản lí gói tập',
-  'MANAGE_TRAINERS' => 'Quản lí luyện tập',
-  'MANAGE_SERVICES_NUTRITION' => 'QL dịch vụ và dinh dưỡng',
-  'MANAGE_SALES' => 'Quản lí bán hàng',
-  'MANAGE_INVENTORY' => 'Quản lí kho',
-  'MANAGE_EQUIPMENT' => 'Quản lí thiết bị',
-  'MANAGE_FEEDBACK' => 'Phản hồi và thông báo',
-  'VIEW_REPORTS' => 'Báo cáo thống kê',
-  'MANAGE_ALL' => 'Quản lí tài khoản',
-];
+// Kiểm tra các cột theo đúng database hiện tại để tránh lệch schema
+$columnCheckStmt = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME = ? LIMIT 1");
 
-$permissionActions = [
-  'view' => 'Xem',
-  'edit' => 'Sửa',
-  'delete' => 'Xóa',
-  'add' => 'Thêm',
-];
+$columnCheckStmt->execute(['phone']);
+$hasPhoneColumn = !empty($columnCheckStmt->fetch());
 
-$userPermissionModalData = [];
+$columnCheckStmt->execute(['full_name']);
+$hasFullNameColumn = !empty($columnCheckStmt->fetch());
 
-// Kiểm tra cột phone tồn tại
-$checkColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
-$hasPhoneColumn = !empty($checkColumn);
+$columnCheckStmt->execute(['name']);
+$hasNameColumn = !empty($columnCheckStmt->fetch());
+
+$displayNameSelect = $hasFullNameColumn
+  ? 'u.full_name AS full_name'
+  : ($hasNameColumn ? 'u.name AS full_name' : 'u.username AS full_name');
 
 // Bộ lọc
 $filterUsername = trim((string) ($_GET['username'] ?? ''));
@@ -98,14 +87,14 @@ $totalPages = ceil($totalRecords / $itemsPerPage);
 
 // Lấy danh sách users
 if ($hasPhoneColumn) {
-  $sql = "SELECT u.id, u.username, u.full_name, u.email, u.phone, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, $displayNameSelect, u.email, u.phone, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 } else {
-  $sql = "SELECT u.id, u.username, u.full_name, u.email, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, $displayNameSelect, u.email, r.name AS role, u.role_id, u.status, u.created_at
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
@@ -115,42 +104,6 @@ if ($hasPhoneColumn) {
 $stmt = $db->prepare($sql);
 $stmt->execute($whereParams);
 $users = $stmt->fetchAll();
-
-$userPermissionMap = [];
-if (!empty($users)) {
-  $userIds = array_map('intval', array_column($users, 'id'));
-  $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-  $permSql = "SELECT user_id, permission_code, can_view, can_add, can_edit, can_delete FROM user_permissions WHERE user_id IN ($placeholders)";
-  $permStmt = $db->prepare($permSql);
-  $permStmt->execute($userIds);
-  $permissionRows = $permStmt->fetchAll(PDO::FETCH_ASSOC);
-
-  foreach ($permissionRows as $row) {
-    $uid = (int) ($row['user_id'] ?? 0);
-    $code = (string) ($row['permission_code'] ?? '');
-    if ($uid <= 0 || $code === '') {
-      continue;
-    }
-
-    $userPermissionMap[$uid][$code] = [
-      'view' => (int) ($row['can_view'] ?? 0) === 1,
-      'add' => (int) ($row['can_add'] ?? 0) === 1,
-      'edit' => (int) ($row['can_edit'] ?? 0) === 1,
-      'delete' => (int) ($row['can_delete'] ?? 0) === 1,
-    ];
-  }
-}
-
-foreach ($users as $userRow) {
-  $userId = (int) ($userRow['id'] ?? 0);
-  $userPermissionModalData[$userId] = [
-    'id' => $userId,
-    'username' => (string) ($userRow['username'] ?? ''),
-    'role' => (string) ($userRow['role'] ?? ''),
-    'role_id' => (int) ($userRow['role_id'] ?? 0),
-    'permissions' => $userPermissionMap[$userId] ?? [],
-  ];
-}
 
 // Lấy danh sách roles để dùng cho form
 $roles = $db->query("SELECT id, name FROM roles WHERE status='active'")->fetchAll();
@@ -321,9 +274,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                   <!-- Nút sửa mở modal -->
                   <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editUserModal<?= $u['id'] ?>">
                     <i class="fas fa-edit"></i>
-                  </button>
-                  <button class="btn btn-secondary btn-sm" data-toggle="modal" data-target="#userPermissionModal" onclick="openPermissionModal(<?= $u['id'] ?>)">
-                    <i class="fas fa-user-shield"></i>
                   </button>
                   <form action="process/user_management.php" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn thay đổi trạng thái user này?');">
                     <input type="hidden" name="action" value="toggle_status">
@@ -637,56 +587,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
   </div>
 </div>
 
-<div class="modal fade" id="userPermissionModal" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <form action="process/user_management.php" method="POST" id="userPermissionForm">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="userPermissionModalTitle">Phân quyền user</h5>
-          <button type="button" class="close" data-dismiss="modal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <input type="hidden" name="action" value="update_permissions">
-          <input type="hidden" name="user_id" id="permission_user_id" value="">
-
-          <div class="alert alert-info mb-3 d-none" id="userPermissionAdminNotice">
-            Tài khoản Admin là vai trò cao nhất và luôn có toàn bộ quyền.
-          </div>
-
-          <div class="table-responsive">
-            <table class="table table-bordered table-striped mb-0">
-              <thead>
-                <tr>
-                  <th>Chức năng</th>
-                  <?php foreach ($permissionActions as $actionLabel): ?>
-                    <th class="text-center"><?= htmlspecialchars($actionLabel) ?></th>
-                  <?php endforeach; ?>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach ($permissionModules as $permCode => $permLabel): ?>
-                  <tr>
-                    <td><strong><?= htmlspecialchars($permLabel) ?></strong></td>
-                    <?php foreach ($permissionActions as $actionKey => $actionLabel): ?>
-                      <td class="text-center">
-                        <input type="checkbox" class="js-user-permission-checkbox" name="permissions[<?= htmlspecialchars($permCode) ?>][<?= htmlspecialchars($actionKey) ?>]" value="1" data-perm-code="<?= htmlspecialchars($permCode) ?>" data-action-key="<?= htmlspecialchars($actionKey) ?>">
-                      </td>
-                    <?php endforeach; ?>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-          <button type="submit" class="btn btn-primary" id="userPermissionSubmitBtn">Lưu phân quyền</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
-
 <!-- Modal edit user với validation error -->
 <?php if ($editUserData && !empty($validationErrors)): ?>
 <div class="modal fade show" id="errorEditModal" tabindex="-1" style="display: block; background-color: rgba(0,0,0,0.5);">
@@ -846,8 +746,6 @@ body.modal-open {
 </style>
 
 <script>
-const userPermissionModalData = <?= json_encode($userPermissionModalData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
-
 function togglePasswordVisibilityForToggleEl(toggleEl) {
   const inputGroup = toggleEl.closest('.input-group');
   if (!inputGroup) return;
@@ -887,45 +785,6 @@ function togglePasswordDisplay(userId) {
     actual.style.display = 'none';
     icon.classList.remove('fa-eye-slash');
     icon.classList.add('fa-eye');
-  }
-}
-
-function openPermissionModal(userId) {
-  const modalData = userPermissionModalData[String(userId)] || userPermissionModalData[userId] || null;
-  const userIdInput = document.getElementById('permission_user_id');
-  const title = document.getElementById('userPermissionModalTitle');
-  const adminNotice = document.getElementById('userPermissionAdminNotice');
-  const submitBtn = document.getElementById('userPermissionSubmitBtn');
-  const checkboxes = document.querySelectorAll('.js-user-permission-checkbox');
-
-  if (!userIdInput || !title || !adminNotice || !submitBtn) {
-    return;
-  }
-
-  userIdInput.value = userId;
-  title.textContent = modalData ? `Phân quyền user: ${modalData.username || ''}` : 'Phân quyền user';
-
-  const isAdminRole = modalData && ((parseInt(modalData.role_id, 10) === 4) || String(modalData.role || '').toLowerCase() === 'admin');
-  adminNotice.classList.toggle('d-none', !isAdminRole);
-  submitBtn.disabled = !!isAdminRole;
-
-  checkboxes.forEach((checkbox) => {
-    checkbox.checked = false;
-    checkbox.disabled = !!isAdminRole;
-  });
-
-  if (modalData && modalData.permissions) {
-    Object.keys(modalData.permissions).forEach((permCode) => {
-      const permissionSet = modalData.permissions[permCode] || {};
-      Object.keys(permissionSet).forEach((actionKey) => {
-        if (permissionSet[actionKey]) {
-          const checkbox = document.querySelector(`.js-user-permission-checkbox[data-perm-code="${permCode}"][data-action-key="${actionKey}"]`);
-          if (checkbox) {
-            checkbox.checked = true;
-          }
-        }
-      });
-    });
   }
 }
 

@@ -120,7 +120,7 @@ DROP TABLE IF EXISTS `cart_items`;
 CREATE TABLE `cart_items` (
   `id` int NOT NULL AUTO_INCREMENT,
   `cart_id` int NOT NULL,
-  `item_type` enum('product','package','service','class') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `item_type` enum('product','package','service','class') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `item_id` int NOT NULL,
   `quantity` int DEFAULT '1',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -207,7 +207,7 @@ CREATE TABLE `class_registrations` (
   `member_id` int NOT NULL,
   `class_id` int NOT NULL,
   `registered_at` datetime DEFAULT CURRENT_TIMESTAMP,
-  `status` enum('active','cancelled') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `status` enum('active','cancelled') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_reg` (`member_id`,`class_id`),
   KEY `idx_reg_member` (`member_id`),
@@ -236,17 +236,17 @@ DROP TABLE IF EXISTS `class_schedules`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `class_schedules` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `class_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Tên lớp tập',
-  `class_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'cardio, yoga, strength, hiit, boxing...',
+  `class_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Tên lớp tập',
+  `class_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'cardio, yoga, strength, hiit, boxing...',
   `trainer_id` int DEFAULT NULL,
   `schedule_start_time` time DEFAULT NULL COMMENT 'Giờ bắt đầu',
   `schedule_end_time` time DEFAULT NULL COMMENT 'Giờ kết thúc',
-  `schedule_days` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'VD: Thứ 2, Thứ 4, Thứ 6',
+  `schedule_days` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'VD: Thứ 2, Thứ 4, Thứ 6',
   `price_per_session` decimal(15,2) DEFAULT '0.00' COMMENT 'Gia moi buoi tap',
   `capacity` int DEFAULT '20' COMMENT 'Sức chứa tối đa',
   `enrolled_count` int DEFAULT '0' COMMENT 'Số người đã đăng ký',
-  `room` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Phòng tập',
-  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `room` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Phòng tập',
+  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_class_trainer` (`trainer_id`),
@@ -276,11 +276,11 @@ CREATE TABLE `contact_messages` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int DEFAULT NULL,
   `member_id` int DEFAULT NULL,
-  `full_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `email` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `message` text COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` enum('new','read','closed') COLLATE utf8mb4_unicode_ci DEFAULT 'new',
+  `full_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('new','read','closed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'new',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_contact_user` (`user_id`),
@@ -489,10 +489,10 @@ DROP TABLE IF EXISTS `login_attempts`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `login_attempts` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `bucket_type` enum('account','ip') COLLATE utf8mb4_general_ci NOT NULL,
-  `bucket_key` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
-  `identifier` varchar(191) COLLATE utf8mb4_general_ci NOT NULL,
-  `ip_address` varchar(45) COLLATE utf8mb4_general_ci NOT NULL,
+  `bucket_type` enum('account','ip') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `bucket_key` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `identifier` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `attempt_count` int NOT NULL DEFAULT '0',
   `last_attempt_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `locked_until` timestamp NULL DEFAULT NULL,
@@ -655,11 +655,11 @@ CREATE TABLE `member_training_schedules` (
   `trainer_id` int DEFAULT NULL COMMENT 'ID huấn luyện viên (NULL = tập tự do)',
   `training_date` datetime NOT NULL COMMENT 'Ngày giờ tập',
   `duration` int DEFAULT '60' COMMENT 'Thời lượng tập (phút)',
-  `activity_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Loại hoạt động: cardio, strength, yoga, hiit, boxing...',
-  `intensity` enum('thấp','trung bình','cao','rất cao') COLLATE utf8mb4_unicode_ci DEFAULT 'trung bình' COMMENT 'Cường độ tập',
+  `activity_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Loại hoạt động: cardio, strength, yoga, hiit, boxing...',
+  `intensity` enum('thấp','trung bình','cao','rất cao') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'trung bình' COMMENT 'Cường độ tập',
   `calories_burned` int DEFAULT '0' COMMENT 'Lượng calo đốt cháy (ước tính)',
-  `note` text COLLATE utf8mb4_unicode_ci COMMENT 'Ghi chú của PT hoặc hội viên',
-  `status` enum('dự kiến','đang tập','hoàn thành','huỷ') COLLATE utf8mb4_unicode_ci DEFAULT 'dự kiến' COMMENT 'Trạng thái buổi tập',
+  `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Ghi chú của PT hoặc hội viên',
+  `status` enum('dự kiến','đang tập','hoàn thành','huỷ') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'dự kiến' COMMENT 'Trạng thái buổi tập',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -879,9 +879,9 @@ DROP TABLE IF EXISTS `order_items`;
 CREATE TABLE `order_items` (
   `id` int NOT NULL AUTO_INCREMENT,
   `order_id` int NOT NULL,
-  `item_type` enum('product','package','service','class') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `item_type` enum('product','package','service','class') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `item_id` int NOT NULL,
-  `item_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `item_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `price` decimal(15,2) NOT NULL,
   `quantity` int DEFAULT '1',
   `discount` decimal(15,2) DEFAULT '0.00',
@@ -918,8 +918,8 @@ CREATE TABLE `orders` (
   `order_date` datetime DEFAULT CURRENT_TIMESTAMP,
   `total_amount` decimal(12,2) DEFAULT '0.00',
   `payment_method` enum('cash','online','bank_transfer') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'cash',
-  `transfer_code` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `proof_img` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `transfer_code` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `proof_img` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `status` enum('pending','confirmed','delivered','cancelled') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   PRIMARY KEY (`id`),
@@ -949,7 +949,7 @@ DROP TABLE IF EXISTS `permission`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `permission` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `code` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
 ) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -979,7 +979,7 @@ CREATE TABLE `products` (
   `short_description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Mô tả ngắn sản phẩm',
   `rating` decimal(2,1) DEFAULT '0.0' COMMENT 'Đánh giá trung bình (0-5)',
   `review` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Đánh giá sản phẩm',
-  `img` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Đường dẫn hình ảnh sản phẩm',
+  `img` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Đường dẫn hình ảnh sản phẩm',
   `unit` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'hộp' COMMENT 'Đơn vị tính: hộp, chai, cái...',
   `stock_quantity` int DEFAULT '0' COMMENT 'Số lượng tồn kho',
   `selling_price` decimal(15,2) DEFAULT '0.00' COMMENT 'Giá bán lẻ cho hội viên',
@@ -1097,6 +1097,46 @@ INSERT INTO `role_permissions` VALUES (4,1);
 UNLOCK TABLES;
 
 --
+-- Table structure for table `role_action_permissions`
+--
+
+DROP TABLE IF EXISTS `role_action_permissions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `role_action_permissions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `role_id` int NOT NULL,
+  `permission_code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `can_view` tinyint(1) NOT NULL DEFAULT '0',
+  `can_add` tinyint(1) NOT NULL DEFAULT '0',
+  `can_edit` tinyint(1) NOT NULL DEFAULT '0',
+  `can_delete` tinyint(1) NOT NULL DEFAULT '0',
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_role_permission_code` (`role_id`,`permission_code`),
+  KEY `idx_role_permissions_role_id` (`role_id`),
+  CONSTRAINT `fk_role_action_permissions_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `role_action_permissions`
+--
+
+LOCK TABLES `role_action_permissions` WRITE;
+/*!40000 ALTER TABLE `role_action_permissions` DISABLE KEYS */;
+INSERT INTO `role_action_permissions` (`role_id`, `permission_code`, `can_view`, `can_add`, `can_edit`, `can_delete`)
+SELECT rp.role_id, p.code, 1, 0, 0, 0
+FROM role_permissions rp
+JOIN permission p ON p.id = rp.permission_id
+LEFT JOIN role_action_permissions rap
+  ON rap.role_id = rp.role_id
+ AND rap.permission_code = p.code COLLATE utf8mb4_unicode_ci
+WHERE rap.id IS NULL;
+/*!40000 ALTER TABLE `role_action_permissions` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `roles`
 --
 
@@ -1133,7 +1173,7 @@ DROP TABLE IF EXISTS `services`;
 CREATE TABLE `services` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `img` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Đường dẫn hình ảnh dịch vụ',
+  `img` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Đường dẫn hình ảnh dịch vụ',
   `type` enum('thư giãn','xoa bóp','hỗ trợ') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `price` decimal(10,2) NOT NULL,
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -1163,8 +1203,8 @@ CREATE TABLE `staff` (
   `id` int NOT NULL AUTO_INCREMENT,
   `users_id` int NOT NULL,
   `full_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `email` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `position` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `department_id` int DEFAULT NULL,
   `status` enum('active','inactive','on_leave') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
@@ -1388,4 +1428,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-03-30  0:05:52
+-- Dump completed on 2026-03-30 15:34:30

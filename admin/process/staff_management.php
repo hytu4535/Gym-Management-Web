@@ -8,6 +8,7 @@ checkPermission('MANAGE_STAFF');
 $db = getDB();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $hasDepartmentIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff' AND COLUMN_NAME = 'department_id' LIMIT 1")->fetchColumn();
+$staffUserIdColumn = 'users_id';
 $hasUserFullNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'full_name' LIMIT 1")->fetchColumn();
 $userProfileSql = $hasUserFullNameColumn
     ? 'SELECT full_name, phone FROM users WHERE id = ?'
@@ -27,7 +28,13 @@ function getRoleIdByPosition(PDO $db, $position)
 }
 
 try {
+    if ($staffUserIdColumn !== 'users_id') {
+        failAndGoBack('Không tìm thấy cột liên kết tài khoản trong bảng staff (users_id).');
+    }
+
     if ($action === 'add') {
+        checkPermission('MANAGE_STAFF', 'add');
+
         $usersId = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
         $position = trim((string) ($_POST['position'] ?? ''));
         $departmentId = isset($_POST['department_id']) ? (int) $_POST['department_id'] : 0;
@@ -37,7 +44,7 @@ try {
             failAndGoBack('Vui lòng chọn tài khoản / email hợp lệ.');
         }
 
-        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE users_id = ?");
+        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE $staffUserIdColumn = ?");
         $duplicateStmt->execute([$usersId]);
         if ((int) $duplicateStmt->fetchColumn() > 0) {
             failAndGoBack('Tài khoản / email này đã được dùng trong bảng staff.');
@@ -77,12 +84,12 @@ try {
 
         if ($hasDepartmentIdColumn) {
             $stmt = $db->prepare(
-                "INSERT INTO staff (users_id, full_name, position, department_id, status) VALUES (?, ?, ?, ?, ?)"
+                "INSERT INTO staff ($staffUserIdColumn, full_name, position, department_id, status) VALUES (?, ?, ?, ?, ?)"
             );
             $stmt->execute([$usersId, $fullName, $position, $departmentId, $status]);
         } else {
             $stmt = $db->prepare(
-                "INSERT INTO staff (users_id, full_name, position, status) VALUES (?, ?, ?, ?)"
+                "INSERT INTO staff ($staffUserIdColumn, full_name, position, status) VALUES (?, ?, ?, ?)"
             );
             $stmt->execute([$usersId, $fullName, $position, $status]);
         }
@@ -102,6 +109,8 @@ try {
     }
 
     if ($action === 'edit') {
+        checkPermission('MANAGE_STAFF', 'edit');
+
         $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
         $submittedUsersId = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
         $position = trim((string) ($_POST['position'] ?? ''));
@@ -112,7 +121,7 @@ try {
             failAndGoBack('Thiếu thông tin staff cần cập nhật.');
         }
 
-        $currentStmt = $db->prepare("SELECT users_id FROM staff WHERE id = ?");
+        $currentStmt = $db->prepare("SELECT $staffUserIdColumn FROM staff WHERE id = ?");
         $currentStmt->execute([$id]);
         $currentUsersId = (int) $currentStmt->fetchColumn();
 
@@ -182,6 +191,8 @@ try {
     }
 
     if ($action === 'delete') {
+        checkPermission('MANAGE_STAFF', 'delete');
+
         $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
         if ($id <= 0) {
             failAndGoBack('Thiếu staff cần xóa.');

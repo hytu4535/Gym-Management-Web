@@ -51,3 +51,19 @@ cache/
 .env
 .env.local
 .env.production
+
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# Storage rác (không nên đẩy ảnh tạm lên Git)
+storage/face_templates/*
+storage/logs/*
+!storage/.gitkeep
+
+# VS Code rác
+.vscode/

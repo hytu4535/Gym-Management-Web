@@ -53,4 +53,39 @@ if (!function_exists('getDB')) {
         return Database::getInstance()->getConnection();
     }
 }
+
+if (!function_exists('toVietnameseDbError')) {
+    function toVietnameseDbError($error, string $fallback = 'Thao tác không thành công.'): string {
+        $errorCode = '';
+        $errorMessage = '';
+
+        if ($error instanceof Throwable) {
+            $errorCode = (string) $error->getCode();
+            $errorMessage = (string) $error->getMessage();
+        } else {
+            $errorMessage = (string) $error;
+        }
+
+        $normalizedMessage = strtolower($errorMessage);
+        $isFkError = in_array($errorCode, ['1451', '1452', '23000'], true)
+            || strpos($normalizedMessage, '1451') !== false
+            || strpos($normalizedMessage, '1452') !== false
+            || strpos($normalizedMessage, '23000') !== false
+            || strpos($normalizedMessage, 'foreign key constraint fails') !== false
+            || strpos($normalizedMessage, 'integrity constraint violation') !== false;
+
+        if ($isFkError) {
+            return 'Không thể thực hiện thao tác vì dữ liệu đang được sử dụng ở mục khác.';
+        }
+
+        $isDuplicateError = $errorCode === '1062'
+            || strpos($normalizedMessage, '1062') !== false
+            || strpos($normalizedMessage, 'duplicate entry') !== false;
+        if ($isDuplicateError) {
+            return 'Dữ liệu đã tồn tại. Vui lòng kiểm tra lại thông tin nhập.';
+        }
+
+        return $fallback;
+    }
+}
 ?>

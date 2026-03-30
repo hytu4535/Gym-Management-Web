@@ -198,6 +198,22 @@ try {
             failAndGoBack('Thiếu staff cần xóa.');
         }
 
+        $importRefStmt = $db->prepare('SELECT COUNT(*) FROM import_slips WHERE staff_id = ?');
+        $importRefStmt->execute([$id]);
+        $importRefCount = (int) $importRefStmt->fetchColumn();
+        if ($importRefCount > 0) {
+            failAndGoBack('Không thể xóa nhân viên đã phát sinh phiếu nhập.');
+        }
+
+        // Một số CSDL có thể lưu quan hệ staff trong bảng orders.
+        if (tableHasColumn($db, 'orders', 'staff_id')) {
+            $orderRefStmt = $db->prepare('SELECT COUNT(*) FROM orders WHERE staff_id = ?');
+            $orderRefStmt->execute([$id]);
+            if ((int) $orderRefStmt->fetchColumn() > 0) {
+                failAndGoBack('Không thể xóa nhân viên đã phát sinh đơn hàng.');
+            }
+        }
+
         $stmt = $db->prepare('DELETE FROM staff WHERE id = ?');
         $stmt->execute([$id]);
 

@@ -2,7 +2,7 @@
 // Cấu hình kết nối MySQL
 $servername = "localhost";
 $username   = "root";
-$password   = "thinh2014"; // XAMPP mặc định: root không có mật khẩu
+$password   = "14092005"; // XAMPP mặc định: root không có mật khẩu
 $dbname     = "gym_management"; // thay bằng tên database bạn đã tạo
 
 // Tạo kết nối

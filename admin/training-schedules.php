@@ -463,10 +463,13 @@ include 'layout/sidebar.php';
 $(function() {
   // Khởi tạo Select2 cho dropdown (nếu có plugin)
   if ($.fn.select2) {
-    $('.select2').select2({
-      theme: 'bootstrap4',
-      placeholder: 'Tìm kiếm...',
-      allowClear: true
+    $('.select2').not('.select2-hidden-accessible').each(function() {
+      $(this).select2({
+        theme: 'bootstrap4',
+        placeholder: 'Tìm kiếm...',
+        allowClear: true,
+        dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body)
+      });
     });
   }
 

@@ -54,16 +54,14 @@ function getTrainerRoleIds(PDO $db)
 
 function loadTrainerUsers(PDO $db, array $trainerRoleIds)
 {
-  if (empty($trainerRoleIds)) {
-    return [];
-  }
-
-  $sql = "SELECT id, username, full_name, email, phone, role_id
+    $sql = "SELECT id, username, full_name, email, phone, role_id
       FROM users
-      WHERE status = 'active' AND full_name <> '' AND phone IS NOT NULL AND phone <> ''";
+      WHERE status = 'active' AND full_name <> ''";
 
-  $placeholders = implode(',', array_fill(0, count($trainerRoleIds), '?'));
-  $sql .= " AND role_id IN ($placeholders)";
+  if (!empty($trainerRoleIds)) {
+    $placeholders = implode(',', array_fill(0, count($trainerRoleIds), '?'));
+    $sql .= " AND role_id IN ($placeholders)";
+  }
 
   $sql .= " ORDER BY email ASC, username ASC";
 
@@ -92,7 +90,7 @@ function isValidTrainerPhone($phone)
 function isTrainerRoleUser(array $user, array $trainerRoleIds)
 {
   if (empty($trainerRoleIds)) {
-    return false;
+    return true;
   }
 
   return in_array((int) ($user['role_id'] ?? 0), $trainerRoleIds, true);
@@ -101,6 +99,21 @@ function isTrainerRoleUser(array $user, array $trainerRoleIds)
 $trainerRoleIds = getTrainerRoleIds($db);
 $trainerUsers = loadTrainerUsers($db, $trainerRoleIds);
 $trainerHasUsersIdColumn = hasTableColumn($db, 'trainers', 'users_id');
+$trainerHasSpecializationColumn = hasTableColumn($db, 'trainers', 'specialization');
+$trainerHasExperienceColumn = hasTableColumn($db, 'trainers', 'experience');
+
+try {
+  if (!$trainerHasSpecializationColumn) {
+    $db->exec("ALTER TABLE trainers ADD COLUMN specialization VARCHAR(255) NULL AFTER type");
+    $trainerHasSpecializationColumn = true;
+  }
+  if (!$trainerHasExperienceColumn) {
+    $db->exec("ALTER TABLE trainers ADD COLUMN experience VARCHAR(100) NULL AFTER specialization");
+    $trainerHasExperienceColumn = true;
+  }
+} catch (Exception $ignored) {
+  // Không dừng trang nếu DB không cho phép ALTER.
+}
 $filterName = trim((string) ($_GET['name'] ?? ''));
 $filterType = trim((string) ($_GET['type'] ?? ''));
 $filterPhone = trim((string) ($_GET['phone'] ?? ''));
@@ -122,6 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
   checkPermission('MANAGE_TRAINERS', 'add');
 
     $type = sanitize($_POST['type'] ?? 'Nội bộ');
+    $specialization = sanitize($_POST['specialization'] ?? '');
+    $experience = sanitize($_POST['experience'] ?? '');
     $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
     $full_name = sanitize($_POST['full_name'] ?? '');
     $phone = preg_replace('/\D+/', '', (string) ($_POST['phone'] ?? ''));
@@ -157,11 +172,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         try {
       if ($trainerHasUsersIdColumn) {
-        $stmt = $db->prepare("INSERT INTO trainers (users_id, full_name, type, phone, status) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$users_id, $full_name, $type, $phone, $status]);
+        if ($trainerHasSpecializationColumn && $trainerHasExperienceColumn) {
+          $stmt = $db->prepare("INSERT INTO trainers (users_id, full_name, type, specialization, experience, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+          $stmt->execute([$users_id, $full_name, $type, $specialization, $experience, $phone, $status]);
+        } else {
+          $stmt = $db->prepare("INSERT INTO trainers (users_id, full_name, type, phone, status) VALUES (?, ?, ?, ?, ?)");
+          $stmt->execute([$users_id, $full_name, $type, $phone, $status]);
+        }
       } else {
-        $stmt = $db->prepare("INSERT INTO trainers (full_name, type, phone, status) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$full_name, $type, $phone, $status]);
+        if ($trainerHasSpecializationColumn && $trainerHasExperienceColumn) {
+          $stmt = $db->prepare("INSERT INTO trainers (full_name, type, specialization, experience, phone, status) VALUES (?, ?, ?, ?, ?, ?)");
+          $stmt->execute([$full_name, $type, $specialization, $experience, $phone, $status]);
+        } else {
+          $stmt = $db->prepare("INSERT INTO trainers (full_name, type, phone, status) VALUES (?, ?, ?, ?)");
+          $stmt->execute([$full_name, $type, $phone, $status]);
+        }
       }
             setFlashMessage('success', 'Thêm HLV thành công!');
         } catch (PDOException $e) {
@@ -176,6 +201,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $id = intval($_POST['id']);
       $type = sanitize($_POST['type'] ?? 'Nội bộ');
+      $specialization = sanitize($_POST['specialization'] ?? '');
+      $experience = sanitize($_POST['experience'] ?? '');
       $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
       $full_name = sanitize($_POST['full_name'] ?? '');
         $phone = preg_replace('/\D+/', '', (string) ($_POST['phone'] ?? ''));
@@ -211,11 +238,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         try {
         if ($trainerHasUsersIdColumn) {
-          $stmt = $db->prepare("UPDATE trainers SET users_id = ?, full_name = ?, type = ?, phone = ?, status = ? WHERE id = ?");
-          $stmt->execute([$users_id, $full_name, $type, $phone, $status, $id]);
+          if ($trainerHasSpecializationColumn && $trainerHasExperienceColumn) {
+            $stmt = $db->prepare("UPDATE trainers SET users_id = ?, full_name = ?, type = ?, specialization = ?, experience = ?, phone = ?, status = ? WHERE id = ?");
+            $stmt->execute([$users_id, $full_name, $type, $specialization, $experience, $phone, $status, $id]);
+          } else {
+            $stmt = $db->prepare("UPDATE trainers SET users_id = ?, full_name = ?, type = ?, phone = ?, status = ? WHERE id = ?");
+            $stmt->execute([$users_id, $full_name, $type, $phone, $status, $id]);
+          }
         } else {
-          $stmt = $db->prepare("UPDATE trainers SET full_name = ?, type = ?, phone = ?, status = ? WHERE id = ?");
-          $stmt->execute([$full_name, $type, $phone, $status, $id]);
+          if ($trainerHasSpecializationColumn && $trainerHasExperienceColumn) {
+            $stmt = $db->prepare("UPDATE trainers SET full_name = ?, type = ?, specialization = ?, experience = ?, phone = ?, status = ? WHERE id = ?");
+            $stmt->execute([$full_name, $type, $specialization, $experience, $phone, $status, $id]);
+          } else {
+            $stmt = $db->prepare("UPDATE trainers SET full_name = ?, type = ?, phone = ?, status = ? WHERE id = ?");
+            $stmt->execute([$full_name, $type, $phone, $status, $id]);
+          }
         }
             setFlashMessage('success', 'Cập nhật HLV thành công!');
         } catch (PDOException $e) {
@@ -230,11 +267,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $id = intval($_POST['id']);
         try {
+            $classRefStmt = $db->prepare("SELECT COUNT(*) FROM class_schedules WHERE trainer_id = ?");
+            $classRefStmt->execute([$id]);
+            if ((int) $classRefStmt->fetchColumn() > 0) {
+              throw new Exception('Không thể xóa HLV đã hoặc đang được phân công dạy lớp.');
+            }
+
+            $ptRefStmt = $db->prepare("SELECT COUNT(*) FROM training_schedules WHERE trainer_id = ?");
+            $ptRefStmt->execute([$id]);
+            if ((int) $ptRefStmt->fetchColumn() > 0) {
+              throw new Exception('Không thể xóa HLV đã hoặc đang có lịch PT.');
+            }
+
             $stmt = $db->prepare("DELETE FROM trainers WHERE id = ?");
             $stmt->execute([$id]);
             setFlashMessage('success', 'Xóa HLV thành công!');
-        } catch (PDOException $e) {
-            setFlashMessage('danger', 'Lỗi: Không thể xóa HLV (có thể đang có lịch tập liên kết). ' . $e->getMessage());
+        } catch (Exception $e) {
+          setFlashMessage('danger', $e->getMessage());
         }
         redirect('trainers.php');
         exit;
@@ -334,6 +383,8 @@ include 'layout/sidebar.php';
                     <th>ID</th>
                     <th>Họ tên</th>
                     <th>Loại</th>
+                    <th>Chuyên môn</th>
+                    <th>Kinh nghiệm</th>
                     <th>SĐT</th>
                     <th>Trạng thái</th>
                     <th>Hành động</th>
@@ -351,6 +402,8 @@ include 'layout/sidebar.php';
                         <span class="badge badge-warning">Tự do</span>
                       <?php endif; ?>
                     </td>
+                    <td><?= htmlspecialchars((string) ($trainer['specialization'] ?? '')) ?></td>
+                    <td><?= htmlspecialchars((string) ($trainer['experience'] ?? '')) ?></td>
                     <td><?= htmlspecialchars($trainer['phone']) ?></td>
                     <td>
                       <?php if ($trainer['status'] === 'hoạt động'): ?>
@@ -367,6 +420,8 @@ include 'layout/sidebar.php';
                         data-users-id="<?= (int) ($trainer['trainer_users_id'] ?? 0) ?>"
                         data-user-label="<?= htmlspecialchars($trainer['trainer_user_label'] ?? '') ?>"
                         data-user-fullname="<?= htmlspecialchars($trainer['full_name'] ?? '') ?>"
+                        data-specialization="<?= htmlspecialchars($trainer['specialization'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                        data-experience="<?= htmlspecialchars($trainer['experience'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                         data-phone="<?= htmlspecialchars($trainer['phone']) ?>"
                         data-status="<?= htmlspecialchars($trainer['status'] ?? '') ?>">
                         <i class="fas fa-edit"></i>
@@ -436,6 +491,16 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="form-group mt-3">
+                <label>Chuyên môn</label>
+                <input type="text" class="form-control" name="specialization" placeholder="VD: Yoga, Cardio, Boxing" data-field="specialization">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              </div>
+              <div class="form-group">
+                <label>Kinh nghiệm</label>
+                <input type="text" class="form-control" name="experience" placeholder="VD: 3 năm" data-field="experience">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              </div>
+              <div class="form-group">
                 <label>Số điện thoại <span class="text-danger">*</span></label>
                 <input type="text" class="form-control trainer-phone-input" name="phone" placeholder="Nhập SĐT" inputmode="numeric" data-field="phone">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
@@ -505,6 +570,16 @@ include 'layout/sidebar.php';
                 </div>
               </div>
               <div class="form-group mt-3">
+                <label>Chuyên môn</label>
+                <input type="text" class="form-control" name="specialization" id="edit-specialization" data-field="specialization">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              </div>
+              <div class="form-group">
+                <label>Kinh nghiệm</label>
+                <input type="text" class="form-control" name="experience" id="edit-experience" data-field="experience">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              </div>
+              <div class="form-group">
                 <label>Số điện thoại <span class="text-danger">*</span></label>
                 <input type="text" class="form-control trainer-phone-input" name="phone" id="edit-phone" inputmode="numeric" data-field="phone">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
@@ -611,6 +686,8 @@ function fillEditModal($button) {
 
   $modal.find('#edit-id').val($button.data('id'));
   $modal.find('#edit-type').val(type);
+  $modal.find('#edit-specialization').val($button.data('specialization') || '');
+  $modal.find('#edit-experience').val($button.data('experience') || '');
   $modal.find('#edit-phone').val(phone);
   $modal.find('#edit-status').val($button.data('status'));
 

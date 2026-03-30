@@ -1,3 +1,4 @@
+
 <?php
 session_start(); // luôn khởi tạo session
 
@@ -35,29 +36,36 @@ $filterPriceMax = trim((string) ($_GET['price_max'] ?? ''));
 $filterStatus = trim((string) ($_GET['status'] ?? ''));
 
 $whereClauses = [];
+$whereTypes = '';
 $whereParams = [];
 if ($filterName !== '') {
   $whereClauses[] = 'package_name LIKE ?';
+  $whereTypes .= 's';
   $whereParams[] = '%' . $filterName . '%';
 }
 if ($filterDurationMin !== '' && is_numeric($filterDurationMin)) {
   $whereClauses[] = 'duration_months >= ?';
+  $whereTypes .= 'i';
   $whereParams[] = (int) $filterDurationMin;
 }
 if ($filterDurationMax !== '' && is_numeric($filterDurationMax)) {
   $whereClauses[] = 'duration_months <= ?';
+  $whereTypes .= 'i';
   $whereParams[] = (int) $filterDurationMax;
 }
 if ($filterPriceMin !== '' && is_numeric($filterPriceMin)) {
   $whereClauses[] = 'price >= ?';
+  $whereTypes .= 'd';
   $whereParams[] = (float) $filterPriceMin;
 }
 if ($filterPriceMax !== '' && is_numeric($filterPriceMax)) {
   $whereClauses[] = 'price <= ?';
+  $whereTypes .= 'd';
   $whereParams[] = (float) $filterPriceMax;
 }
 if ($filterStatus !== '') {
   $whereClauses[] = 'status = ?';
+  $whereTypes .= 's';
   $whereParams[] = $filterStatus;
 }
 $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
@@ -66,7 +74,11 @@ $sql = "SELECT id, package_name, duration_months, price, description, status
         FROM membership_packages" . $whereSql . " ORDER BY id DESC";
 
 $stmt = $conn->prepare($sql);
-$stmt->execute($whereParams);
+if ($stmt && !empty($whereParams)) {
+  mysqli_bind_dynamic($stmt, $whereTypes, $whereParams);
+}
+
+$stmt->execute();
 $result = $stmt->get_result();
 ?>
 

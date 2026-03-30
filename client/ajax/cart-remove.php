@@ -18,7 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $product_id = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
     $package_id = isset($_POST['package_id']) ? (int)$_POST['package_id'] : 0;
     $service_id = isset($_POST['service_id']) ? (int)$_POST['service_id'] : 0;
-    $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : $product_id);
+    $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
+    $item_id = $item_type === 'package' ? $package_id : ($item_type === 'service' ? $service_id : ($item_type === 'class' ? $class_id : $product_id));
     $user_id = $_SESSION['user_id'];
     
     if (!in_array($item_type, ['product', 'package', 'service', 'class'], true) || $item_id <= 0) {
@@ -65,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                WHEN ci.item_type = 'product' THEN ci.quantity * p.selling_price
                                WHEN ci.item_type = 'package' THEN ci.quantity * mp.price
                                WHEN ci.item_type = 'service' THEN ci.quantity * s.price
+                               WHEN ci.item_type = 'class' THEN ci.quantity * cs.price_per_session
                                ELSE 0
                            END
                        ), 0) as total_price
@@ -72,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 LEFT JOIN products p ON ci.item_type = 'product' AND ci.item_id = p.id
                 LEFT JOIN membership_packages mp ON ci.item_type = 'package' AND ci.item_id = mp.id
                 LEFT JOIN services s ON ci.item_type = 'service' AND ci.item_id = s.id
+                LEFT JOIN class_schedules cs ON ci.item_type = 'class' AND ci.item_id = cs.id
                 WHERE ci.cart_id = ?
             ");
             $stmt_total->bind_param("i", $cart_id);

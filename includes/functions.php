@@ -20,146 +20,37 @@ function isValidEmail($email) {
     return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
 }
 
-/**
- * Hash password
- */
-function hashPassword($password) {
-    return password_hash($password, PASSWORD_BCRYPT, ['cost' => BCRYPT_COST]);
-}
-
-/**
- * Verify password
- */
-function verifyPassword($password, $hash) {
-    return password_verify($password, $hash);
-}
-
-/**
- * Generate random token
- */
-function generateToken($length = 32) {
-    return bin2hex(random_bytes($length));
-}
-
-/**
- * Redirect to URL
- */
-function redirect($url) {
-    header("Location: " . $url);
-    exit();
-}
-
-/**
- * Check if user is logged in
- */
-function isLoggedIn() {
-    return isset($_SESSION['user_id']);
-}
-
-/**
- * Check if user has role
- */
-function hasRole($role) {
-    return isset($_SESSION['role']) && $_SESSION['role'] === $role;
-}
-
-/**
- * Get current user ID
- */
-function getCurrentUserId() {
-    return $_SESSION['user_id'] ?? null;
-}
-
-/**
- * Format date
- */
-function formatDate($date, $format = 'd/m/Y') {
-    return date($format, strtotime($date));
-}
-
-/**
- * Format currency (VND)
- */
-function formatCurrency($amount) {
-    return number_format($amount, 0, ',', '.') . 'đ';
-}
-
-/**
- * Upload file
- */
-function uploadFile($file, $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'], $maxSize = 5242880) {
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        return ['success' => false, 'message' => 'Upload failed'];
-    }
-    
-    $fileName = $file['name'];
-    $fileSize = $file['size'];
-    $fileTmp = $file['tmp_name'];
-    $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-    
-    if (!in_array($fileExt, $allowedTypes)) {
-        return ['success' => false, 'message' => 'Invalid file type'];
-    }
-    
-    if ($fileSize > $maxSize) {
-        return ['success' => false, 'message' => 'File too large'];
-    }
-    
-    $newFileName = uniqid() . '.' . $fileExt;
-    $uploadPath = UPLOAD_PATH . $newFileName;
-    
-    if (move_uploaded_file($fileTmp, $uploadPath)) {
-        return ['success' => true, 'filename' => $newFileName];
-    }
-    
-    return ['success' => false, 'message' => 'Upload failed'];
-}
-
-/**
- * Generate pagination
- */
-function generatePagination($currentPage, $totalPages, $baseUrl) {
-    $html = '<ul class="pagination">';
-    
-    if ($currentPage > 1) {
-        $html .= '<li class="page-item"><a class="page-link" href="' . $baseUrl . '?page=' . ($currentPage - 1) . '">Previous</a></li>';
-    }
-    
-    for ($i = 1; $i <= $totalPages; $i++) {
-        $active = ($i == $currentPage) ? 'active' : '';
-        $html .= '<li class="page-item ' . $active . '"><a class="page-link" href="' . $baseUrl . '?page=' . $i . '">' . $i . '</a></li>';
-    }
-    
-    if ($currentPage < $totalPages) {
-        $html .= '<li class="page-item"><a class="page-link" href="' . $baseUrl . '?page=' . ($currentPage + 1) . '">Next</a></li>';
-    }
-    
-    $html .= '</ul>';
-    return $html;
-}
-
-/**
- * Log activity
- */
-function logActivity($userId, $action, $tableName = null, $recordId = null, $description = null) {
-    try {
-        $db = getDB();
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-        
-        $stmt = $db->prepare("
-            INSERT INTO activity_logs (user_id, action, table_name, record_id, description, ip_address)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ");
-        
-        $stmt->execute([$userId, $action, $tableName, $recordId, $description, $ip]);
-    } catch (Exception $e) {
-        error_log("Failed to log activity: " . $e->getMessage());
+if (!function_exists('generateToken')) {
+    function generateToken($length = 32) {
+        try {
+            return bin2hex(random_bytes(max(16, (int) $length)));
+        } catch (Exception $e) {
+            return hash('sha256', uniqid((string) mt_rand(), true));
+        }
     }
 }
 
-/**
- * Send notification
- */
+if (!function_exists('getCurrentUserId')) {
+    function getCurrentUserId() {
+        return (int) ($_SESSION['admin_user_id'] ?? $_SESSION['user_id'] ?? 0);
+    }
+}
+
+if (!function_exists('logActivity')) {
+    function logActivity($userId, $action, $module, $recordId = null, $description = '') {
+        error_log(sprintf(
+            '[activity] user=%s action=%s module=%s record=%s description=%s',
+            (string) ($userId ?? 0),
+            (string) $action,
+            (string) $module,
+            (string) ($recordId ?? ''),
+            (string) $description
+        ));
+
+        return true;
+    }
+}
+
 function sendNotification($userId, $title, $message, $type = 'info') {
     try {
         $db = getDB();
@@ -261,23 +152,44 @@ function getSupplierById($id) {
 function addSupplier($data) {
     try {
         $db = getDB();
+
+        $name = trim((string) ($data['name'] ?? ''));
+        $phone = trim((string) ($data['phone'] ?? ''));
+        $address = trim((string) ($data['address'] ?? ''));
+        $status = strtolower(trim((string) ($data['status'] ?? 'active')));
+
+        if ($name === '') {
+            return ['success' => false, 'message' => 'Tên nhà cung cấp không được để trống'];
+        }
+
+        if (!in_array($status, ['active', 'inactive'], true)) {
+            $status = 'active';
+        }
+
+        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM suppliers WHERE name = ?");
+        $duplicateStmt->execute([$name]);
+        if ((int) $duplicateStmt->fetchColumn() > 0) {
+            return ['success' => false, 'message' => 'Tên nhà cung cấp đã tồn tại'];
+        }
+
         $stmt = $db->prepare("
-            INSERT INTO suppliers (name, phone, address)
-            VALUES (?, ?, ?)
+            INSERT INTO suppliers (name, phone, address, status)
+            VALUES (?, ?, ?, ?)
         ");
-        
+
         $result = $stmt->execute([
-            sanitize($data['name']),
-            sanitize($data['phone']) ?? null,
-            sanitize($data['address']) ?? null
+            sanitize($name),
+            $phone !== '' ? sanitize($phone) : null,
+            $address !== '' ? sanitize($address) : null,
+            $status
         ]);
-        
+
         if ($result) {
             $supplierId = $db->lastInsertId();
-            logActivity(getCurrentUserId(), 'CREATE', 'suppliers', $supplierId, 'Added new supplier: ' . $data['name']);
-            return ['success' => true, 'id' => $supplierId];
+            logActivity(getCurrentUserId(), 'CREATE', 'suppliers', $supplierId, 'Added new supplier: ' . $name);
+            return ['success' => true, 'id' => $supplierId, 'message' => 'Thêm nhà cung cấp thành công'];
         }
-        
+
         return ['success' => false, 'message' => 'Failed to add supplier'];
     } catch (Exception $e) {
         error_log("Error adding supplier: " . $e->getMessage());
@@ -291,22 +203,35 @@ function addSupplier($data) {
 function updateSupplier($id, $data) {
     try {
         $db = getDB();
+        $supplier = getSupplierById($id);
+        if (!$supplier) {
+            return ['success' => false, 'message' => 'Nhà cung cấp không tồn tại'];
+        }
+
+        $phone = trim((string) ($data['phone'] ?? ''));
+        $address = trim((string) ($data['address'] ?? ''));
+        $status = strtolower(trim((string) ($data['status'] ?? 'active')));
+
+        if (!in_array($status, ['active', 'inactive'], true)) {
+            $status = 'active';
+        }
+
         $stmt = $db->prepare("
             UPDATE suppliers 
-            SET name = ?, phone = ?, address = ?
+            SET phone = ?, address = ?, status = ?
             WHERE id = ?
         ");
         
         $result = $stmt->execute([
-            sanitize($data['name']),
-            sanitize($data['phone']) ?? null,
-            sanitize($data['address']) ?? null,
+            $phone !== '' ? sanitize($phone) : null,
+            $address !== '' ? sanitize($address) : null,
+            $status,
             $id
         ]);
         
         if ($result) {
-            logActivity(getCurrentUserId(), 'UPDATE', 'suppliers', $id, 'Updated supplier: ' . $data['name']);
-            return ['success' => true];
+            logActivity(getCurrentUserId(), 'UPDATE', 'suppliers', $id, 'Updated supplier: ' . ($supplier['name'] ?? 'Unknown'));
+            return ['success' => true, 'message' => 'Cập nhật nhà cung cấp thành công'];
         }
         
         return ['success' => false, 'message' => 'Failed to update supplier'];
@@ -322,26 +247,42 @@ function updateSupplier($id, $data) {
 function deleteSupplier($id) {
     try {
         $db = getDB();
-        
-        // Check if supplier has any imports
-        $checkStmt = $db->prepare("SELECT COUNT(*) as count FROM import_slips WHERE supplier_id = ?");
-        $checkStmt->execute([$id]);
-        $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($result['count'] > 0) {
-            return ['success' => false, 'message' => 'Không thể xóa nhà cung cấp có phiếu nhập kho'];
-        }
-        
         $supplier = getSupplierById($id);
-        $stmt = $db->prepare("DELETE FROM suppliers WHERE id = ?");
-        $result = $stmt->execute([$id]);
-        
-        if ($result) {
-            logActivity(getCurrentUserId(), 'DELETE', 'suppliers', $id, 'Deleted supplier: ' . ($supplier['name'] ?? 'Unknown'));
-            return ['success' => true];
+        if (!$supplier) {
+            return ['success' => false, 'message' => 'Nhà cung cấp không tồn tại'];
         }
-        
-        return ['success' => false, 'message' => 'Failed to delete supplier'];
+
+        $importStmt = $db->prepare("SELECT COUNT(*) FROM import_slips WHERE supplier_id = ?");
+        $importStmt->execute([$id]);
+        $importCount = (int) $importStmt->fetchColumn();
+
+        // Có phát sinh phiếu nhập: chỉ xóa mềm để đảm bảo toàn vẹn dữ liệu.
+        if ($importCount > 0) {
+            if (($supplier['status'] ?? 'active') === 'inactive') {
+                return ['success' => true, 'message' => 'Nhà cung cấp đã có phiếu nhập và đang ở trạng thái không hoạt động'];
+            }
+
+            $stmt = $db->prepare("UPDATE suppliers SET status = 'inactive' WHERE id = ?");
+            $result = $stmt->execute([$id]);
+
+            if ($result) {
+                logActivity(getCurrentUserId(), 'DELETE', 'suppliers', $id, 'Set supplier inactive: ' . ($supplier['name'] ?? 'Unknown'));
+                return ['success' => true, 'message' => 'Nhà cung cấp đã có phiếu nhập, hệ thống chuyển sang không hoạt động (xóa mềm)'];
+            }
+
+            return ['success' => false, 'message' => 'Không thể cập nhật trạng thái nhà cung cấp'];
+        }
+
+        // Chưa phát sinh phiếu nhập: cho phép xóa cứng.
+        $deleteStmt = $db->prepare("DELETE FROM suppliers WHERE id = ?");
+        $deleted = $deleteStmt->execute([$id]);
+
+        if ($deleted) {
+            logActivity(getCurrentUserId(), 'DELETE', 'suppliers', $id, 'Hard delete supplier: ' . ($supplier['name'] ?? 'Unknown'));
+            return ['success' => true, 'message' => 'Nhà cung cấp chưa có phiếu nhập đã được xóa vĩnh viễn'];
+        }
+
+        return ['success' => false, 'message' => 'Không thể xóa nhà cung cấp'];
     } catch (Exception $e) {
         error_log("Error deleting supplier: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
@@ -375,22 +316,19 @@ function searchSuppliers($keyword) {
 function getSupplierStats($supplierId) {
     try {
         $db = getDB();
-        
-        // Get number of import slips
-        $importStmt = $db->prepare("SELECT COUNT(*) as count FROM import_slips WHERE supplier_id = ?");
+
+        $importStmt = $db->prepare("SELECT COUNT(*) FROM import_slips WHERE supplier_id = ?");
         $importStmt->execute([$supplierId]);
-        $imports = $importStmt->fetch(PDO::FETCH_ASSOC)['count'];
-        
-        // Get total import value
+        $imports = (int) $importStmt->fetchColumn();
+
         $valueStmt = $db->prepare("
-            SELECT SUM(ii.quantity * ii.unit_price) as total 
-            FROM import_items ii
-            JOIN import_slips i ON i.id = ii.import_id
-            WHERE i.supplier_id = ?
+            SELECT COALESCE(SUM(total_amount), 0)
+            FROM import_slips
+            WHERE supplier_id = ?
         ");
         $valueStmt->execute([$supplierId]);
-        $totalValue = $valueStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
-        
+        $totalValue = (float) $valueStmt->fetchColumn();
+
         return [
             'imports' => $imports,
             'total_value' => $totalValue

@@ -1,7 +1,7 @@
 <?php 
 session_start(); // luôn khởi tạo session
 
-$page_title = "Quản lý Nhà Cung Cấp";
+$page_title = "Quản lý nhà cung cấp";
 
 // kiểm tra đăng nhập
 include '../includes/auth.php';
@@ -24,6 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
   }
     header('Content-Type: application/json');
 
+    $requiresCsrf = ['add', 'update', 'delete', 'view', 'search'];
+    if (in_array($_POST['action'], $requiresCsrf, true)) {
+      if (!isset($_POST['csrf_token']) || !verifyCSRFToken($_POST['csrf_token'])) {
+        echo json_encode(['success' => false, 'message' => 'CSRF token mismatch']);
+        exit;
+      }
+    }
+
     $normalizePhone = function ($phone) {
       $digits = preg_replace('/\D+/', '', (string) $phone);
       if (strpos($digits, '84') === 0) {
@@ -39,10 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $errors['name'] = 'Tên nhà cung cấp không được để trống.';
       }
 
+      if (($data['status'] ?? 'active') === '') {
+        $errors['status'] = 'Vui lòng chọn trạng thái.';
+      }
+
       if ($data['phone'] === '') {
         $errors['phone'] = 'Số điện thoại không được để trống.';
-      } elseif (!preg_match('/^0\d{9}$/', $data['phone'])) {
-        $errors['phone'] = 'Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 số.';
+      } elseif (!preg_match('/^0\d{9,10}$/', $data['phone'])) {
+        $errors['phone'] = 'Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 hoặc 11 số.';
       }
 
       if ($data['address'] === '') {
@@ -64,10 +76,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $data = [
               'name' => trim($_POST['name'] ?? ''),
               'phone' => $normalizePhone($_POST['phone'] ?? ''),
-              'address' => trim($_POST['address'] ?? '')
+              'address' => trim($_POST['address'] ?? ''),
+              'status' => trim($_POST['status'] ?? 'active')
             ];
 
             $errors = $validateSupplierData($data);
+
+            $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM suppliers WHERE name = ?");
+            $duplicateStmt->execute([$data['name']]);
+            if ((int) $duplicateStmt->fetchColumn() > 0) {
+              $errors['name'] = 'Tên nhà cung cấp đã tồn tại.';
+            }
+
             if (!empty($errors)) {
               echo json_encode([
                 'success' => false,
@@ -76,8 +96,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
               ]);
                 exit;
             }
-            
+
+            // Chặn submit lặp trong thời gian ngắn (double click / spam request).
+            $requestFingerprint = md5(implode('|', [
+              strtolower($data['name']),
+              $data['phone'],
+              $data['address'],
+              $data['status']
+            ]));
+            $nowTs = time();
+            $lastAdd = $_SESSION['supplier_last_add'] ?? null;
+            if (
+              is_array($lastAdd)
+              && ($lastAdd['fingerprint'] ?? '') === $requestFingerprint
+              && ($nowTs - (int) ($lastAdd['ts'] ?? 0)) <= 10
+            ) {
+              echo json_encode([
+                'success' => false,
+                'message' => 'Yêu cầu đang được xử lý hoặc vừa xử lý xong. Vui lòng chờ vài giây rồi thử lại.'
+              ]);
+              exit;
+            }
+
             $result = addSupplier($data);
+            if (!empty($result['success'])) {
+              $_SESSION['supplier_last_add'] = [
+                'fingerprint' => $requestFingerprint,
+                'ts' => $nowTs
+              ];
+            }
             echo json_encode($result);
             break;
             
@@ -94,12 +141,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             
             $data = [
-              'name' => trim($_POST['name'] ?? ''),
               'phone' => $normalizePhone($_POST['phone'] ?? ''),
-              'address' => trim($_POST['address'] ?? '')
+              'address' => trim($_POST['address'] ?? ''),
+              'status' => trim($_POST['status'] ?? 'active')
             ];
 
-            $errors = $validateSupplierData($data);
+            $errors = $validateSupplierData([
+              'name' => trim($_POST['name'] ?? ''),
+              'phone' => $data['phone'],
+              'address' => $data['address'],
+              'status' => $data['status']
+            ]);
             if (!empty($errors)) {
               echo json_encode([
                 'success' => false,
@@ -173,17 +225,57 @@ $suppliers = getAllSuppliers();
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1 class="m-0">Quản lý Nhà Cung Cấp</h1>
+            <h1 class="m-0">Quản lý nhà cung cấp</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item active">Nhà Cung Cấp</li>
+              <li class="breadcrumb-item active">Nhà cung cấp</li>
             </ol>
           </div>
         </div>
       </div>
     </div>
+
+    <style>
+      #suppliersTable thead th.sortable-column {
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+      }
+
+      #suppliersTable thead th.sortable-column .sort-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      #suppliersTable thead th.sortable-column .sort-arrows {
+        display: inline-flex;
+        flex-direction: column;
+        line-height: 0.75;
+        font-size: 11px;
+        color: #b5bcc3;
+      }
+
+      #suppliersTable thead th.sortable-column .sort-arrow-up,
+      #suppliersTable thead th.sortable-column .sort-arrow-down {
+        opacity: 0.45;
+        transition: opacity 0.15s ease, color 0.15s ease;
+      }
+
+      #suppliersTable thead th.sortable-column:hover .sort-arrow-up,
+      #suppliersTable thead th.sortable-column:hover .sort-arrow-down {
+        opacity: 0.8;
+      }
+
+      #suppliersTable thead th.sortable-column.sort-asc .sort-arrow-up,
+      #suppliersTable thead th.sortable-column.sort-desc .sort-arrow-down {
+        opacity: 1;
+        color: #1f2d3d;
+      }
+    </style>
 
     <!-- Main content -->
     <section class="content">
@@ -192,7 +284,7 @@ $suppliers = getAllSuppliers();
           <div class="col-12">
             <div class="card card-primary collapsed-card">
               <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-filter"></i> Lọc nhà cung cấp</h3>
+                <h3 class="card-title"><i class="fas fa-filter"></i> Lọc dữ liệu</h3>
                 <div class="card-tools">
                   <button type="button" class="btn btn-tool" data-card-widget="collapse">
                     <i class="fas fa-plus"></i>
@@ -226,28 +318,43 @@ $suppliers = getAllSuppliers();
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title">Danh sách Nhà Cung Cấp</h3>
+                <h3 class="card-title">Danh sách nhà cung cấp</h3>
                 <div class="card-tools">
-                  <button type="button" class="btn btn-primary btn-sm ml-2" id="addSupplierBtn" data-toggle="modal" data-target="#addSupplierModal">
-                    <i class="fas fa-plus"></i> Thêm NCC
+                  <button type="button" class="btn btn-primary btn-sm" id="addSupplierBtn" data-toggle="modal" data-target="#addSupplierModal">
+                    <i class="fas fa-plus"></i> Thêm
                   </button>
                 </div>
               </div>
               <div class="card-body">
-                <table class="table table-bordered table-striped table-hover" id="suppliersTable">
-                  <thead class="table-dark">
+                <div class="table-responsive">
+                <table class="table table-bordered table-striped" id="suppliersTable">
+                  <thead>
                   <tr>
-                    <th style="width: 50px;">ID</th>
-                    <th>Tên Nhà Cung Cấp</th>
-                    <th style="width: 120px;">Số Điện Thoại</th>
-                    <th>Địa Chỉ</th>
-                    <th style="width: 130px;">Ngày Tạo</th>
+                    <th class="sortable-column" data-sort-key="id" style="width: 50px;">
+                      <span class="sort-header"><span>ID</span><span class="sort-arrows" aria-hidden="true"><i class="fas fa-arrow-up sort-arrow-up"></i><i class="fas fa-arrow-down sort-arrow-down"></i></span></span>
+                    </th>
+                    <th class="sortable-column" data-sort-key="name">
+                      <span class="sort-header"><span>Tên nhà cung cấp</span><span class="sort-arrows" aria-hidden="true"><i class="fas fa-arrow-up sort-arrow-up"></i><i class="fas fa-arrow-down sort-arrow-down"></i></span></span>
+                    </th>
+                    <th class="sortable-column" data-sort-key="phone" style="width: 120px;">
+                      <span class="sort-header"><span>Số điện thoại</span><span class="sort-arrows" aria-hidden="true"><i class="fas fa-arrow-up sort-arrow-up"></i><i class="fas fa-arrow-down sort-arrow-down"></i></span></span>
+                    </th>
+                    <th class="sortable-column" data-sort-key="address">
+                      <span class="sort-header"><span>Địa chỉ</span><span class="sort-arrows" aria-hidden="true"><i class="fas fa-arrow-up sort-arrow-up"></i><i class="fas fa-arrow-down sort-arrow-down"></i></span></span>
+                    </th>
+                    <th class="sortable-column" data-sort-key="status" style="width: 120px;">
+                      <span class="sort-header"><span>Trạng thái</span><span class="sort-arrows" aria-hidden="true"><i class="fas fa-arrow-up sort-arrow-up"></i><i class="fas fa-arrow-down sort-arrow-down"></i></span></span>
+                    </th>
+                    <th class="sortable-column" data-sort-key="created_at" style="width: 130px;">
+                      <span class="sort-header"><span>Ngày tạo</span><span class="sort-arrows" aria-hidden="true"><i class="fas fa-arrow-up sort-arrow-up"></i><i class="fas fa-arrow-down sort-arrow-down"></i></span></span>
+                    </th>
                     <th style="width: 130px;">Hành động</th>
                   </tr>
                   </thead>
                   <tbody id="suppliersTableBody">
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           </div>
@@ -259,23 +366,19 @@ $suppliers = getAllSuppliers();
 
 <!-- Add/Edit Supplier Modal -->
 <div class="modal fade" id="addSupplierModal" tabindex="-1" role="dialog" aria-labelledby="addSupplierModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
+  <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="addSupplierModalLabel">Thêm Nhà Cung Cấp</h5>
+        <h5 class="modal-title" id="addSupplierModalLabel">Thêm nhà cung cấp</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
-      <form id="addSupplierForm" novalidate>
+      <form id="addSupplierForm" action="#" method="post" novalidate data-skip-inline-validation="true" onsubmit="return false;">
         <div class="modal-body">
           <input type="hidden" id="supplierId" value="">
           <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
 
-          <div id="supplierFormErrors" class="alert alert-danger d-none" role="alert">
-            <ul id="supplierFormErrorsList" class="mb-0 pl-3"></ul>
-          </div>
-          
           <div class="form-group">
             <label for="supplierName">Tên Nhà Cung Cấp *</label>
             <input type="text" class="form-control" id="supplierName" name="name">
@@ -285,8 +388,8 @@ $suppliers = getAllSuppliers();
           <div class="form-group">
             <label for="supplierPhone">Số Điện Thoại *</label>
             <input type="tel" class="form-control" id="supplierPhone" name="phone" placeholder="0901234567 hoặc +84901234567">
-            <small id="supplierPhoneError" class="text-danger d-none">Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 số.</small>
-            <small class="form-text text-muted">Bắt buộc nhập số điện thoại bắt đầu bằng 0 và đủ 10 số.</small>
+            <small id="supplierPhoneError" class="text-danger d-none">Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 hoặc 11 số.</small>
+            <small class="form-text text-muted">Bắt buộc nhập số điện thoại bắt đầu bằng 0 và đủ 10 hoặc 11 số.</small>
           </div>
           
           <div class="form-group">
@@ -294,10 +397,19 @@ $suppliers = getAllSuppliers();
             <textarea class="form-control" id="supplierAddress" name="address" rows="3" placeholder="Nhập địa chỉ..."></textarea>
             <small id="supplierAddressError" class="text-danger d-none"></small>
           </div>
+
+          <div class="form-group">
+            <label for="supplierStatus">Trạng Thái *</label>
+            <select class="form-control" id="supplierStatus" name="status">
+              <option value="active">Đang hoạt động</option>
+              <option value="inactive">Không hoạt động</option>
+            </select>
+            <small id="supplierStatusError" class="text-danger d-none"></small>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
-          <button type="submit" class="btn btn-primary" id="submitBtn">Thêm NCC</button>
+          <button type="submit" class="btn btn-primary" id="submitBtn">Thêm mới</button>
         </div>
       </form>
     </div>
@@ -306,10 +418,10 @@ $suppliers = getAllSuppliers();
 
 <!-- View Supplier Modal -->
 <div class="modal fade" id="viewSupplierModal" tabindex="-1" role="dialog" aria-labelledby="viewSupplierModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
+  <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="viewSupplierModalLabel">Chi tiết Nhà Cung Cấp</h5>
+        <h5 class="modal-title" id="viewSupplierModalLabel">Chi tiết nhà cung cấp</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
@@ -323,25 +435,88 @@ $suppliers = getAllSuppliers();
   </div>
 </div>
 
+<!-- Delete Supplier Modal -->
+<div class="modal fade" id="deleteSupplierModal" tabindex="-1" role="dialog" aria-labelledby="deleteSupplierModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-danger">
+        <h5 class="modal-title" id="deleteSupplierModalLabel">Xác nhận xóa nhà cung cấp</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="confirmDeleteSupplierForm" action="#" method="post" onsubmit="return false;">
+        <div class="modal-body">
+          <input type="hidden" id="deleteSupplierId" value="">
+          <p class="mb-2">Bạn có chắc chắn muốn xóa nhà cung cấp này?</p>
+          <p class="mb-0">Nhà cung cấp: <strong id="deleteSupplierName">-</strong></p>
+          <small class="text-muted">Lưu ý: Nếu NCC đã có phiếu nhập thì hệ thống sẽ tự chuyển sang không hoạt động (xóa mềm), chưa có phiếu nhập sẽ xóa hẳn.</small>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-danger" id="confirmDeleteSupplierBtn">Xác nhận</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <?php include 'layout/footer.php'; ?>
 
 <script>
+const deletingSupplierIds = new Set();
+let supplierRowsCache = [];
+const supplierSortState = {
+  key: 'id',
+  direction: 'desc'
+};
+
+if (typeof window.Swal === 'undefined') {
+  window.Swal = {
+    fire: function(options) {
+      const config = options || {};
+      const title = config.title || 'Thông báo';
+      const text = config.text || '';
+      const icon = config.icon || 'info';
+
+      if (config.showCancelButton) {
+        const confirmed = window.confirm([title, text].filter(Boolean).join('\n'));
+        return Promise.resolve({ isConfirmed: confirmed });
+      }
+
+      window.alert([title, text].filter(Boolean).join('\n'));
+      return Promise.resolve({ isConfirmed: icon !== 'error' });
+    }
+  };
+}
+
 $(document).ready(function() {
+  let isSubmittingSupplierForm = false;
+
+  // Chặn submit mặc định để tránh reload trang khi có xung đột handler.
+  const formEl = document.getElementById('addSupplierForm');
+  if (formEl) {
+    formEl.addEventListener('submit', function(evt) {
+      evt.preventDefault();
+    }, true);
+  }
+
     // Load suppliers table
+    initSupplierSorting();
     loadSuppliers();
 
   // Handle add supplier button
   $('#addSupplierBtn').on('click', function() {
         $('#addSupplierForm')[0].reset();
         $('#supplierId').val('');
-        $('#addSupplierModalLabel').text('Thêm Nhà Cung Cấp');
-        $('#submitBtn').text('Thêm NCC');
+        $('#supplierName').prop('readonly', false);
+        $('#supplierStatus').val('active');
+        $('#addSupplierModalLabel').text('Thêm nhà cung cấp');
+        $('#submitBtn').text('Thêm mới');
         clearSupplierValidationErrors();
     });
 
     $('#supplierName, #supplierPhone, #supplierAddress').on('input', function() {
-      clearSupplierFormErrors();
-
       const fieldId = this.id;
       if (fieldId === 'supplierName') {
         clearSupplierNameError();
@@ -351,10 +526,21 @@ $(document).ready(function() {
         clearSupplierAddressError();
       }
     });
-    
+
+    $('#supplierStatus').on('change', function() {
+      clearSupplierStatusError();
+    });
+
     // Handle form submission
-    $('#addSupplierForm').on('submit', function(e) {
+    $('#addSupplierForm').on('submit.supplier', function(e) {
         e.preventDefault();
+        e.stopPropagation();
+
+        if (isSubmittingSupplierForm) {
+          return false;
+        }
+
+        const $submitBtn = $('#submitBtn');
         
         const supplierId = $('#supplierId').val();
         const action = supplierId ? 'update' : 'add';
@@ -365,10 +551,13 @@ $(document).ready(function() {
           if (firstInvalidField) {
             $('#' + firstInvalidField).focus();
           }
-          return;
+          return false;
         }
 
         $('#supplierPhone').val(validation.normalizedPhone);
+
+        isSubmittingSupplierForm = true;
+        $submitBtn.prop('disabled', true).text('Đang lưu...');
 
         const formData = new FormData(this);
         formData.append('action', action);
@@ -385,34 +574,28 @@ $(document).ready(function() {
           dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    Swal.fire({
+                const successMessage = action === 'add' ? 'Thêm nhà cung cấp thành công' : 'Cập nhật nhà cung cấp thành công';
+                Swal.fire({
                         icon: 'success',
                         title: 'Thành công',
-                        text: action === 'add' ? 'Thêm nhà cung cấp thành công' : 'Cập nhật nhà cung cấp thành công',
+                  text: successMessage,
                         timer: 1500
                     });
-                    
-                    $('#addSupplierModal').modal('hide');
-                    loadSuppliers($('#searchInput').val().trim());
+
+                loadSuppliers($('#searchInput').val().trim(), function() {
+                  $('#addSupplierModal').modal('hide');
+                });
                 } else {
                     const serverErrors = response.errors || {};
-                    const errorMessages = [];
 
                     if (serverErrors.name) {
                       showSupplierNameError(serverErrors.name);
-                      errorMessages.push(serverErrors.name);
                     }
                     if (serverErrors.phone) {
                       showSupplierPhoneError(serverErrors.phone);
-                      errorMessages.push(serverErrors.phone);
                     }
                     if (serverErrors.address) {
                       showSupplierAddressError(serverErrors.address);
-                      errorMessages.push(serverErrors.address);
-                    }
-
-                    if (errorMessages.length > 0) {
-                      showSupplierFormErrors(errorMessages);
                     }
 
                     Swal.fire({
@@ -421,37 +604,111 @@ $(document).ready(function() {
                         text: response.message || 'Có lỗi xảy ra'
                     });
                 }
-            },
-            error: function() {
-                Swal.fire({
+                },
+                error: function() {
+                  Swal.fire({
                     icon: 'error',
                     title: 'Lỗi',
                     text: 'Lỗi kết nối server'
-                });
-            }
+                  });
+                },
+                complete: function() {
+                  isSubmittingSupplierForm = false;
+                  const currentAction = $('#supplierId').val() ? 'update' : 'add';
+                  $submitBtn
+                    .prop('disabled', false)
+                    .text(currentAction === 'add' ? 'Thêm mới' : 'Cập nhật');
+            },
         });
+
+        return false;
+    });
+
+    $('#submitBtn').on('click.supplier', function(e) {
+      e.preventDefault();
+      $('#addSupplierForm').triggerHandler('submit');
+    });
+
+    $('#addSupplierModal').on('hidden.bs.modal', function() {
+      isSubmittingSupplierForm = false;
+      $('#addSupplierForm')[0].reset();
+      $('#supplierId').val('');
+      $('#supplierName').prop('readonly', false);
+      $('#addSupplierModalLabel').text('Thêm nhà cung cấp');
+      $('#submitBtn').prop('disabled', false).text('Thêm mới');
+      clearSupplierValidationErrors();
     });
     
     // Handle search
-    $('#searchBtn, #searchInput').on('click keypress', function(e) {
-        if (e.type === 'keypress' && e.which !== 13) return;
-        
-        const keyword = $('#searchInput').val().trim();
-        loadSuppliers(keyword);
+    $('#searchBtn').on('click', function() {
+      loadSuppliers($('#searchInput').val().trim());
+    });
+
+    $('#searchInput').on('keypress', function(e) {
+      if (e.which === 13) {
+        e.preventDefault();
+        loadSuppliers($('#searchInput').val().trim());
+      }
     });
 
     $('#resetSearchBtn').on('click', function() {
       $('#searchInput').val('');
       loadSuppliers('');
     });
+
+    $(document).on('click', '.js-view-supplier', function() {
+      const supplierId = Number($(this).data('id') || 0);
+      if (supplierId > 0) {
+        viewSupplier(supplierId);
+      }
+    });
+
+    $(document).on('click', '.js-edit-supplier', function() {
+      const supplierId = Number($(this).data('id') || 0);
+      if (supplierId > 0) {
+        editSupplier(supplierId);
+      }
+    });
+
+    $('#suppliersTableBody').on('click', 'button.js-delete-supplier, button.js-delete-supplier *', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const supplierId = Number($(this).closest('button.js-delete-supplier').data('id') || 0);
+      if (supplierId > 0) {
+        openDeleteSupplierModal(supplierId);
+      }
+    });
+
+    $('#confirmDeleteSupplierForm').on('submit', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const supplierId = Number($('#deleteSupplierId').val() || 0);
+      if (supplierId > 0) {
+        deleteSupplier(supplierId);
+      }
+      return false;
+    });
+
+    $('#confirmDeleteSupplierBtn').on('click', function(e) {
+      e.preventDefault();
+      $('#confirmDeleteSupplierForm').triggerHandler('submit');
+    });
+
+    $('#deleteSupplierModal').on('hidden.bs.modal', function() {
+      $('#deleteSupplierId').val('');
+      $('#deleteSupplierName').text('-');
+      $('#confirmDeleteSupplierBtn').prop('disabled', false).text('Xác nhận');
+    });
 });
 
-    function loadSuppliers(keyword = '') {
+    function loadSuppliers(keyword = '', onDone = null) {
       const formData = new FormData();
       formData.append('action', 'search');
+      formData.append('csrf_token', getSupplierCSRFToken());
       formData.append('keyword', keyword);
 
-      $.ajax({
+      return $.ajax({
         type: 'POST',
         url: 'suppliers.php',
         data: formData,
@@ -460,18 +717,32 @@ $(document).ready(function() {
         dataType: 'json',
         success: function(response) {
           if (response.success) {
-            renderTable(response.data || []);
+            supplierRowsCache = Array.isArray(response.data) ? response.data : [];
+            renderTable(supplierRowsCache);
+            if (typeof onDone === 'function') {
+              onDone(supplierRowsCache);
+            }
           } else {
+            supplierRowsCache = [];
             renderTable([]);
+            Swal.fire({
+              icon: 'error',
+              title: 'Lỗi',
+              text: response.message || 'Không tải được danh sách nhà cung cấp'
+            });
           }
         },
         error: function() {
+          supplierRowsCache = [];
           renderTable([]);
           Swal.fire({
             icon: 'error',
             title: 'Lỗi',
             text: 'Không tải được danh sách nhà cung cấp'
           });
+          if (typeof onDone === 'function') {
+            onDone([]);
+          }
         }
       });
 }
@@ -479,29 +750,36 @@ $(document).ready(function() {
 function renderTable(suppliers) {
     const tbody = $('#suppliersTableBody');
     tbody.empty();
+
+  const sortedSuppliers = sortSuppliersForDisplay(suppliers || []);
     
-    if (suppliers.length === 0) {
-        tbody.append('<tr><td colspan="6" class="text-center">Không có dữ liệu</td></tr>');
+  if (sortedSuppliers.length === 0) {
+    tbody.append('<tr><td colspan="7" class="text-center">Không có dữ liệu</td></tr>');
         return;
     }
     
-    suppliers.forEach(function(supplier) {
+  sortedSuppliers.forEach(function(supplier) {
         const createdAt = new Date(supplier.created_at).toLocaleDateString('vi-VN');
+      const statusBadge = getSupplierStatusBadge(supplier.status);
+      const safeName = escapeHtmlText(supplier.name || '-');
+      const safePhone = escapeHtmlText(supplier.phone || '-');
+      const safeAddress = escapeHtmlText(supplier.address || '-');
         const row = `
             <tr>
                 <td>${supplier.id}</td>
-                <td><strong>${supplier.name}</strong></td>
-                <td>${supplier.phone || '-'}</td>
-                <td>${supplier.address || '-'}</td>
+          <td><strong>${safeName}</strong></td>
+          <td>${safePhone}</td>
+          <td>${safeAddress}</td>
+          <td>${statusBadge}</td>
                 <td>${createdAt}</td>
                 <td>
-                    <button class="btn btn-info btn-sm" onclick="viewSupplier(${supplier.id})" title="Xem chi tiết">
+                  <button type="button" class="btn btn-info btn-sm js-view-supplier" data-id="${supplier.id}" title="Xem chi tiết">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn btn-warning btn-sm" onclick="editSupplier(${supplier.id})" title="Chỉnh sửa">
+                  <button type="button" class="btn btn-warning btn-sm js-edit-supplier" data-id="${supplier.id}" title="Chỉnh sửa">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteSupplier(${supplier.id})" title="Xóa">
+                    <button type="button" class="btn btn-danger btn-sm js-delete-supplier" data-id="${supplier.id}" title="Xóa nhà cung cấp">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -511,9 +789,97 @@ function renderTable(suppliers) {
     });
 }
 
+function initSupplierSorting() {
+  $('#suppliersTable thead').on('click', 'th.sortable-column', function() {
+    const nextKey = String($(this).data('sort-key') || '').trim();
+    if (!nextKey) {
+      return;
+    }
+
+    if (supplierSortState.key === nextKey) {
+      supplierSortState.direction = supplierSortState.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      supplierSortState.key = nextKey;
+      supplierSortState.direction = 'asc';
+    }
+
+    updateSupplierSortIndicators();
+    renderTable(supplierRowsCache);
+  });
+
+  updateSupplierSortIndicators();
+}
+
+function updateSupplierSortIndicators() {
+  const $headers = $('#suppliersTable thead th.sortable-column');
+  $headers.removeClass('sort-asc sort-desc');
+
+  const $activeHeader = $('#suppliersTable thead th.sortable-column[data-sort-key="' + supplierSortState.key + '"]');
+  if (supplierSortState.direction === 'asc') {
+    $activeHeader.addClass('sort-asc');
+  } else {
+    $activeHeader.addClass('sort-desc');
+  }
+}
+
+function sortSuppliersForDisplay(suppliers) {
+  const rows = Array.isArray(suppliers) ? suppliers.slice() : [];
+  const key = supplierSortState.key;
+  const direction = supplierSortState.direction === 'asc' ? 1 : -1;
+
+  rows.sort(function(a, b) {
+    const aValue = getSupplierSortValue(a, key);
+    const bValue = getSupplierSortValue(b, key);
+
+    const aEmpty = aValue === null || aValue === undefined || aValue === '';
+    const bEmpty = bValue === null || bValue === undefined || bValue === '';
+    if (aEmpty && bEmpty) {
+      return 0;
+    }
+    if (aEmpty) {
+      return 1;
+    }
+    if (bEmpty) {
+      return -1;
+    }
+
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return (aValue - bValue) * direction;
+    }
+
+    return String(aValue).localeCompare(String(bValue), 'vi', { sensitivity: 'base', numeric: true }) * direction;
+  });
+
+  return rows;
+}
+
+function getSupplierSortValue(supplier, key) {
+  if (!supplier || !key) {
+    return '';
+  }
+
+  if (key === 'id') {
+    return Number(supplier.id || 0);
+  }
+  if (key === 'phone') {
+    const digits = String(supplier.phone || '').replace(/\D+/g, '');
+    return digits === '' ? 0 : Number(digits);
+  }
+  if (key === 'created_at') {
+    const ts = new Date(supplier.created_at || '').getTime();
+    return Number.isNaN(ts) ? 0 : ts;
+  }
+  if (key === 'status') {
+    return (supplier.status || '') === 'active' ? 1 : 0;
+  }
+
+  return String(supplier[key] || '');
+}
+
 function viewSupplier(id) {
     const formData = new FormData();
     formData.append('action', 'view');
+  formData.append('csrf_token', getSupplierCSRFToken());
     formData.append('id', id);
     
     $.ajax({
@@ -533,6 +899,10 @@ function viewSupplier(id) {
                     hour: '2-digit',
                     minute: '2-digit'
                 });
+              const safeName = escapeHtmlText(supplier.name || '-');
+              const safePhone = escapeHtmlText(supplier.phone || '-');
+              const safeAddress = escapeHtmlText(supplier.address || '-');
+              const safeStatus = getSupplierStatusBadge(supplier.status);
                 
                 const html = `
                     <div class="form-group">
@@ -541,15 +911,19 @@ function viewSupplier(id) {
                     </div>
                     <div class="form-group">
                         <label><strong>Tên Nhà Cung Cấp:</strong></label>
-                        <p>${supplier.name}</p>
+                  <p>${safeName}</p>
                     </div>
                     <div class="form-group">
                         <label><strong>Số Điện Thoại:</strong></label>
-                        <p>${supplier.phone || '-'}</p>
+                  <p>${safePhone}</p>
                     </div>
                     <div class="form-group">
                         <label><strong>Địa Chỉ:</strong></label>
-                        <p>${supplier.address || '-'}</p>
+                  <p>${safeAddress}</p>
+                    </div>
+                    <div class="form-group">
+                      <label><strong>Trạng Thái:</strong></label>
+                  <p>${safeStatus}</p>
                     </div>
                     <div class="form-group">
                         <label><strong>Ngày Tạo:</strong></label>
@@ -573,9 +947,22 @@ function viewSupplier(id) {
                 `;
                 
                 $('#viewSupplierBody').html(html);
-                $('#viewSupplierModalLabel').text('Chi tiết - ' + supplier.name);
+                $('#viewSupplierModalLabel').text('Chi tiết nhà cung cấp - ' + supplier.name);
                 $('#viewSupplierModal').modal('show');
+                            } else {
+                                Swal.fire({
+                                  icon: 'error',
+                                  title: 'Lỗi',
+                                  text: response.message || 'Không lấy được thông tin nhà cung cấp'
+                                });
             }
+                        },
+                        error: function() {
+                            Swal.fire({
+                              icon: 'error',
+                              title: 'Lỗi',
+                              text: 'Lỗi kết nối server'
+                            });
         }
     });
 }
@@ -583,6 +970,7 @@ function viewSupplier(id) {
 function editSupplier(id) {
   const formData = new FormData();
   formData.append('action', 'view');
+  formData.append('csrf_token', getSupplierCSRFToken());
   formData.append('id', id);
 
   $.ajax({
@@ -605,12 +993,14 @@ function editSupplier(id) {
       const supplier = response.data;
       $('#supplierId').val(supplier.id);
       $('#supplierName').val(supplier.name || '');
+      $('#supplierName').prop('readonly', true);
       $('#supplierPhone').val(supplier.phone || '');
       $('#supplierAddress').val(supplier.address || '');
+      $('#supplierStatus').val(supplier.status || 'active');
       clearSupplierValidationErrors();
 
-      $('#addSupplierModalLabel').text('Chỉnh sửa Nhà Cung Cấp');
-      $('#submitBtn').text('Cập nhật NCC');
+      $('#addSupplierModalLabel').text('Chỉnh sửa nhà cung cấp');
+      $('#submitBtn').text('Cập nhật');
       $('#addSupplierModal').modal('show');
     },
     error: function() {
@@ -623,55 +1013,69 @@ function editSupplier(id) {
   });
 }
 
+function openDeleteSupplierModal(id) {
+  if (deletingSupplierIds.has(id)) {
+    return;
+  }
+
+  const $btn = $('#suppliersTableBody').find('button.js-delete-supplier[data-id="' + id + '"]').first();
+  const supplierName = $btn.closest('tr').find('td:nth-child(2)').text().trim() || ('NCC #' + id);
+
+  $('#deleteSupplierId').val(id);
+  $('#deleteSupplierName').text(supplierName);
+  $('#confirmDeleteSupplierBtn').prop('disabled', false).text('Xác nhận');
+  $('#deleteSupplierModal').modal('show');
+}
+
 function deleteSupplier(id) {
-    Swal.fire({
-        title: 'Xác nhận xóa',
-        text: 'Bạn có chắc chắn muốn xóa nhà cung cấp này?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Xóa',
-        cancelButtonText: 'Hủy'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            const formData = new FormData();
-            formData.append('action', 'delete');
-            formData.append('id', id);
-            
-            $.ajax({
-                type: 'POST',
-                url: 'suppliers.php',
-                data: formData,
-                processData: false,
-                contentType: false,
-              dataType: 'json',
-                success: function(response) {
-                    if (response.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Thành công',
-                            text: 'Xóa nhà cung cấp thành công',
-                            timer: 1500
-                        });
-                        loadSuppliers($('#searchInput').val().trim());
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Lỗi',
-                            text: response.message || 'Có lỗi xảy ra'
-                        });
-                    }
-                    },
-                    error: function(xhr) {
-                      Swal.fire({
-                        icon: 'error',
-                        title: 'Lỗi',
-                        text: xhr.responseText || 'Lỗi kết nối server'
-                      });
-                }
-            });
+    if (deletingSupplierIds.has(id)) {
+      return;
+    }
+
+    deletingSupplierIds.add(id);
+    $('#confirmDeleteSupplierBtn').prop('disabled', true).text('Đang xử lý...');
+
+    const formData = new FormData();
+    formData.append('action', 'delete');
+    formData.append('csrf_token', getSupplierCSRFToken());
+    formData.append('id', id);
+
+    $.ajax({
+      type: 'POST',
+      url: 'suppliers.php',
+      data: formData,
+      processData: false,
+      contentType: false,
+      dataType: 'json',
+      success: function(response) {
+        if (response.success) {
+          $('#deleteSupplierModal').modal('hide');
+          Swal.fire({
+            icon: 'success',
+            title: 'Thành công',
+            text: response.message || 'Cập nhật trạng thái nhà cung cấp thành công',
+            timer: 1500
+          });
+          loadSuppliers($('#searchInput').val().trim());
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Lỗi',
+            text: response.message || 'Có lỗi xảy ra'
+          });
         }
+      },
+      error: function(xhr) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Lỗi',
+          text: xhr.responseText || 'Lỗi kết nối server'
+        });
+      },
+      complete: function() {
+        deletingSupplierIds.delete(id);
+        $('#confirmDeleteSupplierBtn').prop('disabled', false).text('Xác nhận');
+      }
     });
 }
 
@@ -702,6 +1106,7 @@ function validateSupplierForm() {
   const rawPhone = $('#supplierPhone').val().trim();
   const normalizedPhone = normalizeSupplierPhoneInput(rawPhone);
   const address = $('#supplierAddress').val().trim();
+  const status = $('#supplierStatus').val();
 
   const errors = [];
   let firstInvalidField = '';
@@ -718,8 +1123,8 @@ function validateSupplierForm() {
     showSupplierPhoneError(msg);
     errors.push(msg);
     firstInvalidField = firstInvalidField || 'supplierPhone';
-  } else if (!/^0\d{9}$/.test(normalizedPhone)) {
-    const msg = 'Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 số.';
+  } else if (!/^0\d{9,10}$/.test(normalizedPhone)) {
+    const msg = 'Số điện thoại không hợp lệ. Vui lòng nhập số bắt đầu bằng 0 và đủ 10 hoặc 11 số.';
     showSupplierPhoneError(msg);
     errors.push(msg);
     firstInvalidField = firstInvalidField || 'supplierPhone';
@@ -732,8 +1137,14 @@ function validateSupplierForm() {
     firstInvalidField = firstInvalidField || 'supplierAddress';
   }
 
+  if (!status) {
+    const msg = 'Vui lòng chọn trạng thái.';
+    showSupplierStatusError(msg);
+    errors.push(msg);
+    firstInvalidField = firstInvalidField || 'supplierStatus';
+  }
+
   if (errors.length > 0) {
-    showSupplierFormErrors(errors);
     return {
       isValid: false,
       normalizedPhone: normalizedPhone,
@@ -746,20 +1157,6 @@ function validateSupplierForm() {
     normalizedPhone: normalizedPhone,
     firstInvalidField: ''
   };
-}
-
-function showSupplierFormErrors(messages) {
-  const html = messages.map(function(message) {
-    return '<li>' + escapeHtmlText(message) + '</li>';
-  }).join('');
-
-  $('#supplierFormErrorsList').html(html);
-  $('#supplierFormErrors').removeClass('d-none');
-}
-
-function clearSupplierFormErrors() {
-  $('#supplierFormErrorsList').empty();
-  $('#supplierFormErrors').addClass('d-none');
 }
 
 function showSupplierNameError(message) {
@@ -792,11 +1189,33 @@ function clearSupplierAddressError() {
   $('#supplierAddressError').addClass('d-none').text('');
 }
 
+function showSupplierStatusError(message) {
+  $('#supplierStatus').addClass('is-invalid');
+  $('#supplierStatusError').text(message).removeClass('d-none');
+}
+
+function clearSupplierStatusError() {
+  $('#supplierStatus').removeClass('is-invalid');
+  $('#supplierStatusError').addClass('d-none').text('');
+}
+
 function clearSupplierValidationErrors() {
-  clearSupplierFormErrors();
   clearSupplierNameError();
   clearSupplierPhoneError();
   clearSupplierAddressError();
+  clearSupplierStatusError();
+}
+
+function getSupplierStatusBadge(status) {
+  if (status === 'inactive') {
+    return '<span class="badge badge-secondary">Không hoạt động</span>';
+  }
+
+  return '<span class="badge badge-success">Đang hoạt động</span>';
+}
+
+function getSupplierCSRFToken() {
+  return $('input[name="csrf_token"]').val() || '';
 }
 
 function escapeHtmlText(text) {

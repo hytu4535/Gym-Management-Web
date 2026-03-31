@@ -6,8 +6,8 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once '../config/db.php';
 
 $packages = [];
-$registeredPackageIds = [];
-$cartPackageIds = [];
+$hasActivePackage = false;
+$hasPackageInCart = false;
 $userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 
 $packageQuery = $conn->query("SELECT id, package_name, duration_months, price, description FROM membership_packages WHERE status = 'active' ORDER BY duration_months ASC, id ASC");
@@ -27,24 +27,26 @@ if ($userId > 0) {
     $memberId = (int) ($member['id'] ?? 0);
 
     if ($memberId > 0) {
-        $registeredStmt = $conn->prepare("SELECT package_id FROM member_packages WHERE member_id = ? AND status = 'active'");
-        $registeredStmt->bind_param("i", $memberId);
-        $registeredStmt->execute();
-        $registeredResult = $registeredStmt->get_result();
+        $activeStmt = $conn->prepare(
+            "SELECT 1
+             FROM member_packages
+             WHERE member_id = ? AND status = 'active' AND end_date >= CURDATE()
+             LIMIT 1"
+        );
+        $activeStmt->bind_param("i", $memberId);
+        $activeStmt->execute();
+        $hasActivePackage = (bool) $activeStmt->get_result()->fetch_row();
+        $activeStmt->close();
 
-        while ($row = $registeredResult->fetch_assoc()) {
-            $registeredPackageIds[] = (int) $row['package_id'];
-        }
-        $registeredStmt->close();
-
-        $cartStmt = $conn->prepare("SELECT ci.item_id FROM carts c JOIN cart_items ci ON ci.cart_id = c.id AND ci.item_type = 'package' WHERE c.member_id = ? AND c.status = 'active'");
+        $cartStmt = $conn->prepare(
+            "SELECT COUNT(*) AS total
+             FROM carts c
+             JOIN cart_items ci ON ci.cart_id = c.id AND ci.item_type = 'package'
+             WHERE c.member_id = ? AND c.status = 'active'"
+        );
         $cartStmt->bind_param("i", $memberId);
         $cartStmt->execute();
-        $cartResult = $cartStmt->get_result();
-
-        while ($row = $cartResult->fetch_assoc()) {
-            $cartPackageIds[] = (int) $row['item_id'];
-        }
+        $hasPackageInCart = (int) ($cartStmt->get_result()->fetch_assoc()['total'] ?? 0) > 0;
         $cartStmt->close();
     }
 }
@@ -79,6 +81,15 @@ include 'layout/header.php';
                     <span>Gói tập của chúng tôi</span>
                     <h2>CHỌN GÓI TẬP PHÙ HỢP VỚI BẠN</h2>
                 </div>
+                <?php if ($hasActivePackage): ?>
+                    <div class="alert alert-warning text-center">
+                        Bạn đang có gói tập hoạt động nên không thể đăng ký thêm gói mới.
+                    </div>
+                <?php elseif ($hasPackageInCart): ?>
+                    <div class="alert alert-info text-center">
+                        Bạn đang có gói tập trong giỏ hàng. Hãy hoàn tất thanh toán hoặc xóa gói trong giỏ trước khi thêm gói mới.
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
         <div class="row justify-content-center">
@@ -86,18 +97,16 @@ include 'layout/header.php';
                 <?php foreach ($packages as $package): ?>
                     <?php
                     $packageId = (int) $package['id'];
-                    $isRegistered = in_array($packageId, $registeredPackageIds, true);
-                    $isInCart = in_array($packageId, $cartPackageIds, true);
                     $buttonLabel = 'Thêm vào giỏ hàng';
                     $buttonClass = 'primary-btn pricing-btn';
                     $buttonDisabled = '';
 
-                    if ($isRegistered) {
-                        $buttonLabel = 'Đang sử dụng';
+                    if ($hasActivePackage) {
+                        $buttonLabel = 'Đang có gói hoạt động';
                         $buttonClass .= ' disabled';
                         $buttonDisabled = 'disabled';
-                    } elseif ($isInCart) {
-                        $buttonLabel = 'Đã có trong giỏ';
+                    } elseif ($hasPackageInCart) {
+                        $buttonLabel = 'Đã có gói trong giỏ';
                         $buttonClass .= ' disabled';
                         $buttonDisabled = 'disabled';
                     }

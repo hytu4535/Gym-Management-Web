@@ -26,6 +26,9 @@ if ($avatarPath !== '') {
 }
 
 $packageRecords = [];
+$hasActivePackage = false;
+$hasPackageInCart = false;
+$activePackageInfo = null;
 
 // 2. Lấy member_id
 $memberStmt = $conn->prepare("SELECT id FROM members WHERE users_id = ? LIMIT 1");
@@ -38,6 +41,32 @@ $memberId = (int) ($member['id'] ?? 0);
 
 // 3. Lấy danh sách gói tập
 if ($memberId > 0) {
+    $activePackageStmt = $conn->prepare(
+        "SELECT mp.id, mp.end_date, p.package_name
+         FROM member_packages mp
+         JOIN membership_packages p ON p.id = mp.package_id
+         WHERE mp.member_id = ? AND mp.status = 'active' AND mp.end_date >= CURDATE()
+         ORDER BY mp.end_date DESC, mp.id DESC
+         LIMIT 1"
+    );
+    $activePackageStmt->bind_param("i", $memberId);
+    $activePackageStmt->execute();
+    $activePackageInfo = $activePackageStmt->get_result()->fetch_assoc();
+    $activePackageStmt->close();
+
+    $hasActivePackage = !empty($activePackageInfo);
+
+    $cartPackageStmt = $conn->prepare(
+        "SELECT COUNT(*) AS total
+         FROM carts c
+         JOIN cart_items ci ON ci.cart_id = c.id AND ci.item_type = 'package'
+         WHERE c.member_id = ? AND c.status = 'active'"
+    );
+    $cartPackageStmt->bind_param("i", $memberId);
+    $cartPackageStmt->execute();
+    $hasPackageInCart = (int) ($cartPackageStmt->get_result()->fetch_assoc()['total'] ?? 0) > 0;
+    $cartPackageStmt->close();
+
     $packageStmt = $conn->prepare(
         "SELECT mp.id,
                 mp.start_date,
@@ -190,10 +219,26 @@ include 'layout/header.php';
                 <div class="profile-content" style="background-color: aliceblue; padding: 30px; border-radius: 8px;">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="mb-0">Danh sách gói tập đã đăng ký</h4>
-                        <a href="packages.php" class="site-btn" style="padding: 10px 20px;">
-                            <i class="fa fa-plus"></i> Đăng ký gói mới
-                        </a>
+                        <?php if ($hasActivePackage || $hasPackageInCart): ?>
+                            <span class="site-btn disabled" style="padding: 10px 20px; opacity: .7; cursor: not-allowed;">
+                                <i class="fa fa-plus"></i> Đăng ký gói mới
+                            </span>
+                        <?php else: ?>
+                            <a href="packages.php" class="site-btn" style="padding: 10px 20px;">
+                                <i class="fa fa-plus"></i> Đăng ký gói mới
+                            </a>
+                        <?php endif; ?>
                     </div>
+
+                    <?php if ($hasActivePackage): ?>
+                        <div class="alert alert-warning mb-4">
+                            Bạn đang có gói tập hoạt động<?php if (!empty($activePackageInfo['package_name'])): ?>: <strong><?php echo htmlspecialchars($activePackageInfo['package_name']); ?></strong><?php endif; ?>. Bạn chỉ có thể đăng ký gói mới sau khi gói hiện tại hết hạn hoặc được hủy.
+                        </div>
+                    <?php elseif ($hasPackageInCart): ?>
+                        <div class="alert alert-info mb-4">
+                            Bạn đang có gói tập trong giỏ hàng. Hãy hoàn tất thanh toán hoặc xóa gói trong giỏ trước khi đăng ký thêm gói khác.
+                        </div>
+                    <?php endif; ?>
                     
                     <div class="mb-4">
                         <select id="statusFilter" class="form-control" style="width: 200px; display: inline-block;">

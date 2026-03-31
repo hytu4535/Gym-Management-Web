@@ -3,19 +3,11 @@
 require_once __DIR__ . '/_permission_guard.php';
 processRequirePermission('MANAGE_SALES', 'add');
 
-require_once '../../config/db.php';
+require_once __DIR__ . '/category_repository.php';
 
 if (isset($_POST['btn_add_category'])) {
-    $name = $_POST['name'];
-    $description = $_POST['description'];
-    $status = $_POST['status'];
+    [$ok, $message] = createCategory($_POST['name'] ?? '', $_POST['description'] ?? '');
 
-    $sql = "INSERT INTO categories (name, description, status) VALUES ('$name', '$description', '$status')";
-
-    if ($conn->query($sql) === TRUE) {
-        echo "<script>alert('Thêm danh mục thành công!'); window.location.href='../categories.php';</script>";
-    } else {
-        echo "Lỗi: " . $conn->error;
-    }
+    echo "<script>alert(" . json_encode($message, JSON_UNESCAPED_UNICODE) . "); window.location.href='../categories.php';</script>";
 }
 ?>

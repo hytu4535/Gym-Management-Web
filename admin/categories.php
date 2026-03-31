@@ -13,36 +13,18 @@ include '../includes/auth_permission.php';
 // chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
 checkPermission('MANAGE_SALES');
 
+require_once __DIR__ . '/process/category_repository.php';
+
+$db = getDB();
+
+$activeCategories = getActiveCategories();
+$categoryStatsStmt = $db->query("SELECT SUM(status = 'active') AS active_count, SUM(status = 'inactive') AS inactive_count FROM categories");
+$categoryStats = $categoryStatsStmt ? $categoryStatsStmt->fetch(PDO::FETCH_ASSOC) : ['active_count' => 0, 'inactive_count' => 0];
+$activeCategoryCount = (int) ($categoryStats['active_count'] ?? 0);
+$inactiveCategoryCount = (int) ($categoryStats['inactive_count'] ?? 0);
+
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
-
-require_once '../config/db.php';
-
-$filterName = trim((string) ($_GET['name'] ?? ''));
-$filterStatus = trim((string) ($_GET['status'] ?? ''));
-
-$whereClauses = [];
-$whereParams = [];
-if ($filterName !== '') {
-  $whereClauses[] = 'name LIKE ?';
-  $whereParams[] = '%' . $filterName . '%';
-}
-if ($filterStatus !== '') {
-  $whereClauses[] = 'status = ?';
-  $whereParams[] = $filterStatus;
-}
-$whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
-
-$sql = "SELECT * FROM categories" . $whereSql . " ORDER BY id DESC";
-$stmt = $conn->prepare($sql);
-
-if (!empty($whereParams)) {
-  $types = str_repeat('s', count($whereParams));
-  $stmt->bind_param($types, ...$whereParams);
-}
-
-$stmt->execute();
-$result = $stmt->get_result();
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -67,29 +49,27 @@ $result = $stmt->get_result();
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
-        <?php
-          $filterMode = 'server';
-          $filterAction = 'categories.php';
-          $filterFieldsHtml = '
-            <div class="col-md-6">
-              <div class="form-group mb-0">
-                <label>Tên danh mục</label>
-                <input type="text" name="name" class="form-control" value="' . htmlspecialchars($filterName) . '" placeholder="Nhập tên danh mục">
+        <div class="row mb-3">
+          <div class="col-md-6 col-sm-6">
+            <div class="info-box">
+              <span class="info-box-icon bg-success"><i class="fas fa-tags"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text">Danh mục đang hoạt động</span>
+                <span class="info-box-number"><?= $activeCategoryCount ?></span>
               </div>
             </div>
-            <div class="col-md-3">
-              <div class="form-group mb-0">
-                <label>Trạng thái</label>
-                <select name="status" class="form-control">
-                  <option value="">-- Tất cả trạng thái --</option>
-                  <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option>
-                  <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option>
-                </select>
+          </div>
+          <div class="col-md-6 col-sm-6">
+            <div class="info-box">
+              <span class="info-box-icon bg-secondary"><i class="fas fa-eye-slash"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text">Danh mục đã vô hiệu hóa</span>
+                <span class="info-box-number"><?= $inactiveCategoryCount ?></span>
               </div>
             </div>
-          ';
-          include 'layout/filter-card.php';
-        ?>
+          </div>
+        </div>
+
         <div class="row">
           <div class="col-12">
             <div class="card">
@@ -113,35 +93,31 @@ $result = $stmt->get_result();
                   </tr>
                   </thead>
                   <tbody>
-                  <?php 
-                    if ($result && $result->num_rows > 0) {
-                        while($row = $result->fetch_assoc()) {
+                  <?php if (!empty($activeCategories)): ?>
+                    <?php foreach ($activeCategories as $row): ?>
+                      <?php
                         $categoryId = (int) ($row['id'] ?? 0);
                         $categoryName = htmlspecialchars((string) ($row['name'] ?? ''), ENT_QUOTES, 'UTF-8');
                         $categoryDescription = htmlspecialchars((string) ($row['description'] ?? ''), ENT_QUOTES, 'UTF-8');
-                            $statusBadge = ($row['status'] == 'active') 
-                                ? '<span class="badge badge-success">Đang hoạt động</span>' 
-                                : '<span class="badge badge-secondary">Tạm ẩn</span>';
-                            echo "<tr>";
-                        echo "  <td>{$categoryId}</td>";
-                        echo "  <td class='font-weight-bold'>{$categoryName}</td>";
-                        echo "  <td>{$categoryDescription}</td>";
-                            echo "  <td>{$statusBadge}</td>";
-                            echo "  <td>
-                              <a href='category_edit.php?id={$categoryId}' class='btn btn-warning btn-sm' title='Sửa'>
-                                            <i class='fas fa-edit'></i>
-                                        </a>
-                                        
-                              <a href='process/category_delete.php?id={$categoryId}' class='btn btn-danger btn-sm' title='Xóa' onclick=\"return confirm('Bạn có chắc chắn muốn xóa danh mục này không? Lưu ý: Nếu danh mục đang chứa sản phẩm thì có thể sẽ không xóa được.');\">
-                                            <i class='fas fa-trash'></i>
-                                        </a>
-                                    </td>";
-                            echo "</tr>";
-                        }
-                    } else {
-                        echo "<tr><td colspan='5' class='text-center'>Chưa có danh mục nào.</td></tr>";
-                    }
-                    ?>
+                      ?>
+                      <tr>
+                        <td><?= $categoryId ?></td>
+                        <td class="font-weight-bold"><?= $categoryName ?></td>
+                        <td><?= $categoryDescription ?></td>
+                        <td><span class="badge badge-success">Đang hoạt động</span></td>
+                        <td>
+                          <a href="category_edit.php?id=<?= $categoryId ?>" class="btn btn-warning btn-sm" title="Sửa">
+                            <i class="fas fa-edit"></i>
+                          </a>
+                          <a href="process/category_delete.php?id=<?= $categoryId ?>" class="btn btn-danger btn-sm" title="Vô hiệu hóa" onclick="return confirm('Bạn có chắc chắn muốn vô hiệu hóa danh mục này không?');">
+                            <i class="fas fa-ban"></i>
+                          </a>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  <?php else: ?>
+                    <tr><td colspan="5" class="text-center">Chưa có danh mục nào.</td></tr>
+                  <?php endif; ?>
                   </tbody>
                 </table>
               </div>
@@ -167,13 +143,6 @@ $result = $stmt->get_result();
                   <div class="form-group">
                       <label for="description">Mô tả</label>
                       <textarea id="description" name="description" class="form-control" rows="3"></textarea>
-                  </div>
-                  <div class="form-group">
-                      <label for="status">Trạng thái <span class="text-danger">*</span></label>
-                      <select id="status" name="status" class="form-control">
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                      </select>
                   </div>
                 </div>
                 <div class="modal-footer">
@@ -221,15 +190,8 @@ document.getElementById('addCategoryForm').addEventListener('submit', function(e
     }
 
     let descriptionVal = document.getElementById('description').value.trim();
-    if (descriptionVal === '') {
-      showError('description', 'Vui lòng nhập mô tả');
-    } else if (descriptionVal.length < 10) {
+    if (descriptionVal !== '' && descriptionVal.length < 10) {
       showError('description', 'Mô tả phải có ít nhất 10 ký tự');
-    }
-
-    let statusVal = document.getElementById('status').value;
-    if (statusVal === '') {
-        showError('status', 'Vui lòng chọn trạng thái.');
     }
 
     if (!isValid) {

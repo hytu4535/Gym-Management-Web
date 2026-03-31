@@ -1,19 +1,22 @@
 <?php 
 $page_title = "Sửa Danh Mục";
-include 'layout/header.php'; 
-include 'layout/sidebar.php';
-require_once '../config/db.php';
+session_start();
+include '../includes/auth.php';
+include '../includes/auth_permission.php';
+checkPermission('MANAGE_SALES', 'edit');
+
+require_once __DIR__ . '/process/category_repository.php';
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-$sql = "SELECT * FROM categories WHERE id = $id";
-$result = $conn->query($sql);
+$cat = $id > 0 ? getCategoryById($id) : null;
 
-if ($result->num_rows > 0) {
-    $cat = $result->fetch_assoc();
-} else {
+if (!$cat) {
     echo "<script>alert('Danh mục không tồn tại!'); window.location.href='categories.php';</script>";
     exit;
 }
+
+include 'layout/header.php'; 
+include 'layout/sidebar.php';
 ?>
 
 <div class="content-wrapper">
@@ -37,15 +40,8 @@ if ($result->num_rows > 0) {
                             <input type="text" id="name" name="name" class="form-control" value="<?php echo $cat['name']; ?>" required>
                         </div>
                         <div class="form-group">
-                            <label for="description">Mô tả <span class="text-danger">*</span></label>
+                            <label for="description">Mô tả</label>
                             <textarea id="description" name="description" class="form-control" rows="3"><?php echo $cat['description']; ?></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="status">Trạng thái <span class="text-danger">*</span></label>
-                            <select id="status" name="status" class="form-control">
-                                <option value="active" <?php echo ($cat['status'] == 'active') ? 'selected' : ''; ?>>Active (Đang hoạt động)</option>
-                                <option value="inactive" <?php echo ($cat['status'] == 'inactive') ? 'selected' : ''; ?>>Inactive (Tạm ẩn)</option>
-                            </select>
                         </div>
                     </div>
                     <div class="card-footer">
@@ -98,15 +94,8 @@ document.getElementById('editCategoryForm').addEventListener('submit', function(
     }
 
     let descriptionVal = document.getElementById('description').value.trim();
-    if (descriptionVal === '') {
-        showError('description', 'Vui lòng nhập mô tả.');
-    } else if (descriptionVal.length < 10) {
+    if (descriptionVal !== '' && descriptionVal.length < 10) {
         showError('description', 'Mô tả phải có ít nhất 10 ký tự.');
-    }
-
-    let statusVal = document.getElementById('status').value;
-    if (statusVal === '') {
-        showError('status', 'Vui lòng chọn trạng thái.');
     }
 
     if (!isValid) {

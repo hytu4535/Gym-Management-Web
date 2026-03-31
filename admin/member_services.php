@@ -16,84 +16,409 @@ require_once '../includes/functions.php';
 
 $db = getDB();
 
+if (!function_exists('isPastDate')) {
+  function isPastDate($date)
+  {
+    if (empty($date)) {
+      return false;
+    }
+
+    try {
+      $today = new DateTimeImmutable('today');
+      $targetDate = new DateTimeImmutable($date);
+      return $targetDate < $today;
+    } catch (Exception $e) {
+      return false;
+    }
+  }
+}
+
 $filterMemberId = trim((string) ($_GET['member_id'] ?? ''));
 $filterServiceId = trim((string) ($_GET['service_id'] ?? ''));
 $filterType = trim((string) ($_GET['type'] ?? ''));
 $filterStatus = trim((string) ($_GET['status'] ?? ''));
 $filterFromDate = trim((string) ($_GET['from_date'] ?? ''));
 $filterToDate = trim((string) ($_GET['to_date'] ?? ''));
+if (!function_exists('normalizeMemberServiceStatus')) {
+  function normalizeMemberServiceStatus($status)
+  {
+    $map = [
+      'còn hiệu lực' => 'còn hiệu lực',
+      'đã dùng' => 'đã dùng',
+      'hết hạn' => 'hết hạn',
+      'bị hủy' => 'bị hủy',
+      'active' => 'còn hiệu lực',
+      'used' => 'đã dùng',
+      'expired' => 'hết hạn',
+      'cancelled' => 'bị hủy',
+    ];
 
-$memberServiceWhereClauses = [];
-$memberServiceParams = [];
-if ($filterMemberId !== '') {
-  $memberServiceWhereClauses[] = 'ms.member_id = ?';
-  $memberServiceParams[] = (int) $filterMemberId;
-}
-if ($filterServiceId !== '') {
-  $memberServiceWhereClauses[] = 'ms.service_id = ?';
-  $memberServiceParams[] = (int) $filterServiceId;
-}
-if ($filterType !== '') {
-  $memberServiceWhereClauses[] = 's.type = ?';
-  $memberServiceParams[] = $filterType;
-}
-if ($filterStatus !== '') {
-  $memberServiceWhereClauses[] = 'ms.status = ?';
-  $memberServiceParams[] = $filterStatus;
-}
-if ($filterFromDate !== '') {
-  $memberServiceWhereClauses[] = 'DATE(ms.start_date) >= ?';
-  $memberServiceParams[] = $filterFromDate;
-}
-if ($filterToDate !== '') {
-  $memberServiceWhereClauses[] = 'DATE(ms.start_date) <= ?';
-  $memberServiceParams[] = $filterToDate;
-}
-$memberServiceWhereSql = !empty($memberServiceWhereClauses) ? ' WHERE ' . implode(' AND ', $memberServiceWhereClauses) : '';
+    if (isset($map[$status])) {
+      return $map[$status];
+    }
 
-function isPastDate($date)
-{
-  if (empty($date)) {
-    return false;
+    return 'còn hiệu lực';
   }
+}
 
-  try {
-    $today = new DateTimeImmutable('today');
-    $endDate = new DateTimeImmutable($date);
-    return $endDate < $today;
-  } catch (Exception $e) {
-    return false;
+if (!function_exists('getMemberServiceStorageStatus')) {
+  function getMemberServiceStorageStatus(PDO $db, $status)
+  {
+    static $statusMapCache = [];
+
+    $normalizedStatus = normalizeMemberServiceStatus($status);
+    if (isset($statusMapCache[$normalizedStatus])) {
+      return $statusMapCache[$normalizedStatus];
+    }
+
+    $storageMap = [
+      'còn hiệu lực' => 'còn hiệu lực',
+      'đã dùng' => 'đã dùng',
+      'hết hạn' => 'hết hạn',
+      'bị hủy' => 'bị hủy',
+    ];
+
+    try {
+      $schemaStmt = $db->query('SELECT DATABASE()');
+      $schemaName = $schemaStmt ? (string) $schemaStmt->fetchColumn() : '';
+
+      if ($schemaName !== '') {
+        $columnStmt = $db->prepare(
+          "SELECT COLUMN_TYPE
+           FROM INFORMATION_SCHEMA.COLUMNS
+           WHERE TABLE_SCHEMA = ?
+             AND TABLE_NAME = 'member_services'
+             AND COLUMN_NAME = 'status'
+           LIMIT 1"
+        );
+        $columnStmt->execute([$schemaName]);
+        $columnType = (string) $columnStmt->fetchColumn();
+
+        if (preg_match_all("/'((?:[^'\\\\]|\\\\.)*)'/", $columnType, $matches)) {
+          $allowedValues = array_map('stripslashes', $matches[1]);
+
+          if (in_array('còn hiệu lực', $allowedValues, true)) {
+            $storageMap = [
+              'còn hiệu lực' => 'còn hiệu lực',
+              'đã dùng' => 'đã dùng',
+              'hết hạn' => 'hết hạn',
+              'bị hủy' => 'bị hủy',
+            ];
+          } elseif (in_array('active', $allowedValues, true)) {
+            $storageMap = [
+              'còn hiệu lực' => 'active',
+              'đã dùng' => 'used',
+              'hết hạn' => 'expired',
+              'bị hủy' => 'cancelled',
+            ];
+          }
+        }
+      }
+    } catch (PDOException $e) {
+      // Fallback to canonical Vietnamese values if metadata lookup fails.
+    }
+
+    $statusMapCache = array_merge($statusMapCache, $storageMap);
+    return $statusMapCache[$normalizedStatus] ?? $normalizedStatus;
+  }
+}
+
+if (!function_exists('memberServiceStatusLabel')) {
+  function memberServiceStatusLabel($status)
+  {
+    $labels = [
+      'còn hiệu lực' => 'Còn hiệu lực',
+      'đã dùng' => 'Đã dùng',
+      'hết hạn' => 'Hết hạn',
+      'bị hủy' => 'Bị hủy',
+    ];
+
+    return $labels[normalizeMemberServiceStatus($status)] ?? $labels['còn hiệu lực'];
+  }
+}
+
+if (!function_exists('memberServiceStatusBadgeClass')) {
+  function memberServiceStatusBadgeClass($status)
+  {
+    $classes = [
+      'còn hiệu lực' => 'success',
+      'đã dùng' => 'secondary',
+      'hết hạn' => 'warning',
+      'bị hủy' => 'danger',
+    ];
+
+    return $classes[normalizeMemberServiceStatus($status)] ?? 'success';
+  }
+}
+
+if (!function_exists('memberServiceCanEdit')) {
+  function memberServiceCanEdit($status)
+  {
+    return normalizeMemberServiceStatus($status) === 'còn hiệu lực';
+  }
+}
+
+if (!function_exists('buildMemberServiceEndDate')) {
+  function buildMemberServiceEndDate($startDate, $endDate = null)
+  {
+    if (!empty($endDate)) {
+      return $endDate;
+    }
+
+    try {
+      $start = new DateTimeImmutable($startDate);
+      return $start->modify('+1 month')->format('Y-m-d');
+    } catch (Exception $e) {
+      return null;
+    }
+  }
+}
+
+if (!function_exists('memberServiceHasOverlap')) {
+  function memberServiceHasOverlap(PDO $db, $memberId, $serviceId, $startDate, $endDate, $excludeId = null)
+  {
+    $activeStatus = getMemberServiceStorageStatus($db, 'còn hiệu lực');
+    $sql = "SELECT id
+            FROM member_services
+            WHERE member_id = ?
+              AND service_id = ?
+              AND status = ?
+              AND NOT (COALESCE(end_date, DATE_ADD(start_date, INTERVAL 1 MONTH)) < ? OR start_date > ?)";
+    $params = [$memberId, $serviceId, $activeStatus, $startDate, $endDate];
+
+    if ($excludeId !== null) {
+      $sql .= ' AND id <> ?';
+      $params[] = $excludeId;
+    }
+
+    $sql .= ' LIMIT 1';
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+  }
+}
+
+if (!function_exists('assignService')) {
+  function assignService(PDO $db, $memberId, $serviceId, $startDate, $endDate = null)
+  {
+    // 1) Validate ngày kết thúc nếu được nhập.
+    $resolvedEndDate = buildMemberServiceEndDate($startDate, $endDate);
+    if (!$resolvedEndDate) {
+      return [false, 'Ngày bắt đầu hoặc ngày kết thúc không hợp lệ.'];
+    }
+
+    if ($startDate > $resolvedEndDate) {
+      return [false, 'Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.'];
+    }
+
+    // 2) Check service phải đang hoạt động.
+    $serviceStmt = $db->prepare("SELECT id FROM services WHERE id = ? AND status = 'hoạt động' LIMIT 1");
+    $serviceStmt->execute([$serviceId]);
+    if (!$serviceStmt->fetch(PDO::FETCH_ASSOC)) {
+      return [false, 'Dịch vụ không tồn tại hoặc không còn hoạt động.'];
+    }
+
+    // 3) Không cho gán nếu đã tồn tại record còn hiệu lực cùng member/service.
+    if (memberServiceHasOverlap($db, $memberId, $serviceId, $startDate, $resolvedEndDate)) {
+      return [false, 'Hội viên này đã có cùng dịch vụ còn hiệu lực trong khoảng thời gian này.'];
+    }
+
+    // 4) INSERT mới luôn tạo record còn hiệu lực.
+    $statusToStore = getMemberServiceStorageStatus($db, 'còn hiệu lực');
+
+    try {
+      // 5) Transaction để tránh ghi nửa chừng.
+      $db->beginTransaction();
+
+      $stmt = $db->prepare("INSERT INTO member_services (member_id, service_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)");
+      $stmt->execute([$memberId, $serviceId, $startDate, $resolvedEndDate, $statusToStore]);
+
+      $db->commit();
+      return [true, 'Gán dịch vụ cho hội viên thành công!'];
+    } catch (PDOException $e) {
+      if ($db->inTransaction()) {
+        $db->rollBack();
+      }
+
+      if ((int) ($e->errorInfo[1] ?? 0) === 1062) {
+        return [false, 'Hội viên này đã có cùng dịch vụ còn hiệu lực.'];
+      }
+
+      return [false, 'Lỗi: ' . $e->getMessage()];
+    }
+  }
+}
+
+if (!function_exists('useService')) {
+  function useService(PDO $db, $id)
+  {
+    // 1) Chỉ lấy bản ghi còn hiệu lực và chưa quá hạn.
+    $stmt = $db->prepare("SELECT id, status, end_date FROM member_services WHERE id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    $record = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$record) {
+      return [false, 'Không tìm thấy bản ghi cần sử dụng.'];
+    }
+
+    if (normalizeMemberServiceStatus($record['status']) !== 'còn hiệu lực') {
+      return [false, 'Chỉ được đánh dấu đã dùng khi dịch vụ còn hiệu lực.'];
+    }
+
+    if (!empty($record['end_date']) && isPastDate($record['end_date'])) {
+      return [false, 'Dịch vụ đã hết hạn, không thể đánh dấu đã dùng.'];
+    }
+
+    try {
+      // 2) Đánh dấu đã dùng.
+      $stmt = $db->prepare("UPDATE member_services SET status = ? WHERE id = ?");
+      $stmt->execute([getMemberServiceStorageStatus($db, 'đã dùng'), $id]);
+      return [true, 'Đã cập nhật trạng thái đã dùng.'];
+    } catch (PDOException $e) {
+      return [false, 'Lỗi: ' . $e->getMessage()];
+    }
+  }
+}
+
+if (!function_exists('cancelService')) {
+  function cancelService(PDO $db, $id)
+  {
+    if ((int) $id <= 0) {
+      return [false, 'Thiếu ID bản ghi cần hủy.'];
+    }
+
+    // 1) Chỉ hủy nếu bản ghi còn hiệu lực.
+    $stmt = $db->prepare("SELECT id, status FROM member_services WHERE id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    $record = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$record) {
+      return [false, 'Không tìm thấy bản ghi cần hủy.'];
+    }
+
+    if (normalizeMemberServiceStatus($record['status']) === 'bị hủy') {
+      return [false, 'Bản ghi này đã bị hủy rồi.'];
+    }
+
+    try {
+      // 2) Không DELETE, chỉ đổi sang bị hủy.
+      $stmt = $db->prepare("UPDATE member_services SET status = ? WHERE id = ?");
+      $stmt->execute([getMemberServiceStorageStatus($db, 'bị hủy'), $id]);
+      return [true, 'Đã hủy dịch vụ thành công.'];
+    } catch (PDOException $e) {
+      return [false, 'Lỗi: ' . $e->getMessage()];
+    }
+  }
+}
+
+if (!function_exists('updateEndDate')) {
+  function updateEndDate(PDO $db, $id, $endDate, $status = null)
+  {
+    // 1) Chỉ sửa end_date khi còn hiệu lực.
+    $stmt = $db->prepare("SELECT id, start_date, end_date, status FROM member_services WHERE id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    $record = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$record) {
+      return [false, 'Không tìm thấy bản ghi cần sửa.'];
+    }
+
+    if (normalizeMemberServiceStatus($record['status']) !== 'còn hiệu lực') {
+      return [false, 'Chỉ được sửa end_date khi dịch vụ còn hiệu lực.'];
+    }
+
+    if (empty($endDate)) {
+      $endDate = $record['end_date'];
+    }
+
+    if (!empty($endDate) && $endDate < $record['start_date']) {
+      return [false, 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.'];
+    }
+
+    $currentStatus = normalizeMemberServiceStatus($record['status']);
+    $nextStatus = !empty($status) ? normalizeMemberServiceStatus($status) : $currentStatus;
+
+    if ($currentStatus !== 'còn hiệu lực' && $nextStatus !== $currentStatus) {
+      return [false, 'Chỉ được đổi trạng thái khi dịch vụ còn hiệu lực.'];
+    }
+
+    if ($currentStatus === 'còn hiệu lực' && !in_array($nextStatus, ['còn hiệu lực', 'đã dùng'], true)) {
+      return [false, 'Trạng thái chỉ được chuyển sang Đã dùng khi đang còn hiệu lực.'];
+    }
+
+    try {
+      // 2) Update end_date và trạng thái hợp lệ.
+      $stmt = $db->prepare("UPDATE member_services SET end_date = ?, status = ? WHERE id = ?");
+      $stmt->execute([
+        $endDate,
+        getMemberServiceStorageStatus($db, $nextStatus),
+        $id
+      ]);
+      return [true, 'Cập nhật ngày kết thúc thành công.'];
+    } catch (PDOException $e) {
+      return [false, 'Lỗi: ' . $e->getMessage()];
+    }
   }
 }
 
 try {
-  $db->exec("UPDATE member_services SET status = 'đã dùng' WHERE end_date IS NOT NULL AND end_date < CURDATE() AND status <> 'đã dùng'");
+  $expiredStatus = getMemberServiceStorageStatus($db, 'hết hạn');
+  $activeStatus = getMemberServiceStorageStatus($db, 'còn hiệu lực');
+  $expireStmt = $db->prepare("UPDATE member_services SET status = ? WHERE end_date IS NOT NULL AND end_date < CURDATE() AND status = ?");
+  $expireStmt->execute([$expiredStatus, $activeStatus]);
 } catch (PDOException $e) {
   // Không chặn trang nếu đồng bộ trạng thái tự động gặp lỗi.
 }
 
+$memberServiceWhereClauses = [];
+$memberServiceParams = [];
+
+if ($filterMemberId !== '') {
+  $memberServiceWhereClauses[] = 'ms.member_id = ?';
+  $memberServiceParams[] = (int) $filterMemberId;
+}
+
+if ($filterServiceId !== '') {
+  $memberServiceWhereClauses[] = 'ms.service_id = ?';
+  $memberServiceParams[] = (int) $filterServiceId;
+}
+
+if ($filterType !== '') {
+  $memberServiceWhereClauses[] = 's.type = ?';
+  $memberServiceParams[] = $filterType;
+}
+
+if ($filterStatus !== '') {
+  $memberServiceWhereClauses[] = 'ms.status = ?';
+  $memberServiceParams[] = getMemberServiceStorageStatus($db, $filterStatus);
+}
+
+if ($filterFromDate !== '') {
+  $memberServiceWhereClauses[] = 'DATE(ms.start_date) >= ?';
+  $memberServiceParams[] = $filterFromDate;
+}
+
+if ($filterToDate !== '') {
+  $memberServiceWhereClauses[] = 'DATE(ms.start_date) <= ?';
+  $memberServiceParams[] = $filterToDate;
+}
+
+$memberServiceWhereSql = !empty($memberServiceWhereClauses) ? ' WHERE ' . implode(' AND ', $memberServiceWhereClauses) : '';
+
 // Xử lý CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
-    checkPermission('MANAGE_SERVICES_NUTRITION', 'add');
+      checkPermission('MANAGE_SERVICES_NUTRITION', 'add');
 
-        $member_id = intval($_POST['member_id']);
-        $service_id = intval($_POST['service_id']);
-        $start_date = sanitize($_POST['start_date']);
-        $end_date = !empty($_POST['end_date']) ? sanitize($_POST['end_date']) : null;
-        $status = sanitize($_POST['status']);
+      $member_id = intval($_POST['member_id']);
+      $service_id = intval($_POST['service_id']);
+      $start_date = sanitize($_POST['start_date']);
+      $end_date = !empty($_POST['end_date']) ? sanitize($_POST['end_date']) : null;
 
-      if ($end_date !== null && isPastDate($end_date)) {
-        $status = 'đã dùng';
-      }
+      [$ok, $message] = assignService($db, $member_id, $service_id, $start_date, $end_date);
+      setFlashMessage($ok ? 'success' : 'danger', $message);
 
-        try {
-            $stmt = $db->prepare("INSERT INTO member_services (member_id, service_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$member_id, $service_id, $start_date, $end_date, $status]);
-            setFlashMessage('success', 'Gán dịch vụ cho hội viên thành công!');
-        } catch (PDOException $e) {
-            setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
-        }
         redirect('member_services.php');
         exit;
     }
@@ -101,40 +426,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'edit') {
       checkPermission('MANAGE_SERVICES_NUTRITION', 'edit');
 
-        $id = intval($_POST['id']);
-        $member_id = intval($_POST['member_id']);
-        $service_id = intval($_POST['service_id']);
-        $start_date = sanitize($_POST['start_date']);
-        $end_date = !empty($_POST['end_date']) ? sanitize($_POST['end_date']) : null;
-        $status = sanitize($_POST['status']);
+      $id = intval($_POST['id']);
+      $end_date = !empty($_POST['end_date']) ? sanitize($_POST['end_date']) : null;
+      $status = isset($_POST['status']) ? sanitize($_POST['status']) : null;
 
-      $currentStmt = $db->prepare("SELECT end_date FROM member_services WHERE id = ? LIMIT 1");
-      $currentStmt->execute([$id]);
-      $currentRecord = $currentStmt->fetch(PDO::FETCH_ASSOC);
+      [$ok, $message] = updateEndDate($db, $id, $end_date, $status);
+      setFlashMessage($ok ? 'success' : 'danger', $message);
 
-      if (!$currentRecord) {
-        setFlashMessage('danger', 'Không tìm thấy bản ghi cần sửa.');
-        redirect('member_services.php');
-        exit;
-      }
-
-      if (!empty($currentRecord['end_date']) && isPastDate($currentRecord['end_date'])) {
-        setFlashMessage('danger', 'Bản ghi này đã quá ngày kết thúc nên không thể sửa nữa.');
-        redirect('member_services.php');
-        exit;
-      }
-
-      if ($end_date !== null && isPastDate($end_date)) {
-        $status = 'đã dùng';
-      }
-
-        try {
-            $stmt = $db->prepare("UPDATE member_services SET member_id = ?, service_id = ?, start_date = ?, end_date = ?, status = ? WHERE id = ?");
-            $stmt->execute([$member_id, $service_id, $start_date, $end_date, $status, $id]);
-            setFlashMessage('success', 'Cập nhật thành công!');
-        } catch (PDOException $e) {
-            setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
-        }
         redirect('member_services.php');
         exit;
     }
@@ -142,14 +440,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'delete') {
       checkPermission('MANAGE_SERVICES_NUTRITION', 'delete');
 
-        $id = intval($_POST['id']);
-        try {
-            $stmt = $db->prepare("DELETE FROM member_services WHERE id = ?");
-            $stmt->execute([$id]);
-            setFlashMessage('success', 'Xóa thành công!');
-        } catch (PDOException $e) {
-            setFlashMessage('danger', 'Lỗi: ' . $e->getMessage());
-        }
+      $id = intval($_POST['id']);
+      [$ok, $message] = cancelService($db, $id);
+      setFlashMessage($ok ? 'success' : 'danger', $message);
+
         redirect('member_services.php');
         exit;
     }
@@ -169,9 +463,10 @@ $stmt->execute($memberServiceParams);
 $records = $stmt->fetchAll();
 
 foreach ($records as &$record) {
+  $record['status'] = normalizeMemberServiceStatus($record['status'] ?? 'còn hiệu lực');
   $record['is_expired'] = !empty($record['end_date']) && isPastDate($record['end_date']);
-  if ($record['is_expired']) {
-    $record['status'] = 'đã dùng';
+  if ($record['is_expired'] && $record['status'] === 'còn hiệu lực') {
+    $record['status'] = 'hết hạn';
   }
 }
 unset($record);
@@ -231,7 +526,7 @@ include 'layout/sidebar.php';
           }
           $filterFieldsHtml .= '</select></div></div>
             <div class="col-md-2"><div class="form-group mb-0"><label>Loại</label><select name="type" class="form-control"><option value="">-- Tất cả --</option><option value="thư giãn" ' . ($filterType === 'thư giãn' ? 'selected' : '') . '>Thư giãn</option><option value="xoa bóp" ' . ($filterType === 'xoa bóp' ? 'selected' : '') . '>Xoa bóp</option><option value="hỗ trợ" ' . ($filterType === 'hỗ trợ' ? 'selected' : '') . '>Hỗ trợ</option></select></div></div>
-            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="còn hiệu lực" ' . ($filterStatus === 'còn hiệu lực' ? 'selected' : '') . '>Còn hiệu lực</option><option value="đã dùng" ' . ($filterStatus === 'đã dùng' ? 'selected' : '') . '>Đã dùng</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="còn hiệu lực" ' . ($filterStatus === 'còn hiệu lực' ? 'selected' : '') . '>Còn hiệu lực</option><option value="đã dùng" ' . ($filterStatus === 'đã dùng' ? 'selected' : '') . '>Đã dùng</option><option value="hết hạn" ' . ($filterStatus === 'hết hạn' ? 'selected' : '') . '>Hết hạn</option><option value="bị hủy" ' . ($filterStatus === 'bị hủy' ? 'selected' : '') . '>Bị hủy</option></select></div></div>
             <div class="col-md-2"><div class="form-group mb-0"><label>Từ ngày</label><input type="date" name="from_date" class="form-control" value="' . htmlspecialchars($filterFromDate) . '"></div></div>
             <div class="col-md-2"><div class="form-group mb-0"><label>Đến ngày</label><input type="date" name="to_date" class="form-control" value="' . htmlspecialchars($filterToDate) . '"></div></div>
           ';
@@ -261,9 +556,9 @@ include 'layout/sidebar.php';
             <div class="info-box">
               <span class="info-box-icon bg-success"><i class="fas fa-check-circle"></i></span>
               <div class="info-box-content">
-                <span class="info-box-text">Còn hiệu lực</span>
+                <span class="info-box-text">Còn dùng được</span>
                 <span class="info-box-number">
-                  <?= count(array_filter($records, function($r) { return $r['status'] === 'còn hiệu lực'; })) ?>
+                  <?= count(array_filter($records, function($r) { return normalizeMemberServiceStatus($r['status'] ?? 'còn hiệu lực') === 'còn hiệu lực'; })) ?>
                 </span>
               </div>
             </div>
@@ -272,9 +567,9 @@ include 'layout/sidebar.php';
             <div class="info-box">
               <span class="info-box-icon bg-secondary"><i class="fas fa-history"></i></span>
               <div class="info-box-content">
-                <span class="info-box-text">Đã dùng</span>
+                <span class="info-box-text">Đã sử dụng xong</span>
                 <span class="info-box-number">
-                  <?= count(array_filter($records, function($r) { return $r['status'] === 'đã dùng'; })) ?>
+                  <?= count(array_filter($records, function($r) { return normalizeMemberServiceStatus($r['status'] ?? 'còn hiệu lực') === 'đã dùng'; })) ?>
                 </span>
               </div>
             </div>
@@ -325,22 +620,30 @@ include 'layout/sidebar.php';
                     <td><?= $row['end_date'] ? date('d/m/Y', strtotime($row['end_date'])) : '<span class="text-muted">—</span>' ?></td>
                     <td>
                       <?php if (!empty($row['is_expired'])): ?>
-                        <span class="badge badge-secondary">Hết hiệu lực</span>
-                      <?php elseif ($row['status'] === 'còn hiệu lực'): ?>
-                        <span class="badge badge-success">Còn hiệu lực</span>
+                        <span class="badge badge-secondary">Hết hạn</span>
+                      <?php elseif (normalizeMemberServiceStatus($row['status'] ?? 'còn hiệu lực') === 'còn hiệu lực'): ?>
+                        <span class="badge badge-success"><?= memberServiceStatusLabel('còn hiệu lực') ?></span>
+                      <?php elseif (normalizeMemberServiceStatus($row['status'] ?? 'còn hiệu lực') === 'đã dùng'): ?>
+                        <span class="badge badge-secondary"><?= memberServiceStatusLabel('đã dùng') ?></span>
+                      <?php elseif (normalizeMemberServiceStatus($row['status'] ?? 'còn hiệu lực') === 'hết hạn'): ?>
+                        <span class="badge badge-warning"><?= memberServiceStatusLabel('hết hạn') ?></span>
                       <?php else: ?>
-                        <span class="badge badge-secondary">Đã dùng</span>
+                        <span class="badge badge-danger"><?= memberServiceStatusLabel('bị hủy') ?></span>
                       <?php endif; ?>
                     </td>
                     <td>
                       <button type="button" class="btn btn-warning btn-sm btn-edit"
                         data-id="<?= $row['id'] ?>"
-                        data-member_id="<?= $row['member_id'] ?>"
-                        data-service_id="<?= $row['service_id'] ?>"
-                        data-start_date="<?= $row['start_date'] ?>"
-                        data-end_date="<?= $row['end_date'] ?? '' ?>"
-                        data-status="<?= htmlspecialchars($row['status']) ?>"
-                        <?= !empty($row['is_expired']) ? 'disabled title="Bản ghi đã quá ngày kết thúc nên không thể sửa"' : 'data-toggle="modal" data-target="#editModal"' ?>
+                        data-member-id="<?= $row['member_id'] ?>"
+                        data-member-name="<?= htmlspecialchars($row['member_name'] ?? 'N/A') ?>"
+                        data-service-id="<?= $row['service_id'] ?>"
+                        data-service-name="<?= htmlspecialchars($row['service_name'] ?? 'N/A') ?>"
+                        data-service-type="<?= htmlspecialchars($row['service_type'] ?? '') ?>"
+                        data-start-date="<?= $row['start_date'] ?>"
+                        data-end-date="<?= $row['end_date'] ?? '' ?>"
+                        data-status="<?= htmlspecialchars(normalizeMemberServiceStatus($row['status'] ?? 'còn hiệu lực')) ?>"
+                        data-editable="<?= memberServiceCanEdit($row['status'] ?? 'còn hiệu lực') ? '1' : '0' ?>"
+                        <?= memberServiceCanEdit($row['status'] ?? 'còn hiệu lực') ? 'data-toggle="modal" data-target="#editModal"' : 'disabled title="Chỉ được sửa khi trạng thái còn hiệu lực"' ?>
                         >
                         <i class="fas fa-edit"></i>
                       </button>
@@ -349,7 +652,7 @@ include 'layout/sidebar.php';
                         data-member="<?= htmlspecialchars($row['member_name'] ?? 'N/A') ?>"
                         data-service="<?= htmlspecialchars($row['service_name'] ?? 'N/A') ?>"
                         data-toggle="modal" data-target="#deleteModal">
-                        <i class="fas fa-trash"></i>
+                        <i class="fas fa-ban"></i>
                       </button>
                     </td>
                   </tr>
@@ -425,6 +728,8 @@ include 'layout/sidebar.php';
                 <select class="form-control" name="status" data-field="status">
                   <option value="còn hiệu lực">Còn hiệu lực</option>
                   <option value="đã dùng">Đã dùng</option>
+                  <option value="hết hạn">Hết hạn</option>
+                  <option value="bị hủy">Bị hủy</option>
                 </select>
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
@@ -451,8 +756,8 @@ include 'layout/sidebar.php';
             </div>
             <div class="modal-body">
               <div class="form-group">
-                <label>Hội viên <span class="text-danger">*</span></label>
-                <select class="form-control" name="member_id" id="edit-member_id" data-field="member_id">
+                <label>Hội viên</label>
+                <select class="form-control" name="member_id" id="edit-member_id" data-field="member_id" disabled>
                   <option value="">-- Chọn hội viên --</option>
                   <?php foreach ($members as $member): ?>
                     <option value="<?= $member['id'] ?>">
@@ -463,8 +768,8 @@ include 'layout/sidebar.php';
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
-                <label>Dịch vụ <span class="text-danger">*</span></label>
-                <select class="form-control" name="service_id" id="edit-service_id" data-field="service_id">
+                <label>Dịch vụ</label>
+                <select class="form-control" name="service_id" id="edit-service_id" data-field="service_id" disabled>
                   <option value="">-- Chọn dịch vụ --</option>
                   <?php foreach ($services as $svc): ?>
                     <option value="<?= $svc['id'] ?>">
@@ -474,27 +779,23 @@ include 'layout/sidebar.php';
                 </select>
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="form-group">
-                    <label>Ngày bắt đầu <span class="text-danger">*</span></label>
-                    <input type="date" class="form-control" name="start_date" id="edit-start_date" data-field="start_date">
-                    <small class="text-danger d-block mt-2" style="display:none;"></small>
-                  </div>
-                </div>
-                <div class="col-md-6">
-                  <div class="form-group">
-                    <label>Ngày kết thúc</label>
-                    <input type="date" class="form-control" name="end_date" id="edit-end_date" data-field="end_date">
-                    <small class="text-danger d-block mt-2" style="display:none;"></small>
-                  </div>
-                </div>
+              <div class="form-group">
+                <label>Ngày bắt đầu</label>
+                <input type="date" class="form-control" name="start_date" id="edit-start_date" data-field="start_date" disabled>
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
+              </div>
+              <div class="form-group">
+                <label>Ngày kết thúc</label>
+                <input type="date" class="form-control" name="end_date" id="edit-end_date" data-field="end_date">
+                <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Trạng thái</label>
                 <select class="form-control" name="status" id="edit-status" data-field="status">
                   <option value="còn hiệu lực">Còn hiệu lực</option>
                   <option value="đã dùng">Đã dùng</option>
+                  <option value="hết hạn">Hết hạn</option>
+                  <option value="bị hủy">Bị hủy</option>
                 </select>
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
@@ -550,19 +851,26 @@ $(function() {
     });
   }
 
-  $('.btn-edit').on('click', function() {
-    $('#edit-id').val($(this).data('id'));
-    $('#edit-member_id').val($(this).data('member_id'));
-    $('#edit-service_id').val($(this).data('service_id'));
-    $('#edit-start_date').val($(this).data('start_date'));
-    $('#edit-end_date').val($(this).data('end_date'));
-    $('#edit-status').val($(this).data('status'));
+  $('#deleteModal').on('show.bs.modal', function(event) {
+    var button = $(event.relatedTarget);
+    $('#delete-id').val(button.data('id'));
+    $('#delete-member').text(button.data('member'));
+    $('#delete-service').text(button.data('service'));
   });
 
-  $('.btn-delete').on('click', function() {
-    $('#delete-id').val($(this).data('id'));
-    $('#delete-member').text($(this).data('member'));
-    $('#delete-service').text($(this).data('service'));
+  $('#editModal').on('show.bs.modal', function(event) {
+    var button = $(event.relatedTarget);
+    var status = button.attr('data-status') || 'còn hiệu lực';
+
+    $('#edit-id').val(button.attr('data-id'));
+    $('#edit-member_id').val(button.attr('data-member-id'));
+    $('#edit-service_id').val(button.attr('data-service-id'));
+    $('#edit-start_date').val(button.attr('data-start-date'));
+    $('#edit-end_date').val(button.attr('data-end-date'));
+    $('#edit-status').val(status);
+
+    $('#edit-end_date').prop('disabled', false);
+    $('#edit-status').prop('disabled', false);
   });
 });
 
@@ -578,7 +886,7 @@ $(function() {
   function box(input) { return input.closest('.form-group')?.querySelector('small.text-danger') || null; }
   function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
   function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
-  function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); clear(input); if (!field) return true; if (!value) { show(input, label(field)); return false; } return true; }
+  function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); clear(input); if (!field || input.disabled) return true; if (!value) { show(input, label(field)); return false; } return true; }
   document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
   document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
   document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);

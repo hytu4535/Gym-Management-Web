@@ -2,25 +2,15 @@
 require_once __DIR__ . '/_permission_guard.php';
 processRequirePermission('MANAGE_SALES', 'edit');
 
-require_once '../../config/db.php';
+require_once __DIR__ . '/category_repository.php';
 
 if (isset($_POST['btn_edit_category'])) {
-    $id = (int)$_POST['id'];
-    $status = $_POST['status'];
+    [$ok, $message] = updateCategory($_POST['id'] ?? 0, $_POST['name'] ?? '', $_POST['description'] ?? '');
 
-    $name = $conn->real_escape_string($_POST['name']);
-    $description = $conn->real_escape_string($_POST['description']);
-
-    $sql = "UPDATE categories SET 
-            name = '$name', 
-            description = '$description', 
-            status = '$status' 
-            WHERE id = $id";
-
-    if ($conn->query($sql) === TRUE) {
-        echo "<script>alert('Cập nhật danh mục thành công!'); window.location.href='../categories.php';</script>";
+    if ($ok) {
+        echo "<script>alert(" . json_encode($message, JSON_UNESCAPED_UNICODE) . "); window.location.href='../categories.php';</script>";
     } else {
-        echo "<script>alert('Lỗi: " . $conn->error . "'); window.history.back();</script>";
+        echo "<script>alert(" . json_encode($message, JSON_UNESCAPED_UNICODE) . "); window.history.back();</script>";
     }
 } else {
     header("Location: ../categories.php");

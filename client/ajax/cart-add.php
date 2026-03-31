@@ -106,6 +106,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Gói tập không tồn tại.');
             }
 
+            $stmt_active_package = $conn->prepare(
+                "SELECT id
+                 FROM member_packages
+                 WHERE member_id = ? AND status = 'active' AND end_date >= CURDATE()
+                 LIMIT 1"
+            );
+            $stmt_active_package->bind_param("i", $member_id);
+            $stmt_active_package->execute();
+            $activePackage = $stmt_active_package->get_result()->fetch_assoc();
+            $stmt_active_package->close();
+
+            if ($activePackage) {
+                throw new Exception('Bạn đang có gói tập hoạt động. Vui lòng chờ gói cũ hết hạn hoặc hủy trước khi đăng ký gói mới.');
+            }
+
+            $stmt_package_in_cart = $conn->prepare(
+                "SELECT COUNT(*) AS total
+                 FROM carts c
+                 JOIN cart_items ci ON ci.cart_id = c.id AND ci.item_type = 'package'
+                 WHERE c.member_id = ? AND c.status = 'active'"
+            );
+            $stmt_package_in_cart->bind_param("i", $member_id);
+            $stmt_package_in_cart->execute();
+            $packageInCartCount = (int) ($stmt_package_in_cart->get_result()->fetch_assoc()['total'] ?? 0);
+            $stmt_package_in_cart->close();
+
+            if ($packageInCartCount > 0) {
+                throw new Exception('Bạn đang có gói tập trong giỏ hàng. Hãy thanh toán hoặc xóa gói cũ trước khi thêm gói mới.');
+            }
+
             $stmt_registered = $conn->prepare("SELECT id FROM member_packages WHERE member_id = ? AND package_id = ? AND status = 'active' LIMIT 1");
             $stmt_registered->bind_param("ii", $member_id, $item_id);
             $stmt_registered->execute();
@@ -135,9 +165,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$service) {
                 throw new Exception('Dịch vụ không tồn tại hoặc đã ngưng hoạt động.');
             }
+
+            $stmt_service_usage = $conn->prepare(
+                "SELECT id
+                 FROM member_services
+                 WHERE member_id = ?
+                   AND service_id = ?
+                                     AND status = 'còn hiệu lực'
+                                     AND end_date >= CURDATE()
+                 LIMIT 1"
+            );
+            $stmt_service_usage->bind_param("ii", $member_id, $item_id);
+            $stmt_service_usage->execute();
+            $existingServiceUsage = $stmt_service_usage->get_result()->fetch_assoc();
+            $stmt_service_usage->close();
+
+            if ($existingServiceUsage) {
+                throw new Exception('Bạn đã đăng ký dịch vụ này rồi. Mỗi dịch vụ chỉ được sử dụng 1 lần.');
+            }
         }
 
         $cart_id = getOrCreateActiveCart($conn, $member_id);
+
+        if ($item_type === 'package') {
+            $stmt_existing_package = $conn->prepare(
+                "SELECT COUNT(*) AS total
+                 FROM cart_items
+                 WHERE cart_id = ? AND item_type = 'package'"
+            );
+            $stmt_existing_package->bind_param("i", $cart_id);
+            $stmt_existing_package->execute();
+            $existingPackageCount = (int) ($stmt_existing_package->get_result()->fetch_assoc()['total'] ?? 0);
+            $stmt_existing_package->close();
+
+            if ($existingPackageCount > 0) {
+                throw new Exception('Giỏ hàng của bạn đã có gói tập. Bạn chỉ được sử dụng một gói tập tại một thời điểm.');
+            }
+        }
+
         $stmt_item = $conn->prepare("SELECT id, quantity FROM cart_items WHERE cart_id = ? AND item_type = ? AND item_id = ?");
         $stmt_item->bind_param("isi", $cart_id, $item_type, $item_id);
         $stmt_item->execute();
@@ -146,7 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($item_res) {
             if ($item_type === 'package') {
-                throw new Exception('Gói tập này đã có trong giỏ hàng.');
+                throw new Exception('Giỏ hàng của bạn đã có gói tập. Bạn chỉ được sử dụng một gói tập tại một thời điểm.');
             }
 
             if ($item_type === 'service') {

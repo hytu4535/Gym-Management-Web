@@ -197,14 +197,6 @@ include 'layout/header.php';
                                             <td colspan="4" class="text-right"><strong>Giảm giá hạng <?php echo htmlspecialchars($order['tier_name'] ?? 'Thành viên'); ?> (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
                                             <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
-                                        <tr>
-                                            <td colspan="4" class="text-right"><strong><?php echo htmlspecialchars($promotion_name); ?>:</strong></td>
-                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</strong></td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="4" class="text-right"><strong>Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
-                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($tier_discount_amount, 0, ',', '.'); ?>đ</strong></td>
-                                        </tr>
                                         <?php if ($promotion_discount_amount > 0): ?>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong><?php echo htmlspecialchars($promotion_name); ?>:</strong></td>

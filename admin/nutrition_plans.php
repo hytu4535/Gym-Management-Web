@@ -72,9 +72,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'delete') {
         $id = intval($_POST['id']);
         try {
-            $stmt = $db->prepare("DELETE FROM nutrition_plans WHERE id = ?");
-            $stmt->execute([$id]);
-            setFlashMessage('success', 'Xóa chế độ dinh dưỡng thành công!');
+            // Kiểm tra xem chế độ dinh dưỡng này có đang được hội viên sử dụng không
+            $check_stmt = $db->prepare("SELECT COUNT(*) as count FROM member_nutrition_plans WHERE nutrition_plan_id = ? AND status = 'đã áp dụng'");
+            $check_stmt->execute([$id]);
+            $check_result = $check_stmt->fetch();
+            
+            if ($check_result && $check_result['count'] > 0) {
+                setFlashMessage('warning', 'Không thể xóa chế độ dinh dưỡng này vì đang được ' . $check_result['count'] . ' hội viên sử dụng. Hãy cập nhật trạng thái hội viên trước!');
+            } else {
+                // Xóa nếu không có ai sử dụng
+                $stmt = $db->prepare("DELETE FROM nutrition_plans WHERE id = ?");
+                $stmt->execute([$id]);
+                setFlashMessage('success', 'Xóa chế độ dinh dưỡng thành công!');
+            }
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: Không thể xóa chế độ dinh dưỡng. ' . $e->getMessage());
         }
@@ -174,21 +184,19 @@ include 'layout/sidebar.php';
                       <?php endif; ?>
                     </td>
                     <td>
-                      <button class="btn btn-warning btn-sm btn-edit"
+                      <button type="button" class="btn btn-warning btn-sm btn-edit"
                         data-id="<?= $plan['id'] ?>"
                         data-name="<?= htmlspecialchars($plan['name']) ?>"
                         data-type="<?= $plan['type'] ?>"
                         data-calories="<?= $plan['calories'] ?? '' ?>"
                         data-bmi="<?= htmlspecialchars($plan['bmi_range'] ?? '') ?>"
                         data-description="<?= htmlspecialchars($plan['description'] ?? '') ?>"
-                        data-status="<?= $plan['status'] ?>"
-                        data-toggle="modal" data-target="#editNutritionModal">
+                        data-status="<?= $plan['status'] ?>">
                         <i class="fas fa-edit"></i>
                       </button>
-                      <button class="btn btn-danger btn-sm btn-delete"
+                      <button type="button" class="btn btn-danger btn-sm btn-delete"
                         data-id="<?= $plan['id'] ?>"
-                        data-name="<?= htmlspecialchars($plan['name']) ?>"
-                        data-toggle="modal" data-target="#deleteNutritionModal">
+                        data-name="<?= htmlspecialchars($plan['name']) ?>">
                         <i class="fas fa-trash"></i>
                       </button>
                     </td>
@@ -207,7 +215,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="addNutritionModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="nutrition_plans.php" novalidate>
+          <form method="POST" action="nutrition_plans.php" novalidate id="addNutritionForm">
             <input type="hidden" name="action" value="add">
             <div class="modal-header">
               <h5 class="modal-title">Thêm chế độ dinh dưỡng mới</h5>
@@ -269,7 +277,7 @@ include 'layout/sidebar.php';
     <div class="modal fade" id="editNutritionModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <form method="POST" action="nutrition_plans.php" novalidate>
+          <form method="POST" action="nutrition_plans.php" novalidate id="editNutritionForm">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
             <div class="modal-header">
@@ -359,21 +367,51 @@ include 'layout/sidebar.php';
 <!-- Script xử lý modal -->
 <script>
 $(function() {
-  // Điền dữ liệu vào modal sửa
-  $('.btn-edit').on('click', function() {
-    $('#edit-id').val($(this).data('id'));
-    $('#edit-name').val($(this).data('name'));
-    $('#edit-type').val($(this).data('type'));
-    $('#edit-calories').val($(this).data('calories'));
-    $('#edit-bmi').val($(this).data('bmi'));
-    $('#edit-description').val($(this).data('description'));
-    $('#edit-status').val($(this).data('status'));
+  // Reset form thêm mới khi mở modal
+  $('#addNutritionModal').on('show.bs.modal', function() {
+    $('#addNutritionForm')[0].reset();
+    // Focus vào field đầu tiên
+    setTimeout(function() {
+      $('#addNutritionForm').find('[data-field="name"]').focus();
+    }, 100);
+  });
+  
+  // Xử lý click nút sửa
+  $(document).on('click', '.btn-edit', function() {
+    const id = $(this).data('id');
+    const name = $(this).data('name');
+    const type = $(this).data('type');
+    const calories = $(this).data('calories');
+    const bmi = $(this).data('bmi');
+    const description = $(this).data('description');
+    const status = $(this).data('status');
+    
+    // Load dữ liệu vào form
+    $('#edit-id').val(id);
+    $('#edit-name').val(name);
+    $('#edit-type').val(type);
+    $('#edit-calories').val(calories);
+    $('#edit-bmi').val(bmi);
+    $('#edit-description').val(description);
+    $('#edit-status').val(status);
+    
+    // Mở modal
+    $('#editNutritionModal').modal('show');
+  });
+  
+  // Focus vào field name khi mở modal sửa
+  $('#editNutritionModal').on('shown.bs.modal', function() {
+    setTimeout(function() {
+      $('#edit-name').focus();
+    }, 100);
   });
 
-  // Điền dữ liệu vào modal xóa
-  $('.btn-delete').on('click', function() {
+  // Xử lý click nút xóa
+  $(document).on('click', '.btn-delete', function() {
     $('#delete-id').val($(this).data('id'));
     $('#delete-name').text($(this).data('name'));
+    // Mở modal xóa
+    $('#deleteNutritionModal').modal('show');
   });
 });
 
@@ -402,6 +440,22 @@ $(function() {
   document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
   document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
   document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
-  document.addEventListener('submit', function(e){ if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return; let ok = true; e.target.querySelectorAll('[data-field]').forEach(function(field){ if (!validate(field)) ok = false; }); if (!ok) e.preventDefault(); }, true);
+  document.addEventListener('submit', function(e){ 
+    if (!e.target.hasAttribute || !e.target.hasAttribute('novalidate')) return; 
+    let ok = true;
+    let firstInvalidField = null;
+    e.target.querySelectorAll('[data-field]').forEach(function(field){ 
+      if (!validate(field)) {
+        if (!firstInvalidField) firstInvalidField = field;
+        ok = false; 
+      }
+    }); 
+    if (!ok) {
+      e.preventDefault();
+      if (firstInvalidField) {
+        setTimeout(function() { firstInvalidField.focus(); }, 100);
+      }
+    }
+  }, true);
 })();
 </script>

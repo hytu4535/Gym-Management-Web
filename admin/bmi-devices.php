@@ -22,14 +22,31 @@ $messageType = '';
 if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
   checkPermission('MANAGE_MEMBERS', 'delete');
 
-    try {
-        $stmt = $db->prepare("DELETE FROM bmi_devices WHERE id = ?");
-        $stmt->execute([$_GET['id']]);
-        $message = "Xóa máy đo BMI thành công!";
-        $messageType = "success";
-    } catch (PDOException $e) {
-      $message = toVietnameseDbError($e, 'Không thể xóa máy đo BMI.');
-        $messageType = "danger";
+    $deviceId = (int) $_GET['id'];
+    $usageStmt = $db->prepare('SELECT COUNT(*) AS total FROM bmi_measurements WHERE device_id = ?');
+    $usageStmt->execute([$deviceId]);
+    $usageCount = (int) ($usageStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+
+    if ($usageCount > 0) {
+      try {
+          $stmt = $db->prepare("UPDATE bmi_devices SET status = 'inactive' WHERE id = ?");
+          $stmt->execute([$deviceId]);
+          $message = 'Máy này đã được sử dụng, không thể xóa, đã chuyển trạng thái thành "không hoạt động".';
+          $messageType = 'warning';
+      } catch (PDOException $e) {
+          $message = toVietnameseDbError($e, 'Không thể cập nhật trạng thái máy đo BMI.');
+          $messageType = 'danger';
+      }
+    } else {
+      try {
+          $stmt = $db->prepare("DELETE FROM bmi_devices WHERE id = ?");
+          $stmt->execute([$deviceId]);
+          $message = "Xóa máy đo BMI thành công!";
+          $messageType = "success";
+      } catch (PDOException $e) {
+        $message = toVietnameseDbError($e, 'Không thể xóa máy đo BMI.');
+          $messageType = "danger";
+      }
     }
 }
 
@@ -65,7 +82,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // Lấy danh sách máy đo BMI
-$stmt = $db->query("SELECT * FROM bmi_devices ORDER BY id DESC");
+$stmt = $db->query("SELECT d.*, (
+                        SELECT COUNT(*)
+                        FROM bmi_measurements bm
+                        WHERE bm.device_id = d.id
+                      ) AS measurement_count
+                    FROM bmi_devices d
+                    ORDER BY d.id DESC");
 $devices = $stmt->fetchAll();
 
 include 'layout/header.php'; 

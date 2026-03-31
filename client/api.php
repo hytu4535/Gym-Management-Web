@@ -179,6 +179,21 @@ function handleRegisterPackage(PDO $db, $member, $packageId)
         jsonResponse(false, 'Gói tập không tồn tại hoặc đã ngừng hoạt động.');
     }
 
+    $activeStmt = $db->prepare(
+        "SELECT mp.id, p.package_name
+         FROM member_packages mp
+         INNER JOIN membership_packages p ON p.id = mp.package_id
+         WHERE mp.member_id = ? AND mp.status = 'active' AND mp.end_date >= CURDATE()
+         ORDER BY mp.end_date DESC, mp.id DESC
+         LIMIT 1"
+    );
+    $activeStmt->execute([$memberId]);
+    $activePackage = $activeStmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($activePackage) {
+        jsonResponse(false, 'Bạn đang có gói tập hoạt động. Vui lòng chờ gói cũ hết hạn hoặc hủy trước khi đăng ký gói mới.');
+    }
+
     $checkStmt = $db->prepare(
         "SELECT COUNT(*)
          FROM member_packages

@@ -591,12 +591,12 @@ CREATE TABLE `member_services` (
   `service_id` int NOT NULL,
   `start_date` date NOT NULL,
   `end_date` date DEFAULT NULL,
-  `status` enum('còn hiệu lực','đã dùng') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'còn hiệu lực',
+  `status` enum('còn hiệu lực','đã dùng','hết hạn','bị hủy') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'còn hiệu lực',
   PRIMARY KEY (`id`),
   KEY `idx_member_services_member` (`member_id`),
   KEY `idx_member_services_service` (`service_id`),
-  CONSTRAINT `member_services_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `member_services_ibfk_2` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE CASCADE
+  CONSTRAINT `member_services_ibfk_1` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `member_services_ibfk_2` FOREIGN KEY (`service_id`) REFERENCES `services` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Hội viên sử dụng dịch vụ';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -606,7 +606,7 @@ CREATE TABLE `member_services` (
 
 LOCK TABLES `member_services` WRITE;
 /*!40000 ALTER TABLE `member_services` DISABLE KEYS */;
-INSERT INTO `member_services` VALUES (1,2,4,'2026-02-19','2026-02-20','đã dùng'),(2,1,4,'2026-03-18',NULL,'còn hiệu lực'),(3,26,5,'2026-03-28',NULL,'còn hiệu lực');
+INSERT INTO `member_services` VALUES (1,2,4,'2026-02-19','2026-02-20','đã dùng'),(2,1,4,'2026-03-18','2026-04-18','còn hiệu lực'),(3,26,5,'2026-03-28','2026-04-28','còn hiệu lực');
 /*!40000 ALTER TABLE `member_services` ENABLE KEYS */;
 UNLOCK TABLES;
 

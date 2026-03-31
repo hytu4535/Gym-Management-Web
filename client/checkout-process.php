@@ -101,6 +101,35 @@ try {
     }
     $stmt_cart->close();
 
+    $packageItemCount = 0;
+    foreach ($cart_items as $cartItem) {
+        if ($cartItem['item_type'] === 'package') {
+            $packageItemCount++;
+        }
+    }
+
+    if ($packageItemCount > 1) {
+        throw new Exception('Giỏ hàng chỉ được chứa một gói tập tại một thời điểm.');
+    }
+
+    $hasActivePackage = false;
+    if ($packageItemCount > 0) {
+        $stmt_active_package = $conn->prepare(
+            "SELECT 1
+             FROM member_packages
+             WHERE member_id = ? AND status = 'active' AND end_date >= CURDATE()
+             LIMIT 1"
+        );
+        $stmt_active_package->bind_param("i", $member_id);
+        $stmt_active_package->execute();
+        $hasActivePackage = (bool) $stmt_active_package->get_result()->fetch_row();
+        $stmt_active_package->close();
+    }
+
+    if ($packageItemCount > 0 && $hasActivePackage) {
+        throw new Exception('Bạn đang có gói tập hoạt động. Vui lòng chờ gói cũ hết hạn hoặc hủy trước khi thanh toán gói mới.');
+    }
+
     $address_id = 0;
     if ($hasPhysicalProducts) {
         if ($use_new_address === 1) {
@@ -282,9 +311,12 @@ try {
         }
 
         if ($item_type === 'service') {
-            $startDate = (new DateTime('today'))->format('Y-m-d');
-            $stmt_service = $conn->prepare("INSERT INTO member_services (member_id, service_id, start_date, end_date, status) VALUES (?, ?, ?, NULL, 'còn hiệu lực')");
-            $stmt_service->bind_param("iis", $member_id, $item_id, $startDate);
+            $startDate = new DateTime('today');
+            $endDate = (clone $startDate)->modify('+1 month');
+            $stmt_service = $conn->prepare("INSERT INTO member_services (member_id, service_id, start_date, end_date, status) VALUES (?, ?, ?, ?, 'còn hiệu lực')");
+            $startDateString = $startDate->format('Y-m-d');
+            $endDateString = $endDate->format('Y-m-d');
+            $stmt_service->bind_param("iiss", $member_id, $item_id, $startDateString, $endDateString);
             $stmt_service->execute();
             $stmt_service->close();
             continue;

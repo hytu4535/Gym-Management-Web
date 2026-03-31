@@ -61,6 +61,7 @@ $res_items = $stmt_items->get_result();
 $order_items = [];
 $total_items_cost = 0;
 $base_discount_amount = 0;
+$tier_discount_amount = 0;
 $has_physical_products = false;
 while($row = $res_items->fetch_assoc()) {
     $subtotal = $row['price'] * $row['quantity'];
@@ -86,6 +87,7 @@ $shipping_fee = $has_physical_products ? 30000 : 0;
 $final_total = (float)$order['total_amount']; 
 $base_discount_amount = $cart_subtotal - $promotion_discount_amount + $shipping_fee - $final_total;
 $base_discount_amount = max(0, round($base_discount_amount, 0));
+$tier_discount_amount = $base_discount_amount;
 $base_discount_percent = $cart_subtotal > 0 ? ($base_discount_amount / $cart_subtotal) * 100 : 0;
 
 $subtotal_after_base = max($cart_subtotal - $base_discount_amount, 0);
@@ -201,16 +203,6 @@ include 'layout/header.php';
                                             <td colspan="4" class="text-right"><strong><?php echo htmlspecialchars($promotion_name); ?>:</strong></td>
                                             <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
-                                        <tr>
-                                            <td colspan="4" class="text-right"><strong>Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
-                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($tier_discount_amount, 0, ',', '.'); ?>đ</strong></td>
-                                        </tr>
-                                        <?php if ($promotion_discount_amount > 0): ?>
-                                        <tr>
-                                            <td colspan="4" class="text-right"><strong><?php echo htmlspecialchars($promotion_name); ?>:</strong></td>
-                                            <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($promotion_discount_amount, 0, ',', '.'); ?>đ</strong></td>
-                                        </tr>
-                                        <?php endif; ?>
                                         <?php if ($has_physical_products || $shipping_fee > 0): ?>
                                         <tr>
                                             <td colspan="4" class="text-right"><strong>Phí vận chuyển:</strong></td>

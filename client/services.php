@@ -10,6 +10,25 @@ $activeMemberServiceIds = [];
 $cartServiceIds = [];
 $userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 
+function normalizeClientServiceStatus($status) {
+    $status = strtolower(trim((string) $status));
+
+    $aliases = [
+        'còn hiệu lực' => 'active',
+        'đã dùng' => 'used',
+        'hết hạn' => 'expired',
+        'bị hủy' => 'cancelled',
+    ];
+
+    if (isset($aliases[$status])) {
+        return $aliases[$status];
+    }
+
+    $allowed = ['active', 'used', 'expired', 'cancelled'];
+
+    return in_array($status, $allowed, true) ? $status : 'active';
+}
+
 $serviceQuery = $conn->query("SELECT id, name, img, type, price, description FROM services WHERE status = 'hoạt động' ORDER BY id ASC");
 if ($serviceQuery) {
     while ($row = $serviceQuery->fetch_assoc()) {
@@ -27,7 +46,7 @@ if ($userId > 0) {
     $memberId = (int) ($member['id'] ?? 0);
 
     if ($memberId > 0) {
-        $activeServiceStmt = $conn->prepare("SELECT service_id FROM member_services WHERE member_id = ? AND status = 'còn hiệu lực'");
+        $activeServiceStmt = $conn->prepare("SELECT service_id FROM member_services WHERE member_id = ? AND status = 'còn hiệu lực' AND end_date >= CURDATE()");
         $activeServiceStmt->bind_param("i", $memberId);
         $activeServiceStmt->execute();
         $activeServiceResult = $activeServiceStmt->get_result();
@@ -48,14 +67,14 @@ if ($userId > 0) {
         $cartStmt->close();
     }
 }
-
+                $activeServiceStmt = $conn->prepare("SELECT service_id FROM member_services WHERE member_id = ? AND status <> 'cancelled'");
 include 'layout/header.php';
 ?>
 
 <!-- Breadcrumb Section Begin -->
 <section class="breadcrumb-section set-bg" data-setbg="assets/img/breadcrumb-bg.jpg">
     <div class="container">
-        <div class="row">
+
             <div class="col-lg-12 text-center">
                 <div class="breadcrumb-text">
                     <h2>Dịch vụ</h2>
@@ -82,6 +101,9 @@ include 'layout/header.php';
             </div>
         </div>
         <div class="row">
+            <div class="col-lg-12 mb-4">
+                <div class="alert alert-info mb-0">Mỗi lần đăng ký dịch vụ tương đương 1 lần sử dụng, thời hạn 1 tháng kể từ ngày đăng ký.</div>
+            </div>
             <?php if (!empty($services)): ?>
                 <?php foreach ($services as $service): ?>
                     <?php
@@ -92,7 +114,7 @@ include 'layout/header.php';
                     $buttonDisabled = '';
 
                     if ($isActive) {
-                        $buttonLabel = 'Đang sử dụng';
+                        $buttonLabel = 'Đã đăng ký';
                         $buttonDisabled = 'disabled';
                     } elseif ($isInCart) {
                         $buttonLabel = 'Đã có trong giỏ';

@@ -120,11 +120,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $id = intval($_POST['id']);
         $name = sanitize($_POST['name']);
-        $type = $_POST['type'];
-        $price = floatval($_POST['price']);
         $description = sanitize($_POST['description']);
         $status = $_POST['status'];
         $oldImagePath = !empty($_POST['old_img']) ? sanitize($_POST['old_img']) : null;
+
+        $currentStmt = $db->prepare("SELECT type, price FROM services WHERE id = ? LIMIT 1");
+        $currentStmt->execute([$id]);
+        $currentService = $currentStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$currentService) {
+          setFlashMessage('danger', 'Không tìm thấy dịch vụ cần cập nhật.');
+          redirect('services.php');
+          exit;
+        }
+
+        $usageStmt = $db->prepare("SELECT COUNT(*) AS total FROM member_services WHERE service_id = ? AND status = 'còn hiệu lực'");
+        $usageStmt->execute([$id]);
+        $buyerCount = (int) ($usageStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+
+        $type = $buyerCount > 0 ? (string) $currentService['type'] : (string) $_POST['type'];
+        $price = $buyerCount > 0 ? (float) $currentService['price'] : floatval($_POST['price']);
 
         try {
           $imagePath = processServiceImageUpload('img', $oldImagePath);
@@ -147,19 +162,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         try {
         $stmt = $db->prepare("SELECT img FROM services WHERE id = ? LIMIT 1");
         $stmt->execute([$id]);
-        $serviceToDelete = $stmt->fetch();
+        $serviceToDelete = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $stmt = $db->prepare("DELETE FROM services WHERE id = ?");
-            $stmt->execute([$id]);
+        $usageStmt = $db->prepare("SELECT COUNT(*) AS total FROM member_services WHERE service_id = ? AND status = 'còn hiệu lực'");
+        $usageStmt->execute([$id]);
+        $buyerCount = (int) ($usageStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
 
-        if (!empty($serviceToDelete['img']) && strpos($serviceToDelete['img'], 'assets/uploads/services/') === 0) {
-          $oldAbsolutePath = __DIR__ . '/../' . ltrim($serviceToDelete['img'], '/');
-          if (is_file($oldAbsolutePath)) {
-            @unlink($oldAbsolutePath);
+        if ($buyerCount > 0) {
+          $stmt = $db->prepare("UPDATE services SET status = 'không hoạt động' WHERE id = ?");
+          $stmt->execute([$id]);
+          setFlashMessage('warning', 'Dịch vụ đã có người mua nên không thể xóa hẳn, đã chuyển trạng thái thành "không hoạt động".');
+        } else {
+          $stmt = $db->prepare("DELETE FROM services WHERE id = ?");
+          $stmt->execute([$id]);
+
+          if (!empty($serviceToDelete['img']) && strpos($serviceToDelete['img'], 'assets/uploads/services/') === 0) {
+            $oldAbsolutePath = __DIR__ . '/../' . ltrim($serviceToDelete['img'], '/');
+            if (is_file($oldAbsolutePath)) {
+              @unlink($oldAbsolutePath);
+            }
           }
-        }
 
-            setFlashMessage('success', 'Xóa dịch vụ thành công!');
+          setFlashMessage('success', 'Xóa dịch vụ thành công!');
+        }
         } catch (PDOException $e) {
             setFlashMessage('danger', 'Lỗi: Không thể xóa dịch vụ. ' . $e->getMessage());
         }
@@ -169,7 +194,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Lấy danh sách dịch vụ
-$stmt = $db->prepare("SELECT * FROM services" . $whereSql . " ORDER BY id DESC");
+$stmt = $db->prepare("SELECT s.*, (
+                      SELECT COUNT(*)
+                      FROM member_services ms
+                      WHERE ms.service_id = s.id AND ms.status = 'còn hiệu lực'
+                    ) AS buyer_count
+                    FROM services s" . $whereSql . " ORDER BY s.id DESC");
 $stmt->execute($whereParams);
 $services = $stmt->fetchAll();
 
@@ -284,12 +314,14 @@ include 'layout/sidebar.php';
                         data-description="<?= htmlspecialchars($service['description'] ?? '') ?>"
                         data-img="<?= htmlspecialchars($service['img'] ?? '') ?>"
                         data-status="<?= $service['status'] ?>"
+                        data-buyer-count="<?= (int) ($service['buyer_count'] ?? 0) ?>"
                         data-toggle="modal" data-target="#editServiceModal">
                         <i class="fas fa-edit"></i>
                       </button>
                       <button class="btn btn-danger btn-sm btn-delete"
                         data-id="<?= $service['id'] ?>"
                         data-name="<?= htmlspecialchars($service['name']) ?>"
+                        data-buyer-count="<?= (int) ($service['buyer_count'] ?? 0) ?>"
                         data-toggle="modal" data-target="#deleteServiceModal">
                         <i class="fas fa-trash"></i>
                       </button>
@@ -390,11 +422,13 @@ include 'layout/sidebar.php';
                   <option value="hỗ trợ">Hỗ trợ</option>
                 </select>
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
+                <small class="text-muted d-block mt-2" id="edit-type-hint" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Giá (VNĐ) <span class="text-danger">*</span></label>
                 <input type="number" class="form-control" name="price" id="edit-price" min="0" step="1000" data-field="price">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
+                <small class="text-muted d-block mt-2" id="edit-price-hint" style="display:none;"></small>
               </div>
               <div class="form-group">
                 <label>Mô tả</label>
@@ -443,7 +477,7 @@ include 'layout/sidebar.php';
             </div>
             <div class="modal-body">
               <p>Bạn có chắc chắn muốn xóa dịch vụ <strong id="delete-name"></strong>?</p>
-              <p class="text-danger"><small>Hành động này không thể hoàn tác!</small></p>
+              <p class="text-danger"><small>Nếu có người đã đăng ký dịch vụ này, chỉ đổi trạng thái thành "không hoạt động" </small></p>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-dismiss="modal">Hủy</button>
@@ -463,6 +497,7 @@ include 'layout/sidebar.php';
 $(function() {
   // Điền dữ liệu vào modal sửa
   $('.btn-edit').on('click', function() {
+    const buyerCount = parseInt($(this).data('buyer-count') || 0, 10);
     $('#edit-id').val($(this).data('id'));
     $('#edit-name').val($(this).data('name'));
     $('#edit-type').val($(this).data('type'));
@@ -472,6 +507,12 @@ $(function() {
     $('#edit-old-img').val(imgPath);
     $('#edit-preview-img').attr('src', imgPath ? ('../' + imgPath.replace(/^\/+/, '')) : '../assets/user_template/img/services/services-1.jpg');
     $('#edit-status').val($(this).data('status'));
+
+    const hasBuyer = buyerCount > 0;
+    $('#edit-type').prop('disabled', hasBuyer);
+    $('#edit-price').prop('disabled', hasBuyer);
+    $('#edit-type-hint').toggle(hasBuyer).text(hasBuyer ? 'Dịch vụ đã có người mua nên không thể đổi loại dịch vụ.' : '');
+    $('#edit-price-hint').toggle(hasBuyer).text(hasBuyer ? 'Dịch vụ đã có người mua nên không thể đổi giá.' : '');
   });
 
   // Điền dữ liệu vào modal xóa

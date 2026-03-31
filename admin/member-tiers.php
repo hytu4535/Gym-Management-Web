@@ -12,30 +12,34 @@ $db = getDB();
 $message = '';
 $messageType = '';
 
+if (!function_exists('tierMinSpentExists')) {
+  function tierMinSpentExists(PDO $db, $minSpent, $excludeId = 0): bool
+  {
+    // 1) Kiểm tra trùng mức chi tiêu tối thiểu, loại trừ chính bản ghi đang sửa.
+    $stmt = $db->prepare("SELECT COUNT(*) FROM member_tiers WHERE min_spent = ? AND id != ?");
+    $stmt->execute([$minSpent, (int) $excludeId]);
+    return (int) $stmt->fetchColumn() > 0;
+  }
+}
+
 if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
   checkPermission('MANAGE_MEMBERS', 'delete');
 
   $deleteId = (int) $_GET['id'];
 
   try {
-    $countStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE tier_id = ?");
-    $countStmt->execute([$deleteId]);
-    if ((int) $countStmt->fetchColumn() > 0) {
-      throw new Exception("Không thể xóa hạng này vì đang có hội viên sử dụng.");
-    }
+    $deactivateStmt = $db->prepare("UPDATE member_tiers SET status = 'inactive' WHERE id = ?");
+    $deactivateStmt->execute([$deleteId]);
 
-    $deleteStmt = $db->prepare("DELETE FROM member_tiers WHERE id = ?");
-    $deleteStmt->execute([$deleteId]);
-
-    if ($deleteStmt->rowCount() > 0) {
-      $message = "Xóa hạng hội viên thành công!";
+    if ($deactivateStmt->rowCount() > 0) {
+      $message = "Đã chuyển hạng hội viên sang không hoạt động!";
       $messageType = "success";
     } else {
-      $message = "Không tìm thấy hạng hội viên để xóa.";
+      $message = "Không tìm thấy hạng hội viên để cập nhật.";
       $messageType = "warning";
     }
   } catch (Exception $e) {
-      $message = toVietnameseDbError($e, 'Không thể xóa hạng hội viên.');
+      $message = toVietnameseDbError($e, 'Không thể vô hiệu hóa hạng hội viên.');
     $messageType = "danger";
   }
 }
@@ -59,6 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($level === '' || $level < 1) throw new Exception("Cấp độ phải >= 1.");
         if ($min_spent === '' || $min_spent < 0) throw new Exception("Chi tiêu tối thiểu phải >= 0.");
         if ($base_discount === '' || $base_discount < 0 || $base_discount > 100) throw new Exception("Giảm giá phải từ 0 đến 100%.");
+
+      // 1) Check trùng mức chi tiêu tối thiểu trước khi thêm/sửa.
+      if (tierMinSpentExists($db, $min_spent, $id ?: 0)) {
+        throw new Exception("Mức chi tiêu tối thiểu đã tồn tại ở một hạng khác.");
+      }
 
         if (isset($_POST['id']) && !empty($_POST['id'])) {
             $stmt = $db->prepare("UPDATE member_tiers SET name=?, level=?, min_spent=?, base_discount=?, status=? WHERE id=?");
@@ -175,8 +184,8 @@ include 'layout/sidebar.php';
                       <button class="btn btn-warning btn-sm" onclick='editTier(<?php echo json_encode($tier); ?>)' data-toggle="modal" data-target="#tierModal">
                         <i class="fas fa-edit"></i>
                       </button>
-                      <a href="?action=delete&id=<?php echo $tier['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa hạng này?')">
-                        <i class="fas fa-trash"></i>
+                      <a href="?action=delete&id=<?php echo $tier['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn chuyển hạng này sang không hoạt động?')">
+                        <i class="fas fa-ban"></i>
                       </a>
                     </td>
                   </tr>

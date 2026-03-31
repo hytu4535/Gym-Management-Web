@@ -62,12 +62,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
   checkPermission('MANAGE_MEMBERS', 'delete');
 
     try {
-        $stmt = $db->prepare("DELETE FROM member_packages WHERE id = ?");
-        $stmt->execute([$_GET['id']]);
-        $message = "Xóa gói tập thành công!";
+        $stmt = $db->prepare("UPDATE member_packages SET status = 'cancelled' WHERE id = ?");
+        $stmt->execute([(int) $_GET['id']]);
+        $message = "Đã hủy gói tập thành công!";
         $messageType = "success";
     } catch (PDOException $e) {
-      $message = toVietnameseDbError($e, 'Không thể xóa gói tập hội viên.');
+      $message = toVietnameseDbError($e, 'Không thể hủy gói tập hội viên.');
         $messageType = "danger";
     }
 }
@@ -80,20 +80,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       checkPermission('MANAGE_MEMBERS', 'add');
     }
 
-    $member_id = $_POST['member_id'];
-    $package_id = $_POST['package_id'];
-    $start_date = $_POST['start_date'];
     $end_date = $_POST['end_date'];
     $status = $_POST['status'];
     
     try {
         if (isset($_POST['id']) && !empty($_POST['id'])) {
-            // Cập nhật
-            $stmt = $db->prepare("UPDATE member_packages SET member_id=?, package_id=?, start_date=?, end_date=?, status=? WHERE id=?");
-            $stmt->execute([$member_id, $package_id, $start_date, $end_date, $status, $_POST['id']]);
+          // Cập nhật: chỉ cho phép sửa ngày hết hạn và trạng thái; member/package/start_date lấy từ bản ghi hiện tại.
+          $currentStmt = $db->prepare("SELECT member_id, package_id, start_date FROM member_packages WHERE id = ? LIMIT 1");
+          $currentStmt->execute([(int) $_POST['id']]);
+          $current = $currentStmt->fetch(PDO::FETCH_ASSOC);
+
+          if (!$current) {
+            throw new PDOException('Không tìm thấy gói tập hội viên.');
+          }
+
+          $stmt = $db->prepare("UPDATE member_packages SET member_id=?, package_id=?, start_date=?, end_date=?, status=? WHERE id=?");
+          $stmt->execute([
+            (int) $current['member_id'],
+            (int) $current['package_id'],
+            $current['start_date'],
+            $end_date,
+            $status,
+            (int) $_POST['id']
+          ]);
             $message = "Cập nhật gói tập thành công!";
         } else {
             // Thêm mới
+            $member_id = $_POST['member_id'] ?? null;
+            $package_id = $_POST['package_id'] ?? null;
+            $start_date = $_POST['start_date'] ?? null;
+
             $stmt = $db->prepare("INSERT INTO member_packages (member_id, package_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$member_id, $package_id, $start_date, $end_date, $status]);
             $message = "Thêm gói tập thành công!";
@@ -200,39 +216,40 @@ include 'layout/sidebar.php';
                     <th>Hành động</th>
                   </tr>
                   </thead>
-                  <tbody>
-                  <?php foreach ($memberPackages as $mp): ?>
                   <tr>
-                    <td><?php echo $mp['id']; ?></td>
-                    <td><?php echo htmlspecialchars((string) ($mp['full_name'] ?? '')); ?></td>
-                    <td><?php echo htmlspecialchars((string) ($mp['package_name'] ?? '')); ?></td>
-                    <td><?php echo $mp['duration_months']; ?> tháng</td>
-                    <td><?php echo number_format($mp['price'], 0, ',', '.'); ?> VNĐ</td>
-                    <td><?php echo date('d/m/Y', strtotime($mp['start_date'])); ?></td>
-                    <td><?php echo date('d/m/Y', strtotime($mp['end_date'])); ?></td>
-                    <td>
-                      <?php 
-                      $badgeClass = ['active' => 'success', 'expired' => 'danger', 'cancelled' => 'secondary'];
-                      $statusText = ['active' => 'Đang hoạt động', 'expired' => 'Hết hạn', 'cancelled' => 'Đã hủy'];
-                      $class = $badgeClass[$mp['status']] ?? 'secondary';
-                      $text = $statusText[$mp['status']] ?? $mp['status'];
-                      ?>
-                      <span class="badge badge-<?php echo $class; ?>"><?php echo $text; ?></span>
-                    </td>
-                    <td>
-                      <?php if ($canEditMemberPackage): ?>
-                      <button class="btn btn-warning btn-sm" onclick='editPackage(<?php echo json_encode($mp); ?>)' data-toggle="modal" data-target="#packageModal">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <?php endif; ?>
-                      <?php if ($canDeleteMemberPackage): ?>
-                      <a href="?action=delete&id=<?php echo $mp['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa?')">
-                        <i class="fas fa-trash"></i>
-                      </a>
-                      <?php endif; ?>
-                    </td>
-                  </tr>
-                  <?php endforeach; ?>
+                   <tbody>
+                   <?php foreach ($memberPackages as $mp): ?>
+                   <tr>
+                     <td><?php echo $mp['id']; ?></td>
+                     <td><?php echo htmlspecialchars((string) ($mp['full_name'] ?? '')); ?></td>
+                     <td><?php echo htmlspecialchars((string) ($mp['package_name'] ?? '')); ?></td>
+                     <td><?php echo $mp['duration_months']; ?> tháng</td>
+                     <td><?php echo number_format($mp['price'], 0, ',', '.'); ?> VNĐ</td>
+                     <td><?php echo date('d/m/Y', strtotime($mp['start_date'])); ?></td>
+                     <td><?php echo date('d/m/Y', strtotime($mp['end_date'])); ?></td>
+                     <td>
+                       <?php 
+                       $badgeClass = ['active' => 'success', 'expired' => 'danger', 'cancelled' => 'secondary'];
+                       $statusText = ['active' => 'Đang hoạt động', 'expired' => 'Hết hạn', 'cancelled' => 'Đã hủy'];
+                       $class = $badgeClass[$mp['status']] ?? 'secondary';
+                       $text = $statusText[$mp['status']] ?? $mp['status'];
+                       ?>
+                       <span class="badge badge-<?php echo $class; ?>"><?php echo $text; ?></span>
+                     </td>
+                     <td>
+                       <?php if ($canEditMemberPackage): ?>
+                       <button class="btn btn-warning btn-sm" onclick='editPackage(<?php echo json_encode($mp); ?>)' data-toggle="modal" data-target="#packageModal">
+                         <i class="fas fa-edit"></i>
+                       </button>
+                       <?php endif; ?>
+                       <?php if ($canDeleteMemberPackage): ?>
+                         <a href="?action=delete&id=<?php echo $mp['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn hủy gói tập này không?')">
+                           <i class="fas fa-ban"></i>
+                         </a>
+                       <?php endif; ?>
+                     </td>
+                   </tr>
+                   <?php endforeach; ?>
                   </tbody>
                 </table>
               </div>
@@ -255,7 +272,7 @@ include 'layout/sidebar.php';
           <input type="hidden" name="id" id="package_id">
           <div class="form-group">
             <label>Hội viên</label>
-            <select name="member_id" id="member_id" class="form-control" required>
+            <select name="member_id" id="member_id" class="form-control" required disabled>
               <option value="">--- Chọn hội viên ---</option>
               <?php foreach ($members as $member): ?>
               <option value="<?php echo $member['id']; ?>"><?php echo htmlspecialchars((string) ($member['full_name'] ?? '')); ?></option>
@@ -264,7 +281,7 @@ include 'layout/sidebar.php';
           </div>
           <div class="form-group">
             <label>Gói tập</label>
-            <select name="package_id" id="pkg_id" class="form-control" required onchange="updateDates()">
+            <select name="package_id" id="pkg_id" class="form-control" required disabled onchange="updateDates()">
               <option value="">--- Chọn gói tập ---</option>
               <?php foreach ($packages as $pkg): ?>
               <option value="<?php echo $pkg['id']; ?>" data-months="<?php echo $pkg['duration_months']; ?>">
@@ -275,7 +292,7 @@ include 'layout/sidebar.php';
           </div>
           <div class="form-group">
             <label>Ngày bắt đầu</label>
-            <input type="date" name="start_date" id="start_date" class="form-control" required onchange="updateEndDate()">
+            <input type="date" name="start_date" id="start_date" class="form-control" required disabled onchange="updateEndDate()">
           </div>
           <div class="form-group">
             <label>Ngày hết hạn</label>
@@ -308,16 +325,44 @@ function resetForm() {
   document.getElementById('start_date').value = '';
   document.getElementById('end_date').value = '';
   document.getElementById('status').value = 'active';
+  document.getElementById('member_id').disabled = false;
+  document.getElementById('pkg_id').disabled = false;
+  document.getElementById('start_date').disabled = false;
+
+  var currentTempOption = document.getElementById('current-package-option');
+  if (currentTempOption) {
+    currentTempOption.remove();
+  }
 }
 
 function editPackage(pkg) {
   document.getElementById('modalTitle').innerText = 'Sửa Gói Tập';
   document.getElementById('package_id').value = pkg.id;
   document.getElementById('member_id').value = pkg.member_id;
-  document.getElementById('pkg_id').value = pkg.package_id;
+  var packageSelect = document.getElementById('pkg_id');
+  var existingOption = packageSelect.querySelector('option[value="' + pkg.package_id + '"]');
+  var tempOption = document.getElementById('current-package-option');
+
+  if (tempOption) {
+    tempOption.remove();
+  }
+
+  if (!existingOption) {
+    var newOption = document.createElement('option');
+    newOption.id = 'current-package-option';
+    newOption.value = pkg.package_id;
+    newOption.setAttribute('data-months', pkg.duration_months || '');
+    newOption.textContent = (pkg.package_name || 'Gói hiện tại') + ' - ' + Number(pkg.price || 0).toLocaleString('vi-VN') + ' VNĐ';
+    packageSelect.insertBefore(newOption, packageSelect.options[1] || null);
+  }
+
+  packageSelect.value = pkg.package_id;
   document.getElementById('start_date').value = pkg.start_date;
   document.getElementById('end_date').value = pkg.end_date;
   document.getElementById('status').value = pkg.status;
+  document.getElementById('member_id').disabled = true;
+  document.getElementById('pkg_id').disabled = true;
+  document.getElementById('start_date').disabled = true;
 }
 
 function updateEndDate() {

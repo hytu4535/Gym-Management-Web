@@ -85,6 +85,55 @@ if (!function_exists('normalizeTrainingScheduleStatus')) {
   }
 }
 
+if (!function_exists('trainingScheduleStatusRank')) {
+  function trainingScheduleStatusRank($status)
+  {
+    $order = [
+      'pending' => 0,
+      'confirmed' => 1,
+      'completed' => 2,
+      'canceled' => 3,
+    ];
+
+    $normalizedStatus = normalizeTrainingScheduleStatus($status);
+    return $order[$normalizedStatus] ?? $order['pending'];
+  }
+}
+
+if (!function_exists('trainingScheduleAllowedStatuses')) {
+  function trainingScheduleAllowedStatuses($currentStatus)
+  {
+    $currentStatus = normalizeTrainingScheduleStatus($currentStatus);
+
+    $allowedStatuses = [];
+    if ($currentStatus === 'pending') {
+      $allowedStatuses = ['pending', 'confirmed', 'canceled'];
+    } elseif ($currentStatus === 'confirmed') {
+      $allowedStatuses = ['confirmed', 'completed', 'canceled'];
+    } elseif ($currentStatus === 'completed') {
+      $allowedStatuses = ['completed'];
+    } elseif ($currentStatus === 'canceled') {
+      $allowedStatuses = ['canceled'];
+    }
+
+    return $allowedStatuses;
+  }
+}
+
+if (!function_exists('trainingScheduleIsLockedStatus')) {
+  function trainingScheduleIsLockedStatus($status)
+  {
+    return in_array(normalizeTrainingScheduleStatus($status), ['completed', 'canceled'], true);
+  }
+}
+
+if (!function_exists('trainingScheduleCanTransitionTo')) {
+  function trainingScheduleCanTransitionTo($currentStatus, $requestedStatus)
+  {
+    return in_array(normalizeTrainingScheduleStatus($requestedStatus), trainingScheduleAllowedStatuses($currentStatus), true);
+  }
+}
+
 if (!function_exists('buildTrainingScheduleDateTime')) {
   function buildTrainingScheduleDateTime($date, $time)
   {
@@ -166,8 +215,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     if ($_POST['action'] === 'edit') {
         $id = intval($_POST['id']);
-        $member_id = intval($_POST['member_id']);
-        $trainer_id = !empty($_POST['trainer_id']) ? intval($_POST['trainer_id']) : null;
         $training_date = sanitize($_POST['training_date']);
         $training_time = sanitize($_POST['training_time']);
         $end_time = sanitize($_POST['end_time'] ?? '');
@@ -189,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
           exit;
         }
 
-        $currentStmt = $db->prepare('SELECT id, trainer_id, training_date, end_time, status FROM training_schedules WHERE id = ? LIMIT 1');
+        $currentStmt = $db->prepare('SELECT id, member_id, trainer_id, training_date, end_time, status FROM training_schedules WHERE id = ? LIMIT 1');
         $currentStmt->execute([$id]);
         $currentSchedule = $currentStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -212,10 +259,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         $currentStatus = normalizeTrainingScheduleStatus($currentSchedule['status'] ?? 'pending');
-        $allowTrainerChange = strtotime($currentSchedule['training_date']) > time() || in_array($currentStatus, ['pending', 'confirmed'], true);
-        if (!$allowTrainerChange) {
-          $trainer_id = $currentSchedule['trainer_id'] !== null ? (int) $currentSchedule['trainer_id'] : null;
+        $currentMemberId = (int) $currentSchedule['member_id'];
+        $currentTrainerId = $currentSchedule['trainer_id'] !== null ? (int) $currentSchedule['trainer_id'] : null;
+        $memberIdInput = $_POST['member_id'] ?? ($_POST['member_id_backup'] ?? '');
+        $trainerIdInput = $_POST['trainer_id'] ?? ($_POST['trainer_id_backup'] ?? '');
+        $member_id = $memberIdInput !== '' ? intval($memberIdInput) : $currentMemberId;
+        $trainer_id = $trainerIdInput !== '' ? intval($trainerIdInput) : $currentTrainerId;
+        if (!trainingScheduleCanTransitionTo($currentStatus, $status)) {
+          setFlashMessage('danger', 'Chỉ được cập nhật trạng thái theo chiều xuôi.');
+          redirect('training-schedules.php');
+          exit;
         }
+
+        $member_id = $currentMemberId;
+        $trainer_id = $currentTrainerId;
 
         try {
             $stmt = $db->prepare("UPDATE training_schedules SET member_id = ?, trainer_id = ?, training_date = ?, end_time = ?, note = ?, status = ? WHERE id = ?");
@@ -432,6 +489,7 @@ include 'layout/sidebar.php';
                         data-id="<?= $schedule['id'] ?>"
                         data-member_id="<?= $schedule['member_id'] ?>"
                         data-trainer_id="<?= $schedule['trainer_id'] ?? '' ?>"
+                        data-current_status="<?= htmlspecialchars(normalizeTrainingScheduleStatus($schedule['status'] ?? 'pending')) ?>"
                         data-date="<?= date('Y-m-d', strtotime($schedule['training_date'])) ?>"
                         data-time="<?= date('H:i', strtotime($schedule['training_date'])) ?>"
                         data-end_time="<?= !empty($schedule['end_time']) ? date('H:i', strtotime($schedule['end_time'])) : '' ?>"
@@ -552,6 +610,8 @@ include 'layout/sidebar.php';
           <form method="POST" action="training-schedules.php" novalidate>
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" id="edit-id">
+            <input type="hidden" name="member_id_backup" id="edit-member_id-backup">
+            <input type="hidden" name="trainer_id_backup" id="edit-trainer_id-backup">
             <div class="modal-header bg-warning">
               <h5 class="modal-title"><i class="fas fa-edit"></i> Sửa lịch tập</h5>
               <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
@@ -604,7 +664,7 @@ include 'layout/sidebar.php';
                     <option value="<?= $value ?>"><?= $label ?></option>
                   <?php endforeach; ?>
                 </select>
-                <small class="text-muted d-block mt-2">Có thể đổi HLV khi lịch đang chờ, đã xác nhận hoặc thời gian bắt đầu còn ở tương lai.</small>
+                <small class="text-muted d-block mt-2">Chỉ được đổi trạng thái theo chiều xuôi.</small>
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
@@ -672,14 +732,42 @@ $(function() {
 
   // Điền dữ liệu vào modal sửa
   $('.btn-edit').on('click', function() {
+    const currentStatus = $(this).data('current_status') || $(this).data('status') || 'pending';
+    const memberId = $(this).data('member_id');
+    const trainerId = $(this).data('trainer_id');
     $('#edit-id').val($(this).data('id'));
-    $('#edit-member_id').val($(this).data('member_id')).trigger('change');
-    $('#edit-trainer_id').val($(this).data('trainer_id')).trigger('change');
+    $('#edit-member_id-backup').val(memberId || '');
+    $('#edit-trainer_id-backup').val(trainerId || '');
+    $('#edit-member_id').val(memberId).trigger('change');
+    $('#edit-trainer_id').val(trainerId).trigger('change');
     $('#edit-date').val($(this).data('date'));
     $('#edit-time').val($(this).data('time'));
     $('#edit-end-time').val($(this).data('end_time') || '');
-    $('#edit-status').val($(this).data('status') || 'pending');
+    $('#edit-status option').prop('disabled', false);
+    $('#edit-status option').each(function() {
+      const allowedByCurrent = {
+        pending: ['pending', 'confirmed', 'canceled'],
+        confirmed: ['confirmed', 'completed', 'canceled'],
+        completed: ['completed'],
+        canceled: ['canceled']
+      };
+      const allowedStatuses = allowedByCurrent[currentStatus] || allowedByCurrent.pending;
+      $(this).prop('disabled', !allowedStatuses.includes($(this).val()));
+    });
+    $('#edit-status').val($(this).data('status') || currentStatus || 'pending').trigger('change');
     $('#edit-note').val($(this).data('note'));
+
+    const isLocked = true;
+    $('#edit-member_id').prop('disabled', isLocked).trigger('change.select2');
+    $('#edit-trainer_id').prop('disabled', isLocked).trigger('change.select2');
+  });
+
+  $('#edit-member_id').on('change', function() {
+    $('#edit-member_id-backup').val($(this).val() || '');
+  });
+
+  $('#edit-trainer_id').on('change', function() {
+    $('#edit-trainer_id-backup').val($(this).val() || '');
   });
 
   // Điền dữ liệu vào modal xóa
@@ -703,6 +791,11 @@ $(function() {
   function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
   function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
   function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); const required = input.getAttribute('data-required') === '1'; clear(input); if (!field) return true; if (required && !value) { show(input, label(field)); return false; } return true; }
+  function refreshEditLocks() {
+    $('#edit-member_id').prop('disabled', true).trigger('change.select2');
+    $('#edit-trainer_id').prop('disabled', true).trigger('change.select2');
+  }
+  $('#edit-status').on('change', refreshEditLocks);
   document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
   document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
   document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);

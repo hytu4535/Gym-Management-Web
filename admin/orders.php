@@ -1,46 +1,18 @@
 <?php
-session_start(); // luôn khởi tạo session
+session_start();
 
 $page_title = "Quản lý Orders";
 
-// kiểm tra đăng nhập
 include '../includes/auth.php';
-
-// kết nối DB và kiểm tra quyền
 include '../includes/database.php';
 include '../includes/auth_permission.php';
 
-// chỉ cho phép user có quyền MANAGE_PRODUCTS_SALES
 checkPermission('MANAGE_SALES');
 
-// layout chung
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
-
-
-?>
-
-<style>
-  #ordersTable {
-    table-layout: fixed;
-    width: 100%;
-  }
-
-  #ordersTable th,
-  #ordersTable td {
-    vertical-align: middle;
-  }
-
-  #ordersTable .order-note-cell {
-    width: 130px;
-    text-align: center;
-    white-space: nowrap;
-  }
-</style>
-<?php
 require_once '../config/db.php';
 
-// Lấy giá trị filter từ form
 $filter_status = isset($_GET['status']) ? $_GET['status'] : '';
 $filter_from_date = isset($_GET['from_date']) ? $_GET['from_date'] : '';
 $filter_to_date = isset($_GET['to_date']) ? $_GET['to_date'] : '';
@@ -51,7 +23,6 @@ $filter_amount_min = isset($_GET['amount_min']) ? $_GET['amount_min'] : '';
 $filter_amount_max = isset($_GET['amount_max']) ? $_GET['amount_max'] : '';
 $filter_payment_method = isset($_GET['payment_method']) ? $_GET['payment_method'] : '';
 
-// Tương thích DB: nếu chưa có cột note thì vẫn hiển thị được danh sách đơn hàng
 $has_order_note = false;
 $note_column_check = $conn->query("SHOW COLUMNS FROM orders LIKE 'note'");
 if ($note_column_check && $note_column_check->num_rows > 0) {
@@ -60,47 +31,39 @@ if ($note_column_check && $note_column_check->num_rows > 0) {
 
 $order_note_select = $has_order_note ? 'o.note' : 'NULL AS note';
 
-// Xây dựng câu query với filter
 $sql = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, o.transfer_code, o.proof_img, $order_note_select, m.full_name, 
-        a.city, a.district 
+        a.city, a.district,
+        u_staff.full_name AS handler_name 
         FROM orders o 
         LEFT JOIN members m ON o.member_id = m.id 
         LEFT JOIN addresses a ON o.address_id = a.id 
+        LEFT JOIN users u_staff ON o.handled_by = u_staff.id 
         WHERE 1=1";
 
-// Thêm điều kiện filter
 if (!empty($filter_status)) {
     $sql .= " AND o.status = '" . $conn->real_escape_string($filter_status) . "'";
 }
-
 if (!empty($filter_from_date)) {
     $sql .= " AND DATE(o.order_date) >= '" . $conn->real_escape_string($filter_from_date) . "'";
 }
-
 if (!empty($filter_to_date)) {
     $sql .= " AND DATE(o.order_date) <= '" . $conn->real_escape_string($filter_to_date) . "'";
 }
-
 if (!empty($filter_city)) {
     $sql .= " AND a.city = '" . $conn->real_escape_string($filter_city) . "'";
 }
-
 if (!empty($filter_district)) {
     $sql .= " AND a.district = '" . $conn->real_escape_string($filter_district) . "'";
 }
-
 if (!empty($filter_member_id)) {
   $sql .= " AND o.member_id = " . (int) $filter_member_id;
 }
-
 if ($filter_amount_min !== '' && is_numeric($filter_amount_min)) {
   $sql .= " AND o.total_amount >= " . (float) $filter_amount_min;
 }
-
 if ($filter_amount_max !== '' && is_numeric($filter_amount_max)) {
   $sql .= " AND o.total_amount <= " . (float) $filter_amount_max;
 }
-
 if (!empty($filter_payment_method)) {
   $sql .= " AND o.payment_method = '" . $conn->real_escape_string($filter_payment_method) . "'";
 }
@@ -109,7 +72,6 @@ $sql .= " ORDER BY o.id DESC";
 
 $result = $conn->query($sql);
 
-// Lấy danh sách thành phố và quận/huyện để hiển thị trong filter
 $cities_sql = "SELECT DISTINCT city FROM addresses WHERE city IS NOT NULL AND city != '' ORDER BY city";
 $cities_result = $conn->query($cities_sql);
 
@@ -123,9 +85,20 @@ $customers_sql = "SELECT DISTINCT m.id, m.full_name
 $customers_result = $conn->query($customers_sql);
 ?>
 
-  <!-- Content Wrapper. Contains page content -->
-  <div class="content-wrapper">
-    <!-- Content Header (Page header) -->
+<style>
+  #ordersTable { table-layout: fixed; width: 100%; }
+  #ordersTable th, #ordersTable td { 
+    vertical-align: middle; 
+    word-wrap: break-word; 
+  }
+  #ordersTable .badge {
+    white-space: normal !important; 
+    display: inline-block;
+  }
+  #ordersTable .order-note-cell { width: 130px; text-align: center; white-space: nowrap; }
+</style>
+
+<div class="content-wrapper">
     <div class="content-header">
       <div class="container-fluid">
         <div class="row mb-2">
@@ -142,10 +115,8 @@ $customers_result = $conn->query($customers_sql);
       </div>
     </div>
 
-    <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
-        <!-- Filter Section -->
         <div class="row mb-3">
           <div class="col-12">
             <div class="card card-primary collapsed-card">
@@ -160,7 +131,6 @@ $customers_result = $conn->query($customers_sql);
               <div class="card-body">
                 <form method="GET" action="orders.php" id="filterForm">
                   <div class="row">
-                    <!-- Filter by Status -->
                     <div class="col-md-3">
                       <div class="form-group">
                         <label>Trạng thái đơn hàng</label>
@@ -174,7 +144,6 @@ $customers_result = $conn->query($customers_sql);
                       </div>
                     </div>
 
-                    <!-- Filter by Date Range -->
                     <div class="col-md-2">
                       <div class="form-group">
                         <label>Từ ngày</label>
@@ -188,7 +157,6 @@ $customers_result = $conn->query($customers_sql);
                       </div>
                     </div>
 
-                    <!-- Filter by City -->
                     <div class="col-md-2">
                       <div class="form-group">
                         <label>Thành phố</label>
@@ -206,7 +174,6 @@ $customers_result = $conn->query($customers_sql);
                       </div>
                     </div>
 
-                    <!-- Filter by District -->
                     <div class="col-md-2">
                       <div class="form-group">
                         <label>Quận/Huyện</label>
@@ -224,7 +191,6 @@ $customers_result = $conn->query($customers_sql);
                       </div>
                     </div>
 
-                    <!-- Filter by Customer -->
                     <div class="col-md-3">
                       <div class="form-group">
                         <label>Tên khách hàng</label>
@@ -239,7 +205,6 @@ $customers_result = $conn->query($customers_sql);
                       </div>
                     </div>
 
-                    <!-- Filter by Amount Range -->
                     <div class="col-md-2">
                       <div class="form-group">
                         <label>Mức tiền từ</label>
@@ -253,7 +218,6 @@ $customers_result = $conn->query($customers_sql);
                       </div>
                     </div>
 
-                    <!-- Filter by Payment Method -->
                     <div class="col-md-2">
                       <div class="form-group">
                         <label>Phương thức</label>
@@ -266,7 +230,6 @@ $customers_result = $conn->query($customers_sql);
                       </div>
                     </div>
 
-                    <!-- Filter Buttons -->
                     <div class="col-md-1">
                       <div class="form-group">
                         <label>&nbsp;</label>
@@ -277,14 +240,12 @@ $customers_result = $conn->query($customers_sql);
                     </div>
                   </div>
 
-                  <!-- Reset Filter Button -->
                   <div class="row">
                     <div class="col-md-12">
                       <a href="orders.php" class="btn btn-secondary btn-sm">
                         <i class="fas fa-redo"></i> Xóa bộ lọc
                       </a>
                       <?php 
-                      // Hiển thị số lượng kết quả
                       $total_results = $result ? $result->num_rows : 0;
                       echo "<span class='ml-3 text-muted'>Tìm thấy: <strong>$total_results</strong> đơn hàng</span>";
                       ?>
@@ -316,6 +277,7 @@ $customers_result = $conn->query($customers_sql);
                     <th style="width: 130px;">Ghi chú</th>
                     <th>Nội dung CK</th>
                     <th>Bằng chứng</th>
+                    <th>Người phụ trách</th>
                     <th>Trạng thái</th>
                     <th>Hành động</th>
                   </tr>
@@ -329,7 +291,8 @@ $customers_result = $conn->query($customers_sql);
                             $orderDate = date('d/m/Y H:i', strtotime($row['order_date']));
                             $formattedPrice = number_format($row['total_amount'], 0, ',', '.') . 'đ';
                             
-                            // Hiển thị địa điểm giao hàng
+                            $handlerName = !empty($row['handler_name']) ? "<span class='badge badge-primary'> " . htmlspecialchars($row['handler_name']) . "</span>" : '<span class="text-muted">Chưa có dữ liệu</span>';
+                            
                             $location = '';
                             if (!empty($row['district']) && !empty($row['city'])) {
                                 $location = htmlspecialchars($row['district']) . ', ' . htmlspecialchars($row['city']);
@@ -386,6 +349,7 @@ $customers_result = $conn->query($customers_sql);
                             }
                             echo "  <td>{$transferCode}</td>";
                             echo "  <td>{$proofImg}</td>";
+                            echo "  <td>{$handlerName}</td>";
                             echo "  <td>{$statusBadge}</td>";
                             echo "  <td>
                                         <a href='order-items.php?id={$row['id']}' class='btn btn-info btn-sm' title='Xem chi tiết'>
@@ -398,7 +362,7 @@ $customers_result = $conn->query($customers_sql);
                             echo "</tr>";
                         }
                     } else {
-                      echo "<tr><td colspan='11' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
+                      echo "<tr><td colspan='12' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
                     }
                   ?>
                   </tbody>
@@ -410,11 +374,11 @@ $customers_result = $conn->query($customers_sql);
       </div>
     </section>
 
-<div class="modal fade" id="orderNoteModal" tabindex="-1" role="dialog" aria-labelledby="orderNoteModalLabel" aria-hidden="true">
+<div class="modal fade" id="orderNoteModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <div class="modal-header bg-info text-white">
-        <h5 class="modal-title" id="orderNoteModalLabel">Ghi chú đơn hàng</h5>
+        <h5 class="modal-title">Ghi chú đơn hàng</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
           <span aria-hidden="true" class="text-white">&times;</span>
         </button>

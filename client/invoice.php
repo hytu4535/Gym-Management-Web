@@ -20,16 +20,20 @@ if ($order_id <= 0) {
 $sql_order = "
     SELECT o.*, 
            m.full_name, m.phone, m.address as member_address,
+           mt.name as tier_name,
            u.email, 
            a.full_address, a.district, a.city,
            default_addr.full_address AS default_full_address,
            default_addr.district AS default_district,
-           default_addr.city AS default_city
+           default_addr.city AS default_city,
+           u_staff.full_name AS handler_name
     FROM orders o
     JOIN members m ON o.member_id = m.id
+    LEFT JOIN member_tiers mt ON m.tier_id = mt.id
     JOIN users u ON m.users_id = u.id
     LEFT JOIN addresses a ON o.address_id = a.id
     LEFT JOIN addresses default_addr ON default_addr.member_id = o.member_id AND default_addr.is_default = 1
+    LEFT JOIN users u_staff ON o.handled_by = u_staff.id
     WHERE o.id = ? AND u.id = ?
 ";
 $stmt = $conn->prepare($sql_order);
@@ -122,6 +126,9 @@ include 'layout/header.php';
                                     <h4>HÓA ĐƠN</h4>
                                     <p>Mã đơn hàng: <strong style="color: #e7ab3c;">#<?php echo str_pad($order['id'], 5, '0', STR_PAD_LEFT); ?></strong></p>
                                     <p>Ngày đặt: <?php echo date('d/m/Y H:i', strtotime($order['order_date'])); ?></p>
+                                    <?php if (!empty($order['handler_name'])): ?>
+                                        <p>Người phụ trách: <strong><?php echo htmlspecialchars($order['handler_name']); ?></strong></p>
+                                    <?php endif; ?>
                                     <p>Trạng thái: 
                                         <?php 
                                             if ($order['status'] === 'pending') echo '<span class="badge badge-warning" style="padding: 5px 10px;">Chờ xử lý</span>';
@@ -187,7 +194,7 @@ include 'layout/header.php';
                                             <td class="text-right"><strong style="text-decoration: line-through; color: #999;"><?php echo number_format($cart_subtotal, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                         <tr>
-                                            <td colspan="4" class="text-right"><strong>Giảm hạng (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
+                                            <td colspan="4" class="text-right"><strong>Giảm giá hạng <?php echo htmlspecialchars($order['tier_name'] ?? 'Thành viên'); ?> (<?php echo number_format($base_discount_percent, 0); ?>%):</strong></td>
                                             <td class="text-right"><strong style="color: #28a745;">-<?php echo number_format($base_discount_amount, 0, ',', '.'); ?>đ</strong></td>
                                         </tr>
                                         <tr>

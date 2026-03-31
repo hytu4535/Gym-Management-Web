@@ -28,8 +28,8 @@ function getRoleIdByPosition(PDO $db, $position)
 }
 
 try {
-    if ($staffUserIdColumn !== 'users_id') {
-        failAndGoBack('Không tìm thấy cột liên kết tài khoản trong bảng staff (users_id).');
+    if ($staffUserIdColumn === null) {
+        failAndGoBack('Không tìm thấy cột liên kết tài khoản trong bảng staff (users_id hoặc user_id).');
     }
 
     if ($action === 'add') {
@@ -198,6 +198,18 @@ try {
             failAndGoBack('Thiếu staff cần xóa.');
         }
 
+        $userStmt = $db->prepare("SELECT $staffUserIdColumn FROM staff WHERE id = ?");
+        $userStmt->execute([$id]);
+        $linkedUserId = (int)$userStmt->fetchColumn();
+
+        if ($linkedUserId > 0) {
+            $checkOrderStmt = $db->prepare("SELECT COUNT(*) FROM orders WHERE handled_by = ?");
+            $checkOrderStmt->execute([$linkedUserId]);
+            if ((int)$checkOrderStmt->fetchColumn() > 0) {
+                failAndGoBack('Không thể xóa nhân viên này vì họ đã tham gia duyệt/xử lý đơn hàng.');
+            }
+        }
+
         $importRefStmt = $db->prepare('SELECT COUNT(*) FROM import_slips WHERE staff_id = ?');
         $importRefStmt->execute([$id]);
         $importRefCount = (int) $importRefStmt->fetchColumn();
@@ -205,14 +217,16 @@ try {
             failAndGoBack('Không thể xóa nhân viên đã phát sinh phiếu nhập.');
         }
 
-        // Một số CSDL có thể lưu quan hệ staff trong bảng orders.
-        if (tableHasColumn($db, 'orders', 'staff_id')) {
+
+        $hasOrderStaffIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'staff_id' LIMIT 1")->fetchColumn();
+        if ($hasOrderStaffIdColumn) {
             $orderRefStmt = $db->prepare('SELECT COUNT(*) FROM orders WHERE staff_id = ?');
             $orderRefStmt->execute([$id]);
             if ((int) $orderRefStmt->fetchColumn() > 0) {
                 failAndGoBack('Không thể xóa nhân viên đã phát sinh đơn hàng.');
             }
         }
+
 
         $stmt = $db->prepare('DELETE FROM staff WHERE id = ?');
         $stmt->execute([$id]);

@@ -85,7 +85,6 @@ if (!function_exists('normalizeTrainingScheduleStatus')) {
   }
 }
 
-<<<<<<< HEAD
 if (!function_exists('trainingScheduleStatusRank')) {
   function trainingScheduleStatusRank($status)
   {
@@ -135,8 +134,6 @@ if (!function_exists('trainingScheduleCanTransitionTo')) {
   }
 }
 
-=======
->>>>>>> 6dd939fe2bee022c76c5bf07c1075bf04c258469
 if (!function_exists('buildTrainingScheduleDateTime')) {
   function buildTrainingScheduleDateTime($date, $time)
   {
@@ -239,11 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
           exit;
         }
 
-<<<<<<< HEAD
         $currentStmt = $db->prepare('SELECT id, member_id, trainer_id, training_date, end_time, status FROM training_schedules WHERE id = ? LIMIT 1');
-=======
-        $currentStmt = $db->prepare('SELECT id, trainer_id, training_date, end_time, status FROM training_schedules WHERE id = ? LIMIT 1');
->>>>>>> 6dd939fe2bee022c76c5bf07c1075bf04c258469
         $currentStmt->execute([$id]);
         $currentSchedule = $currentStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -266,7 +259,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         $currentStatus = normalizeTrainingScheduleStatus($currentSchedule['status'] ?? 'pending');
-<<<<<<< HEAD
         $currentMemberId = (int) $currentSchedule['member_id'];
         $currentTrainerId = $currentSchedule['trainer_id'] !== null ? (int) $currentSchedule['trainer_id'] : null;
         $memberIdInput = $_POST['member_id'] ?? ($_POST['member_id_backup'] ?? '');
@@ -281,12 +273,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $member_id = $currentMemberId;
         $trainer_id = $currentTrainerId;
-=======
-        $allowTrainerChange = strtotime($currentSchedule['training_date']) > time() || in_array($currentStatus, ['pending', 'confirmed'], true);
-        if (!$allowTrainerChange) {
-          $trainer_id = $currentSchedule['trainer_id'] !== null ? (int) $currentSchedule['trainer_id'] : null;
-        }
->>>>>>> 6dd939fe2bee022c76c5bf07c1075bf04c258469
 
         try {
             $stmt = $db->prepare("UPDATE training_schedules SET member_id = ?, trainer_id = ?, training_date = ?, end_time = ?, note = ?, status = ? WHERE id = ?");
@@ -678,11 +664,7 @@ include 'layout/sidebar.php';
                     <option value="<?= $value ?>"><?= $label ?></option>
                   <?php endforeach; ?>
                 </select>
-<<<<<<< HEAD
                 <small class="text-muted d-block mt-2">Chỉ được đổi trạng thái theo chiều xuôi.</small>
-=======
-                <small class="text-muted d-block mt-2">Có thể đổi HLV khi lịch đang chờ, đã xác nhận hoặc thời gian bắt đầu còn ở tương lai.</small>
->>>>>>> 6dd939fe2bee022c76c5bf07c1075bf04c258469
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
@@ -754,7 +736,6 @@ $(function() {
     const memberId = $(this).data('member_id');
     const trainerId = $(this).data('trainer_id');
     $('#edit-id').val($(this).data('id'));
-<<<<<<< HEAD
     $('#edit-member_id-backup').val(memberId || '');
     $('#edit-trainer_id-backup').val(trainerId || '');
     $('#edit-member_id').val(memberId).trigger('change');
@@ -774,14 +755,6 @@ $(function() {
       $(this).prop('disabled', !allowedStatuses.includes($(this).val()));
     });
     $('#edit-status').val($(this).data('status') || currentStatus || 'pending').trigger('change');
-=======
-    $('#edit-member_id').val($(this).data('member_id')).trigger('change');
-    $('#edit-trainer_id').val($(this).data('trainer_id')).trigger('change');
-    $('#edit-date').val($(this).data('date'));
-    $('#edit-time').val($(this).data('time'));
-    $('#edit-end-time').val($(this).data('end_time') || '');
-    $('#edit-status').val($(this).data('status') || 'pending');
->>>>>>> 6dd939fe2bee022c76c5bf07c1075bf04c258469
     $('#edit-note').val($(this).data('note'));
 
     const isLocked = true;
@@ -818,14 +791,11 @@ $(function() {
   function show(input, message) { const b = box(input); if (b) { b.textContent = message; b.style.display = 'block'; } input.classList.add('is-invalid'); }
   function clear(input) { const b = box(input); if (b) { b.textContent = ''; b.style.display = 'none'; } input.classList.remove('is-invalid'); }
   function validate(input) { const field = input.getAttribute('data-field'); const value = String(input.value || '').trim(); const required = input.getAttribute('data-required') === '1'; clear(input); if (!field) return true; if (required && !value) { show(input, label(field)); return false; } return true; }
-<<<<<<< HEAD
   function refreshEditLocks() {
     $('#edit-member_id').prop('disabled', true).trigger('change.select2');
     $('#edit-trainer_id').prop('disabled', true).trigger('change.select2');
   }
   $('#edit-status').on('change', refreshEditLocks);
-=======
->>>>>>> 6dd939fe2bee022c76c5bf07c1075bf04c258469
   document.addEventListener('invalid', function(e){ const form = e.target.closest('form'); if (form && form.hasAttribute('novalidate')) e.preventDefault(); }, true);
   document.addEventListener('input', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);
   document.addEventListener('change', function(e){ if (e.target.hasAttribute && e.target.hasAttribute('data-field')) validate(e.target); }, true);

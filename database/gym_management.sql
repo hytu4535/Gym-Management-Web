@@ -1234,6 +1234,7 @@ CREATE TABLE `suppliers` (
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `phone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `address` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1245,7 +1246,7 @@ CREATE TABLE `suppliers` (
 
 LOCK TABLES `suppliers` WRITE;
 /*!40000 ALTER TABLE `suppliers` DISABLE KEYS */;
-INSERT INTO `suppliers` VALUES (1,'Công ty Thể Thao Đại Việt','0901234567','123 Lý Thường Kiệt, Q10, TP.HCM','2024-01-27 10:00:00'),(2,'Whey Store VN','0909888777','456 CMT8, Q3, TP.HCM','2024-01-27 10:00:00'),(17,'a','a','a','2026-02-17 10:31:25'),(23,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','2026-03-24 12:50:09'),(24,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','2026-03-24 12:50:10'),(25,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','2026-03-24 12:50:10'),(26,'a','0786026878','aaa','2026-03-31 14:30:11'),(27,'a','0786026878','aaa','2026-03-31 14:30:13'),(28,'a','0786026878','aaaaaaaaaaaa','2026-03-31 14:30:16'),(29,'a','0786026878','aaaaaaaaaaaa','2026-03-31 14:30:16'),(30,'a','0786026878','aaaaaaaaaaaaaaaaaaaaa','2026-03-31 14:30:18'),(31,'a','0786026878','aaaaaaaaaaaaaaaaaaaaa','2026-03-31 14:30:18'),(32,'a','0786026878','aaaaaaaaaaaaaaaaaaaaa','2026-03-31 14:30:18');
+INSERT INTO `suppliers` VALUES (1,'Công ty Thể Thao Đại Việt','0901234567','123 Lý Thường Kiệt, Q10, TP.HCM','active','2024-01-27 10:00:00'),(2,'Whey Store VN','0909888777','456 CMT8, Q3, TP.HCM','active','2024-01-27 10:00:00'),(17,'a','a','a','active','2026-02-17 10:31:25'),(23,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','active','2026-03-24 12:50:09'),(24,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','active','2026-03-24 12:50:10'),(25,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','active','2026-03-24 12:50:10'),(26,'a','0786026878','aaa','active','2026-03-31 14:30:11'),(27,'a','0786026878','aaa','active','2026-03-31 14:30:13'),(28,'a','0786026878','aaaaaaaaaaaa','active','2026-03-31 14:30:16'),(29,'a','0786026878','aaaaaaaaaaaa','active','2026-03-31 14:30:16'),(30,'a','0786026878','aaaaaaaaaaaaaaaaaaaaa','active','2026-03-31 14:30:18'),(31,'a','0786026878','aaaaaaaaaaaaaaaaaaaaa','active','2026-03-31 14:30:18'),(32,'a','0786026878','aaaaaaaaaaaaaaaaaaaaa','active','2026-03-31 14:30:18');
 /*!40000 ALTER TABLE `suppliers` ENABLE KEYS */;
 UNLOCK TABLES;
 

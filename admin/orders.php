@@ -33,11 +33,11 @@ $order_note_select = $has_order_note ? 'o.note' : 'NULL AS note';
 
 $sql = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, o.transfer_code, o.proof_img, $order_note_select, m.full_name, 
         a.city, a.district,
-        u_staff.full_name AS handler_name 
+  COALESCE(NULLIF(u_confirmed.full_name, ''), u_confirmed.username) AS confirmed_name 
         FROM orders o 
         LEFT JOIN members m ON o.member_id = m.id 
         LEFT JOIN addresses a ON o.address_id = a.id 
-        LEFT JOIN users u_staff ON o.handled_by = u_staff.id 
+  LEFT JOIN users u_confirmed ON o.confirmed_by = u_confirmed.id 
         WHERE 1=1";
 
 if (!empty($filter_status)) {
@@ -277,7 +277,6 @@ $customers_result = $conn->query($customers_sql);
                     <th style="width: 130px;">Ghi chú</th>
                     <th>Nội dung CK</th>
                     <th>Bằng chứng</th>
-                    <th>Người phụ trách</th>
                     <th>Trạng thái</th>
                     <th>Hành động</th>
                   </tr>
@@ -290,8 +289,6 @@ $customers_result = $conn->query($customers_sql);
                             $customerName = $row['full_name'] ?? 'Khách vãng lai';
                             $orderDate = date('d/m/Y H:i', strtotime($row['order_date']));
                             $formattedPrice = number_format($row['total_amount'], 0, ',', '.') . 'đ';
-                            
-                            $handlerName = !empty($row['handler_name']) ? "<span class='badge badge-primary'> " . htmlspecialchars($row['handler_name']) . "</span>" : '<span class="text-muted">Chưa có dữ liệu</span>';
                             
                             $location = '';
                             if (!empty($row['district']) && !empty($row['city'])) {
@@ -325,9 +322,10 @@ $customers_result = $conn->query($customers_sql);
                             }
 
                             if ($row['status'] == 'delivered') {
-                                $statusBadge = '<span class="badge badge-success">Đã giao</span>';
+                              $statusBadge = '<span class="badge badge-success">Đã giao</span>';
                             } elseif ($row['status'] == 'confirmed') {
-                                $statusBadge = '<span class="badge badge-info">Đã xác nhận</span>';
+                              $confirmTooltip = !empty($row['confirmed_name']) ? ' title="Duyệt bởi: ' . htmlspecialchars($row['confirmed_name'], ENT_QUOTES, 'UTF-8') . '"' : '';
+                              $statusBadge = '<span class="badge badge-info"' . $confirmTooltip . '>Đã xác nhận</span>';
                             } elseif ($row['status'] == 'pending') {
                                 $statusBadge = '<span class="badge badge-warning">Chờ xử lý</span>';
                             } else {
@@ -349,7 +347,6 @@ $customers_result = $conn->query($customers_sql);
                             }
                             echo "  <td>{$transferCode}</td>";
                             echo "  <td>{$proofImg}</td>";
-                            echo "  <td>{$handlerName}</td>";
                             echo "  <td>{$statusBadge}</td>";
                             echo "  <td>
                                         <a href='order-items.php?id={$row['id']}' class='btn btn-info btn-sm' title='Xem chi tiết'>
@@ -362,7 +359,7 @@ $customers_result = $conn->query($customers_sql);
                             echo "</tr>";
                         }
                     } else {
-                      echo "<tr><td colspan='12' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
+                      echo "<tr><td colspan='11' class='text-center'>Chưa có đơn hàng nào trong hệ thống.</td></tr>";
                     }
                   ?>
                   </tbody>

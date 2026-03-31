@@ -349,4 +349,8 @@ $(document).ready(function() {
     });
   });
 });
+<<<<<<< HEAD
 </script>
+=======
+</script>
+>>>>>>> 6dd939fe2bee022c76c5bf07c1075bf04c258469

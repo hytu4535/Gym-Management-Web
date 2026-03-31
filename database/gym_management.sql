@@ -835,7 +835,7 @@ CREATE TABLE `nutrition_plan_items` (
 
 LOCK TABLES `nutrition_plan_items` WRITE;
 /*!40000 ALTER TABLE `nutrition_plan_items` DISABLE KEYS */;
-INSERT INTO `nutrition_plan_items` VALUES (1,1,2,1.00,'sáng, chiều, tối','aaaaaaa'),(2,1,1,2.00,'Bữa trưa','Tăng lượng protein chính trong ngày'),(3,1,2,1.50,'Bữa trưa','Bổ sung tinh bột vừa phải'),(4,2,5,2.00,'Bữa sáng','Tinh bột chậm giúp no lâu'),(5,2,3,1.00,'Bữa sáng','Bổ sung protein và chất béo tốt'),(6,3,4,1.50,'Bữa tối','Omega-3 hỗ trợ phục hồi cơ');
+INSERT INTO `nutrition_plan_items` VALUES (1,1,2,1.00,'sáng','aaaaaaa'),(2,1,1,2.00,'trưa','Tăng lượng protein chính trong ngày'),(3,1,2,1.50,'trưa','Bổ sung tinh bột vừa phải'),(4,2,5,2.00,'sáng','Tinh bột chậm giúp no lâu'),(5,2,3,1.00,'sáng','Bổ sung protein và chất béo tốt'),(6,3,4,1.50,'tối','Omega-3 hỗ trợ phục hồi cơ');
 /*!40000 ALTER TABLE `nutrition_plan_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -864,7 +864,7 @@ CREATE TABLE `nutrition_plans` (
 
 LOCK TABLES `nutrition_plans` WRITE;
 /*!40000 ALTER TABLE `nutrition_plans` DISABLE KEYS */;
-INSERT INTO `nutrition_plans` VALUES (1,'Tăng cân cơ bản 2500 Calo','tăng cân',2500,'BMI < 18.5','Chế độ ăn dành cho người gầy, tập trung vào thực phẩm giàu năng lượng, tăng khẩu phần tinh bột và protein.','hoạt động'),(2,'Giảm cân khoa học 1500 Calo','giảm cân',1500,'BMI 23 - 27','Thực đơn giảm calo an toàn, hạn chế đường và chất béo xấu, tăng rau xanh và protein nạc.','hoạt động'),(3,'Tăng cơ chuyên sâu 2800 Calo','tăng cơ',2800,'BMI 18.5 - 24.9','Chế độ ăn giàu protein kết hợp carb phức, phù hợp người tập gym 4-6 buổi/tuần.','hoạt động'),(4,'Giảm mỡ Low-carb 1700 Calo','giảm mỡ',1700,'BMI > 23','Giảm tinh bột nhanh, ưu tiên protein và chất béo tốt, hỗ trợ đốt mỡ hiệu quả.','không hoạt động');
+INSERT INTO `nutrition_plans` VALUES (1,'Tăng cân cơ bản 2500 Calo','tăng cân',2500,'16 - 18.4','Chế độ ăn dành cho người gầy, tập trung vào thực phẩm giàu năng lượng, tăng khẩu phần tinh bột và protein.','hoạt động'),(2,'Giảm cân khoa học 1500 Calo','giảm cân',1500,'25 - 34.9','Thực đơn giảm calo an toàn, hạn chế đường và chất béo xấu, tăng rau xanh và protein nạc.','hoạt động'),(3,'Tăng cơ chuyên sâu 2800 Calo','tăng cơ',2800,'16 - 18.4','Chế độ ăn giàu protein kết hợp carb phức, phù hợp người tập gym 4-6 buổi/tuần.','hoạt động'),(4,'Giảm mỡ Low-carb 1700 Calo','giảm mỡ',1700,'23 - 24.9','Giảm tinh bột nhanh, ưu tiên protein và chất béo tốt, hỗ trợ đốt mỡ hiệu quả.','không hoạt động');
 /*!40000 ALTER TABLE `nutrition_plans` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1233,6 +1233,7 @@ CREATE TABLE `suppliers` (
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `phone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `address` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1244,7 +1245,7 @@ CREATE TABLE `suppliers` (
 
 LOCK TABLES `suppliers` WRITE;
 /*!40000 ALTER TABLE `suppliers` DISABLE KEYS */;
-INSERT INTO `suppliers` VALUES (1,'Công ty Thể Thao Đại Việt','0901234567','123 Lý Thường Kiệt, Q10, TP.HCM','2024-01-27 10:00:00'),(2,'Whey Store VN','0909888777','456 CMT8, Q3, TP.HCM','2024-01-27 10:00:00'),(17,'a','a','a','2026-02-17 10:31:25'),(23,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','2026-03-24 12:50:09'),(24,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','2026-03-24 12:50:10'),(25,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','2026-03-24 12:50:10');
+INSERT INTO `suppliers` VALUES (1,'Công ty Thể Thao Đại Việt','0901234567','123 Lý Thường Kiệt, Q10, TP.HCM','active','2024-01-27 10:00:00'),(2,'Whey Store VN','0909888777','456 CMT8, Q3, TP.HCM','active','2024-01-27 10:00:00'),(17,'a','a','a','active','2026-02-17 10:31:25'),(23,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','active','2026-03-24 12:50:09'),(24,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','active','2026-03-24 12:50:10'),(25,'Công ty TNHH Thiết Bị Minh Phát','0908123456','125 Nguyễn Văn Cừ, Quận 5, TP. Hồ Chí Minh','active','2026-03-24 12:50:10');
 /*!40000 ALTER TABLE `suppliers` ENABLE KEYS */;
 UNLOCK TABLES;
 

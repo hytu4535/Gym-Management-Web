@@ -208,8 +208,8 @@ foreach ($permissionCodes as $permissionCode) {
               <label>Trạng thái</label>
               <select name="status" class="form-control">
                 <option value="">-- Tất cả trạng thái --</option>
-                <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option>
-                <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option>
+                <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Hoạt động</option>
+                <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Không hoạt động</option>
               </select>
             </div>
           </div>
@@ -244,9 +244,9 @@ foreach ($permissionCodes as $permissionCode) {
                 <td><?= htmlspecialchars((string) ($r['description'] ?? '')) ?></td>
                 <td>
                   <?php if($r['status']=='active'): ?>
-                    <span class="badge badge-success">Active</span>
+                    <span class="badge badge-success">Hoạt động</span>
                   <?php else: ?>
-                    <span class="badge badge-danger">Inactive</span>
+                    <span class="badge badge-danger">Không hoạt động</span>
                   <?php endif; ?>
                 </td>
                 <td>
@@ -285,8 +285,8 @@ foreach ($permissionCodes as $permissionCode) {
                         <div class="form-group">
                           <label>Trạng thái</label>
                           <select class="form-control" name="status" required>
-                            <option value="active" <?= $r['status']=='active'?'selected':'' ?>>Active</option>
-                            <option value="inactive" <?= $r['status']=='inactive'?'selected':'' ?>>Inactive</option>
+                            <option value="active" <?= $r['status']=='active'?'selected':'' ?>>Hoạt động</option>
+                            <option value="inactive" <?= $r['status']=='inactive'?'selected':'' ?>>Không hoạt động</option>
                           </select>
                         </div>
                       </div>
@@ -327,8 +327,8 @@ foreach ($permissionCodes as $permissionCode) {
             <div class="form-group">
               <label>Trạng thái</label>
               <select class="form-control" name="status" required>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="active">Hoạt động</option>
+                <option value="inactive">Không hoạt động</option>
               </select>
             </div>
           </div>

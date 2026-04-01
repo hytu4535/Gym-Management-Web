@@ -58,8 +58,8 @@ if ($result->num_rows > 0) {
                                 <div class="form-group">
                                     <label>Trạng Thái</label>
                                     <select name="status" class="form-control">
-                                        <option value="active" <?php echo ($pkg['status'] == 'active') ? 'selected' : ''; ?>>Active (Đang mở bán)</option>
-                                        <option value="inactive" <?php echo ($pkg['status'] == 'inactive') ? 'selected' : ''; ?>>Inactive (Ngừng bán)</option>
+                                        <option value="active" <?php echo ($pkg['status'] == 'active') ? 'selected' : ''; ?>>Đang mở bán</option>
+                                        <option value="inactive" <?php echo ($pkg['status'] == 'inactive') ? 'selected' : ''; ?>>Ngừng bán</option>
                                     </select>
                                 </div>
                             </div>

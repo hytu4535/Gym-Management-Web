@@ -16,6 +16,7 @@ checkPermission('MANAGE_SERVICES_NUTRITION');
 include '../includes/functions.php';
 
 $db = getDB();
+$servicePriceMax = getDecimalColumnMaxValue($db, 'services', 'price', 99999999.99);
 
 $filterName = trim((string) ($_GET['name'] ?? ''));
 $filterType = trim((string) ($_GET['type'] ?? ''));
@@ -97,11 +98,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $name = sanitize($_POST['name']);
         $type = $_POST['type'];
-        $price = floatval($_POST['price']);
         $description = sanitize($_POST['description']);
         $status = $_POST['status'];
 
         try {
+      $price = parseDecimalInput($_POST['price'] ?? '', 2);
+      if ($price < 0) {
+        throw new RuntimeException('Giá dịch vụ phải lớn hơn hoặc bằng 0.');
+      }
+      if ($price > $servicePriceMax) {
+        throw new RuntimeException('Giá dịch vụ vượt giới hạn cho phép. Tối đa: ' . formatCurrency($servicePriceMax));
+      }
+
       $imagePath = processServiceImageUpload('img');
       $stmt = $db->prepare("INSERT INTO services (name, img, type, price, description, status) VALUES (?, ?, ?, ?, ?, ?)");
       $stmt->execute([$name, $imagePath, $type, $price, $description, $status]);
@@ -139,7 +147,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $buyerCount = (int) ($usageStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
 
         $type = $buyerCount > 0 ? (string) $currentService['type'] : (string) $_POST['type'];
-        $price = $buyerCount > 0 ? (float) $currentService['price'] : floatval($_POST['price']);
+        $price = $buyerCount > 0 ? (float) $currentService['price'] : parseDecimalInput($_POST['price'] ?? '', 2);
+        if ($price < 0) {
+          throw new RuntimeException('Giá dịch vụ phải lớn hơn hoặc bằng 0.');
+        }
+        if ($price > $servicePriceMax) {
+          throw new RuntimeException('Giá dịch vụ vượt giới hạn cho phép. Tối đa: ' . formatCurrency($servicePriceMax));
+        }
 
         try {
           $imagePath = processServiceImageUpload('img', $oldImagePath);
@@ -251,12 +265,7 @@ include 'layout/sidebar.php';
         ?>
 
         <!-- Thông báo -->
-        <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show">
-          <button type="button" class="close" data-dismiss="alert">&times;</button>
-          <?= $flash['message'] ?>
-        </div>
-        <?php endif; ?>
+        <?php renderAdminFlash($flash); ?>
 
         <div class="row">
           <div class="col-12">
@@ -364,7 +373,7 @@ include 'layout/sidebar.php';
               </div>
               <div class="form-group">
                 <label>Giá (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="price" placeholder="Nhập giá dịch vụ" min="0" step="1000" data-field="price">
+                <input type="number" class="form-control" name="price" placeholder="Nhập giá dịch vụ" min="0" max="<?= htmlspecialchars((string) $servicePriceMax) ?>" step="1000" data-field="price">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
               </div>
               <div class="form-group">
@@ -426,7 +435,7 @@ include 'layout/sidebar.php';
               </div>
               <div class="form-group">
                 <label>Giá (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" name="price" id="edit-price" min="0" step="1000" data-field="price">
+                <input type="number" class="form-control" name="price" id="edit-price" min="0" max="<?= htmlspecialchars((string) $servicePriceMax) ?>" step="1000" data-field="price">
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
                 <small class="text-muted d-block mt-2" id="edit-price-hint" style="display:none;"></small>
               </div>

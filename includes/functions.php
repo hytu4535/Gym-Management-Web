@@ -13,6 +13,102 @@ function sanitize($data) {
     return htmlspecialchars(strip_tags(trim($data)), ENT_QUOTES, 'UTF-8');
 }
 
+if (!function_exists('formatCurrency')) {
+    function formatCurrency($amount) {
+        return number_format((float) $amount, 0, ',', '.') . ' đ';
+    }
+}
+
+if (!function_exists('redirect')) {
+    function redirect($url) {
+        header('Location: ' . $url);
+        exit;
+    }
+}
+
+if (!function_exists('parseDecimalInput')) {
+    function parseDecimalInput($rawValue, $decimals = 2) {
+        $raw = trim((string) $rawValue);
+        if ($raw === '') {
+            throw new RuntimeException('Vui lòng nhập giá trị.');
+        }
+
+        $normalized = str_replace(["\xc2\xa0", ' '], '', $raw);
+        if (preg_match('/[a-zA-Z]/', $normalized)) {
+            throw new RuntimeException('Giá trị không hợp lệ.');
+        }
+
+        $hasComma = strpos($normalized, ',') !== false;
+        $hasDot = strpos($normalized, '.') !== false;
+
+        if ($hasComma && $hasDot) {
+            $lastComma = strrpos($normalized, ',');
+            $lastDot = strrpos($normalized, '.');
+
+            if ($lastComma > $lastDot) {
+                $normalized = str_replace('.', '', $normalized);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+        } elseif ($hasComma) {
+            if (substr_count($normalized, ',') > 1) {
+                $normalized = str_replace(',', '', $normalized);
+            } else {
+                $parts = explode(',', $normalized);
+                $fraction = $parts[1] ?? '';
+                if ($fraction !== '' && strlen($fraction) <= max(0, (int) $decimals)) {
+                    $normalized = str_replace(',', '.', $normalized);
+                } else {
+                    $normalized = str_replace(',', '', $normalized);
+                }
+            }
+        } elseif ($hasDot && substr_count($normalized, '.') > 1) {
+            $normalized = str_replace('.', '', $normalized);
+        }
+
+        if (!preg_match('/^-?\d+(\.\d+)?$/', $normalized)) {
+            throw new RuntimeException('Giá trị không hợp lệ.');
+        }
+
+        $value = (float) $normalized;
+        if (!is_finite($value)) {
+            throw new RuntimeException('Giá trị không hợp lệ.');
+        }
+
+        return round($value, max(0, (int) $decimals));
+    }
+}
+
+if (!function_exists('getDecimalColumnMaxValue')) {
+    function getDecimalColumnMaxValue(PDO $db, $table, $column, $default = 99999999.99) {
+        try {
+            $stmt = $db->query("SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
+            $columnInfo = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
+            if (!$columnInfo || empty($columnInfo['Type'])) {
+                return (float) $default;
+            }
+
+            if (preg_match('/decimal\((\d+),(\d+)\)/i', (string) $columnInfo['Type'], $matches)) {
+                $precision = (int) $matches[1];
+                $scale = (int) $matches[2];
+                $integerDigits = max(1, $precision - $scale);
+
+                $maxLiteral = str_repeat('9', $integerDigits);
+                if ($scale > 0) {
+                    $maxLiteral .= '.' . str_repeat('9', $scale);
+                }
+
+                return (float) $maxLiteral;
+            }
+        } catch (Throwable $e) {
+            return (float) $default;
+        }
+
+        return (float) $default;
+    }
+}
+
 /**
  * Validate email
  */
@@ -87,6 +183,21 @@ function getFlashMessage() {
         return $flash;
     }
     return null;
+}
+
+if (!function_exists('renderAdminFlash')) {
+    function renderAdminFlash($flash) {
+        if (!is_array($flash) || empty($flash['message'])) {
+            return;
+        }
+
+        $type = htmlspecialchars((string) ($flash['type'] ?? 'info'), ENT_QUOTES, 'UTF-8');
+        $message = (string) $flash['message'];
+        echo '<div class="alert alert-' . $type . ' alert-dismissible fade show">';
+        echo '<button type="button" class="close" data-dismiss="alert">&times;</button>';
+        echo $message;
+        echo '</div>';
+    }
 }
 
 /**

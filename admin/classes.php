@@ -469,12 +469,7 @@ include 'layout/sidebar.php';
   <section class="content">
     <div class="container-fluid">
 
-      <?php if ($flash): ?>
-      <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show">
-        <button type="button" class="close" data-dismiss="alert">&times;</button>
-        <?= $flash['message'] ?>
-      </div>
-      <?php endif; ?>
+      <?php renderAdminFlash($flash); ?>
 
       <div class="row mb-3">
         <div class="col-md-3 col-sm-6">

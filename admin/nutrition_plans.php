@@ -235,12 +235,7 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
 
         <!-- Thông báo -->
-        <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show">
-          <button type="button" class="close" data-dismiss="alert">&times;</button>
-          <?= $flash['message'] ?>
-        </div>
-        <?php endif; ?>
+        <?php renderAdminFlash($flash); ?>
 
         <?php
           $filterTitle = 'Lọc nhanh chế độ dinh dưỡng';

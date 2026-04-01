@@ -198,8 +198,8 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                       <label>Trạng thái</label>
                       <select name="status" class="form-control">
                         <option value="">-- Tất cả trạng thái --</option>
-                        <option value="active" <?= $filterStatus === 'active' ? 'selected' : '' ?>>Active</option>
-                        <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                        <option value="active" <?= $filterStatus === 'active' ? 'selected' : '' ?>>Hoạt động</option>
+                        <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Bị khóa</option>
                       </select>
                     </div>
                   </div>
@@ -390,7 +390,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                         <div class="col-md-6">
                           <div class="form-group">
                             <label>Trạng thái</label>
-                            <input type="text" class="form-control" value="<?= $u['status'] == 'active' ? 'Active' : 'Inactive' ?>" readonly>
+                            <input type="text" class="form-control" value="<?= $u['status'] == 'active' ? 'Hoạt động' : 'Bị khóa' ?>" readonly>
                           </div>
                         </div>
                         <div class="col-md-6">

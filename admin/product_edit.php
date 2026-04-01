@@ -85,8 +85,8 @@ $product = $conn->query($sql)->fetch_assoc();
                                 <div class="form-group">
                                     <label>Trạng Thái</label>
                                     <select id="status" name="status" class="form-control">
-                                        <option value="active" <?php echo ($product['status'] == 'active') ? 'selected' : ''; ?>>Active (Kích hoạt)</option>
-                                        <option value="inactive" <?php echo ($product['status'] == 'inactive') ? 'selected' : ''; ?>>Inactive (Ẩn)</option>
+                                        <option value="active" <?php echo ($product['status'] == 'active') ? 'selected' : ''; ?>>Hoạt động</option>
+                                        <option value="inactive" <?php echo ($product['status'] == 'inactive') ? 'selected' : ''; ?>>Không hoạt động</option>
                                     </select>
                                 </div>
                             </div>

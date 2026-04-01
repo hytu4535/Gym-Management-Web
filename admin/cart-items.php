@@ -61,8 +61,8 @@ $result_items = $conn->query($sql_items);
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
               <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-              <li class="breadcrumb-item"><a href="carts.php">Carts</a></li>
-              <li class="breadcrumb-item active">Cart Items</li>
+              <li class="breadcrumb-item"><a href="carts.php">Giỏ hàng</a></li>
+              <li class="breadcrumb-item active">Chi tiết giỏ hàng</li>
             </ol>
           </div>
         </div>

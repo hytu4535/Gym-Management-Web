@@ -358,12 +358,7 @@ include 'layout/sidebar.php';
         ?>
 
         <!-- Thông báo -->
-        <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show">
-          <button type="button" class="close" data-dismiss="alert">&times;</button>
-          <?= $flash['message'] ?>
-        </div>
-        <?php endif; ?>
+        <?php renderAdminFlash($flash); ?>
 
         <div class="row">
           <div class="col-12">

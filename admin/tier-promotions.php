@@ -62,6 +62,12 @@ if ($hasTierPromotionsTable && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_
     exit;
   }
 
+  // VALIDATE: Nếu là phần trăm thì không vượt quá 100
+  if ($discountType === 'percentage' && $discountValue > 100) {
+    echo "<script>alert('Giá trị giảm phần trăm không được vượt quá 100%!');window.location='tier-promotions.php';</script>";
+    exit;
+  }
+
   if (strtotime($startDate) > strtotime($endDate)) {
     echo "<script>alert('Ngày bắt đầu không được lớn hơn ngày kết thúc!');window.location='tier-promotions.php';</script>";
     exit;
@@ -106,6 +112,12 @@ if ($hasTierPromotionsTable && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_
 
   if ($discountValue <= 0) {
     echo "<script>alert('Giá trị giảm phải lớn hơn 0!');window.location='tier-promotions.php';</script>";
+    exit;
+  }
+
+  // VALIDATE: Nếu là phần trăm thì không vượt quá 100
+  if ($discountType === 'percentage' && $discountValue > 100) {
+    echo "<script>alert('Giá trị giảm phần trăm không được vượt quá 100%!');window.location='tier-promotions.php';</script>";
     exit;
   }
 
@@ -194,9 +206,7 @@ function resolveTierDisplayName($tierId, $tierName) {
 
 ?>
 
-  <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
-    <!-- Content Header (Page header) -->
     <div class="content-header">
       <div class="container-fluid">
         <div class="row mb-2">
@@ -213,7 +223,6 @@ function resolveTierDisplayName($tierId, $tierName) {
       </div>
     </div>
 
-    <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
         <?php if ($tierPromotionTableMessage !== ''): ?>
@@ -235,8 +244,8 @@ function resolveTierDisplayName($tierId, $tierName) {
             $filterFieldsHtml .= '<option value="' . (int) $tier['id'] . '" ' . $selected . '>' . htmlspecialchars(resolveTierDisplayName($tier['id'], $tier['name'])) . '</option>';
           }
           $filterFieldsHtml .= '</select></div></div>
-            <div class="col-md-2"><div class="form-group mb-0"><label>Loại giảm</label><select name="discount_type" class="form-control"><option value="">-- Tất cả --</option><option value="percentage" ' . ($filterDiscountType === 'percentage' ? 'selected' : '') . '>Phần trăm</option><option value="fixed" ' . ($filterDiscountType === 'fixed' ? 'selected' : '') . '>Cố định</option><option value="package" ' . ($filterDiscountType === 'package' ? 'selected' : '') . '>Gói dịch vụ</option></select></div></div>
-            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option><option value="expired" ' . ($filterStatus === 'expired' ? 'selected' : '') . '>Expired</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Loại giảm</label><select name="discount_type" class="form-control"><option value="">-- Tất cả --</option><option value="percentage" ' . ($filterDiscountType === 'percentage' ? 'selected' : '') . '>Phần trăm</option><option value="fixed" ' . ($filterDiscountType === 'fixed' ? 'selected' : '') . '>Cố định</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Hoạt động</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Không hoạt động</option><option value="expired" ' . ($filterStatus === 'expired' ? 'selected' : '') . '>Hết hạn</option></select></div></div>
           ';
           include 'layout/filter-card.php';
         ?>
@@ -272,8 +281,6 @@ function resolveTierDisplayName($tierId, $tierName) {
                     $discountTypeLabel = 'Phần trăm';
                     if ($promotion['discount_type'] === 'fixed') {
                       $discountTypeLabel = 'Cố định';
-                    } elseif ($promotion['discount_type'] === 'package') {
-                      $discountTypeLabel = 'Gói dịch vụ';
                     }
 
                     $discountValueLabel = number_format((float) $promotion['discount_value'], 0, ',', '.');
@@ -291,11 +298,11 @@ function resolveTierDisplayName($tierId, $tierName) {
                     <td><?= $promotion['usage_limit'] !== null ? ((int) $promotion['usage_limit'] . ' lượt') : 'Không giới hạn' ?></td>
                     <td>
                       <?php if ($promotion['status'] === 'active'): ?>
-                        <span class="badge badge-success">Active</span>
+                        <span class="badge badge-success">Hoạt động</span>
                       <?php elseif ($promotion['status'] === 'inactive'): ?>
-                        <span class="badge badge-warning">Inactive</span>
+                        <span class="badge badge-warning">Không hoạt động</span>
                       <?php else: ?>
-                        <span class="badge badge-secondary">Expired</span>
+                        <span class="badge badge-secondary">Hết hạn</span>
                       <?php endif; ?>
                     </td>
                     <td>
@@ -358,7 +365,6 @@ function resolveTierDisplayName($tierId, $tierName) {
             <select class="form-control" id="discount_type" name="discount_type" required>
               <option value="percentage">Phần trăm</option>
               <option value="fixed">Cố định</option>
-              <option value="package">Gói dịch vụ</option>
             </select>
           </div>
           <div class="form-group">
@@ -383,9 +389,9 @@ function resolveTierDisplayName($tierId, $tierName) {
           <div class="form-group mb-0">
             <label for="status">Trạng thái</label>
             <select class="form-control" id="status" name="status" required>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="expired">Expired</option>
+              <option value="active">Hoạt động</option>
+              <option value="inactive">Không hoạt động</option>
+              <option value="expired">Hết hạn</option>
             </select>
           </div>
         </div>
@@ -427,7 +433,6 @@ function resolveTierDisplayName($tierId, $tierName) {
             <select class="form-control" id="edit_discount_type" name="edit_discount_type" required>
               <option value="percentage">Phần trăm</option>
               <option value="fixed">Cố định</option>
-              <option value="package">Gói dịch vụ</option>
             </select>
           </div>
           <div class="form-group">
@@ -452,9 +457,9 @@ function resolveTierDisplayName($tierId, $tierName) {
           <div class="form-group mb-0">
             <label for="edit_status">Trạng thái</label>
             <select class="form-control" id="edit_status" name="edit_status" required>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="expired">Expired</option>
+              <option value="active">Hoạt động</option>
+              <option value="inactive">Không hoạt động</option>
+              <option value="expired">Hết hạn</option>
             </select>
           </div>
         </div>
@@ -469,21 +474,89 @@ function resolveTierDisplayName($tierId, $tierName) {
 
 <?php include 'layout/footer.php'; ?>
 
-
-
 <script>
 $(document).ready(function() {
+  // --- 1. LOGIC RÀNG BUỘC NGÀY THÁNG ---
+  $('#start_date').on('change', function() {
+    $('#end_date').attr('min', $(this).val());
+  });
+  $('#end_date').on('change', function() {
+    $('#start_date').attr('max', $(this).val());
+  });
+
+  $('#edit_start_date').on('change', function() {
+    $('#edit_end_date').attr('min', $(this).val());
+  });
+  $('#edit_end_date').on('change', function() {
+    $('#edit_start_date').attr('max', $(this).val());
+  });
+
+
+  var today = new Date().toISOString().split('T')[0];
+  $('#start_date').attr('min', today);
+
+
+  // --- 2. LOGIC RÀNG BUỘC PHẦN TRĂM KHÔNG VƯỢT QUÁ 100 ---
+  function checkPercentageLimit(typeSelectId, valueInputId) {
+    var type = $('#' + typeSelectId).val();
+    var valueInput = $('#' + valueInputId);
+    
+    if (type === 'percentage') {
+      valueInput.attr('max', '100'); 
+
+      if (parseFloat(valueInput.val()) > 100) {
+        valueInput.val(100);
+      }
+    } else {
+      valueInput.removeAttr('max'); 
+    }
+  }
+
+  $('#discount_type').on('change', function() {
+    checkPercentageLimit('discount_type', 'discount_value');
+  });
+  $('#edit_discount_type').on('change', function() {
+    checkPercentageLimit('edit_discount_type', 'edit_discount_value');
+  });
+
+  $('#discount_value, #edit_discount_value').on('input', function() {
+    var typeSelectId = $(this).attr('id') === 'discount_value' ? 'discount_type' : 'edit_discount_type';
+    var type = $('#' + typeSelectId).val();
+    
+    if (type === 'percentage' && parseFloat($(this).val()) > 100) {
+      $(this).val(100);
+    }
+  });
+
+
+  // --- 3. ĐỔ DỮ LIỆU VÀO MODAL SỬA ---
   $('.edit-promotion-btn').on('click', function() {
+    var startDate = $(this).data('start-date');
+    var endDate = $(this).data('end-date');
+
     $('#edit_promotion_id').val($(this).data('id'));
     $('#edit_name').val($(this).data('name'));
     $('#edit_tier_id').val($(this).data('tier-id'));
     $('#edit_discount_type').val($(this).data('discount-type'));
     $('#edit_discount_value').val($(this).data('discount-value'));
-    $('#edit_start_date').val($(this).data('start-date'));
-    $('#edit_end_date').val($(this).data('end-date'));
+    $('#edit_start_date').val(startDate);
+    $('#edit_end_date').val(endDate);
     $('#edit_usage_limit').val($(this).data('usage-limit'));
     $('#edit_status').val($(this).data('status'));
+
+
+    if (startDate) {
+      $('#edit_end_date').attr('min', startDate);
+    }
+    if (endDate) {
+      $('#edit_start_date').attr('max', endDate);
+    }
+
+    checkPercentageLimit('edit_discount_type', 'edit_discount_value');
+
     $('#editPromotionModal').modal('show');
   });
+
+  checkPercentageLimit('discount_type', 'discount_value');
 });
 </script>

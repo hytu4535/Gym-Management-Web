@@ -57,8 +57,8 @@ $result = $conn->query($sql);
                                     if ($result && $result->num_rows > 0) {
                                         while($row = $result->fetch_assoc()) {
                                             $statusBadge = $row['status'] == 'active' 
-                                                ? '<span class="badge badge-success">Active</span>' 
-                                                : '<span class="badge badge-secondary">Inactive (Đã ẩn)</span>';
+                                                ? '<span class="badge badge-success">Hoạt động</span>' 
+                                                : '<span class="badge badge-secondary">Không hoạt động (Đã ẩn)</span>';
                                             
                                             $soldTimes = $row['times_sold'];
                                             $soldQty = $row['total_quantity_sold'] ?? 0;
@@ -112,7 +112,7 @@ $result = $conn->query($sql);
                                 <li>Click nút <button class="btn btn-info btn-sm">🔒 Test Ẩn</button></li>
                                 <li>Kết quả: 
                                     <ul>
-                                        <li>✅ Status chuyển sang "Inactive"</li>
+                                        <li>✅ Trạng thái chuyển sang "Không hoạt động"</li>
                                         <li>✅ Vẫn còn trong database</li>
                                         <li>✅ KHÔNG hiển thị trên web client</li>
                                     </ul>

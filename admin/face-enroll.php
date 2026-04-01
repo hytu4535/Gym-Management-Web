@@ -10,7 +10,20 @@ include '../includes/auth_permission.php';
 checkPermission('MANAGE_MEMBERS');
 
 $db = getDB();
-$stmt = $db->query("SELECT id, full_name, status, face_consent FROM members ORDER BY id DESC");
+$hasFaceConsentColumn = false;
+try {
+	$colStmt = $db->query("SHOW COLUMNS FROM members LIKE 'face_consent'");
+	$hasFaceConsentColumn = $colStmt && $colStmt->fetch(PDO::FETCH_ASSOC) !== false;
+} catch (Throwable $e) {
+	$hasFaceConsentColumn = false;
+}
+
+$selectFields = 'id, full_name, status';
+if ($hasFaceConsentColumn) {
+	$selectFields .= ', face_consent';
+}
+
+$stmt = $db->query("SELECT {$selectFields} FROM members ORDER BY id DESC");
 $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 include 'layout/header.php';
@@ -27,7 +40,7 @@ include 'layout/sidebar.php';
 				<div class="col-sm-6">
 					<ol class="breadcrumb float-sm-right">
 						<li class="breadcrumb-item"><a href="index.php">Home</a></li>
-						<li class="breadcrumb-item active">Face Enroll</li>
+						<li class="breadcrumb-item active">Đăng ký khuôn mặt</li>
 					</ol>
 				</div>
 			</div>

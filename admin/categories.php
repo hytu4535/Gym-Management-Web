@@ -82,8 +82,8 @@ $result = $stmt->get_result();
                 <label>Trạng thái</label>
                 <select name="status" class="form-control">
                   <option value="">-- Tất cả trạng thái --</option>
-                  <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option>
-                  <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option>
+                  <option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Hoạt động</option>
+                  <option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Không hoạt động</option>
                 </select>
               </div>
             </div>
@@ -171,8 +171,8 @@ $result = $stmt->get_result();
                   <div class="form-group">
                       <label for="status">Trạng thái <span class="text-danger">*</span></label>
                       <select id="status" name="status" class="form-control">
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
+                            <option value="active">Hoạt động</option>
+                            <option value="inactive">Không hoạt động</option>
                       </select>
                   </div>
                 </div>

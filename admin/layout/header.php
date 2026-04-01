@@ -18,6 +18,40 @@
   <!-- Select2 -->
   <link rel="stylesheet" href="../assets/plugins/select2/css/select2.min.css">
   <link rel="stylesheet" href="../assets/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
+  <style>
+    .content-wrapper .btn {
+      border-radius: 8px;
+      font-weight: 600;
+    }
+
+    .content-wrapper .btn-sm {
+      border-radius: 7px;
+    }
+
+    .content-wrapper .card {
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(30, 41, 59, 0.08);
+    }
+
+    .content-wrapper .table td,
+    .content-wrapper .table th {
+      vertical-align: middle;
+    }
+
+    .content-wrapper .alert {
+      border-radius: 10px;
+    }
+
+    @media (max-width: 767.98px) {
+      .content-wrapper .card-tools {
+        margin-top: 8px;
+      }
+
+      .content-wrapper .btn {
+        margin-bottom: 6px;
+      }
+    }
+  </style>
 </head>
 <body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">

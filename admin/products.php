@@ -107,7 +107,7 @@ if ($hasReviewTable) {
           $filterFieldsHtml .= '</select></div></div>
             <div class="col-md-2"><div class="form-group mb-0"><label>Giá từ</label><input type="number" name="price_min" class="form-control" min="0" value="' . htmlspecialchars($filterPriceMin) . '" placeholder=">="></div></div>
             <div class="col-md-2"><div class="form-group mb-0"><label>Giá đến</label><input type="number" name="price_max" class="form-control" min="0" value="' . htmlspecialchars($filterPriceMax) . '" placeholder="<="></div></div>
-            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Hoạt động</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Không hoạt động</option></select></div></div>
           ';
           include 'layout/filter-card.php';
         ?>
@@ -145,9 +145,9 @@ if ($hasReviewTable) {
                       if ($result && $result->num_rows > 0) {
                         while($row = $result->fetch_assoc()) {
                             if ($row['status'] == 'active') {
-                                $statusBadge = '<span class="badge badge-success">Active</span>';
+                                $statusBadge = '<span class="badge badge-success">Hoạt động</span>';
                             } else {
-                                $statusBadge = '<span class="badge badge-secondary">Inactive</span>';
+                                $statusBadge = '<span class="badge badge-secondary">Không hoạt động</span>';
                             }                     
                             $formattedPrice = number_format($row['selling_price'], 0, ',', '.');   
                             $imgPath = !empty($row['img'])
@@ -272,8 +272,8 @@ if ($hasReviewTable) {
           <div class="form-group">
             <label for="status">Trạng Thái</label>
             <select class="form-control" id="status" name="status">
-              <option value="active">Active (Kích hoạt)</option>
-              <option value="inactive">Inactive (Ẩn)</option>
+              <option value="active">Hoạt động</option>
+              <option value="inactive">Không hoạt động</option>
             </select>
           </div>
 

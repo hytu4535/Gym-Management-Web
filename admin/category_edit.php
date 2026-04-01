@@ -43,8 +43,8 @@ if ($result->num_rows > 0) {
                         <div class="form-group">
                             <label for="status">Trạng thái <span class="text-danger">*</span></label>
                             <select id="status" name="status" class="form-control">
-                                <option value="active" <?php echo ($cat['status'] == 'active') ? 'selected' : ''; ?>>Active (Đang hoạt động)</option>
-                                <option value="inactive" <?php echo ($cat['status'] == 'inactive') ? 'selected' : ''; ?>>Inactive (Tạm ẩn)</option>
+                                <option value="active" <?php echo ($cat['status'] == 'active') ? 'selected' : ''; ?>>Hoạt động</option>
+                                <option value="inactive" <?php echo ($cat['status'] == 'inactive') ? 'selected' : ''; ?>>Không hoạt động</option>
                             </select>
                         </div>
                     </div>

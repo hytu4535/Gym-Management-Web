@@ -12,9 +12,51 @@ $canEditImport = $hasManageAll || !empty($inventoryActionSet['edit']);
 
 $db = getDB();
 
-$currentUserStaffStmt = $db->prepare("SELECT id, full_name FROM staff WHERE users_id = ? LIMIT 1");
-$currentUserStaffStmt->execute([(int) ($_SESSION['admin_user_id'] ?? 0)]);
-$currentUserStaff = $currentUserStaffStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+function getCurrentStaffContext(PDO $db): array {
+  $adminUserId = (int) ($_SESSION['admin_user_id'] ?? 0);
+  if ($adminUserId <= 0) {
+    return [null, null];
+  }
+
+  $stmt = $db->prepare("SELECT id, full_name FROM staff WHERE users_id = ? LIMIT 1");
+  $stmt->execute([$adminUserId]);
+  $staff = $stmt->fetch(PDO::FETCH_ASSOC);
+
+  if (!$staff) {
+    $userStmt = $db->prepare("SELECT id, full_name, username, email, phone FROM users WHERE id = ? LIMIT 1");
+    $userStmt->execute([$adminUserId]);
+    $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+      return [null, null];
+    }
+
+    $fullName = trim((string) ($user['full_name'] ?? ''));
+    if ($fullName === '') {
+      $fullName = trim((string) ($user['username'] ?? ''));
+    }
+    if ($fullName === '') {
+      $fullName = 'Nhân viên';
+    }
+
+    $email = trim((string) ($user['email'] ?? ''));
+    $phone = trim((string) ($user['phone'] ?? ''));
+
+    $insertStaffStmt = $db->prepare("INSERT INTO staff (users_id, full_name, email, phone, position, status) VALUES (?, ?, ?, ?, ?, 'active')");
+    $insertStaffStmt->execute([
+      $adminUserId,
+      $fullName,
+      $email !== '' ? $email : null,
+      $phone !== '' ? $phone : null,
+      'Nhân viên',
+    ]);
+
+    $newStaffId = (int) $db->lastInsertId();
+    return [$newStaffId, $fullName];
+  }
+
+  return [(int) $staff['id'], (string) ($staff['full_name'] ?? '')];
+}
 
 function importStatusLabelByIndex($statusIndex) {
   switch ((int) $statusIndex) {
@@ -122,27 +164,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
   $detailQuantities = $_POST['detail_quantity'] ?? [];
   $detailImportPrices = $_POST['detail_import_price'] ?? [];
 
-  if (!$currentUserStaff) {
-    echo "<script>alert('Không xác định được nhân viên hiện tại. Vui lòng liên hệ quản trị viên!');window.location='import-slips.php';</script>";
+  [$staffId, $staffFullName] = getCurrentStaffContext($db);
+
+  if ($staffId <= 0) {
+    echo "<script>alert('Không thể xác định nhân viên của tài khoản đang đăng nhập!');window.location='import-slips.php';</script>";
     exit;
   }
 
-  $staffId = (int) $currentUserStaff['id'];
-
-  $supplierCheckStmt = $db->prepare("SELECT COUNT(*) FROM suppliers WHERE id = ?");
+  $supplierCheckStmt = $db->prepare("SELECT * FROM suppliers WHERE id = ? AND status = 'active' LIMIT 1");
   $supplierCheckStmt->execute([$supplierId]);
 
-  $supplierStatusStmt = $db->prepare("SELECT status FROM suppliers WHERE id = ? LIMIT 1");
-  $supplierStatusStmt->execute([$supplierId]);
-  $supplierStatus = $supplierStatusStmt->fetchColumn();
-
-  if ((int) $supplierCheckStmt->fetchColumn() === 0) {
+  if (!$supplierCheckStmt->fetch(PDO::FETCH_ASSOC)) {
     echo "<script>alert('Nhà cung cấp không tồn tại!');window.location='import-slips.php';</script>";
-    exit;
-  }
-
-  if ((string) $supplierStatus !== 'active') {
-    echo "<script>alert('Nhà cung cấp này đang không hoạt động nên không thể tạo phiếu nhập!');window.location='import-slips.php';</script>";
     exit;
   }
 
@@ -160,6 +193,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
     }
 
     if ($itemId <= 0 || $quantity <= 0 || $importPrice <= 0) {
+      if ($quantity <= 0) {
+        echo "<script>alert('số lượng phải lớn hơn hoặc bằng 1.');window.location='import-slips.php';</script>";
+        exit;
+      }
+
+      if ($importPrice <= 0) {
+        echo "<script>alert('đơn giá nhập phải lớn hơn hoặc bằng 1.');window.location='import-slips.php';</script>";
+        exit;
+      }
+
       continue;
     }
 
@@ -195,7 +238,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
   try {
     $db->beginTransaction();
 
-    // Let DB default set initial status to pending.
     $insertStmt = $db->prepare("INSERT INTO import_slips (staff_id, supplier_id, total_amount, note) VALUES (?, ?, ?, ?)");
     $result = $insertStmt->execute([$staffId, $supplierId, $totalAmount, $note]);
 
@@ -231,7 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
   exit;
 }
 
-$suppliersStmt = $db->query("SELECT id, name FROM suppliers WHERE status = 'active' ORDER BY name ASC");
+$suppliersStmt = $db->query("SELECT id, name FROM suppliers WHERE status = 'active'");
 $suppliers = $suppliersStmt->fetchAll();
 
 $staffStmt = $db->query("SELECT id, full_name FROM staff ORDER BY full_name ASC");
@@ -385,18 +427,19 @@ include 'layout/sidebar.php';
               <div class="card-body">
                 <table class="table table-bordered table-striped data-table js-admin-table">
                   <thead>
-                  <tr>
-                    <th>Mã Phiếu</th>
-                    <th>Nhà Cung Cấp</th>
-                    <th>Nhân Viên</th>
-                    <th>Tổng Tiền</th>
-                    <th>Ngày Nhập</th>
-                    <th>Trạng Thái</th>
-                    <th>Hành động</th>
-                  </tr>
+                    <tr>
+                      <th>Mã Phiếu</th>
+                      <th>Nhà Cung Cấp</th>
+                      <th>Nhân Viên</th>
+                      <th>Tổng Tiền</th>
+                      <th>Ngày Nhập</th>
+                      <th>Trạng Thái</th>
+                      <th>Hành động</th>
+                    </tr>
                   </thead>
                   <tbody>
                   <?php foreach ($importSlips as $importSlip): ?>
+                  <?php $displayStatus = importStatusLabelByIndex($importSlip['status_idx'] ?? 0); ?>
                   <tr>
                     <td>#PN<?= str_pad($importSlip['id'], 3, '0', STR_PAD_LEFT) ?></td>
                     <td><?= htmlspecialchars($importSlip['supplier_name']) ?></td>
@@ -404,7 +447,6 @@ include 'layout/sidebar.php';
                     <td><?= number_format((float) $importSlip['total_amount'], 0, ',', '.') ?> VNĐ</td>
                     <td><?= date('d/m/Y', strtotime($importSlip['import_date'])) ?></td>
                     <td>
-                      <?php $displayStatus = importStatusLabelByIndex($importSlip['status_idx'] ?? 0); ?>
                       <?php if ($displayStatus === 'Đã nhập'): ?>
                         <span class="badge badge-success">Đã nhập</span>
                       <?php elseif ($displayStatus === 'Đang chờ duyệt'): ?>
@@ -439,7 +481,6 @@ include 'layout/sidebar.php';
                   <?php endforeach; ?>
                   </tbody>
                 </table>
-              </div>
             </div>
           </div>
         </div>
@@ -450,7 +491,7 @@ include 'layout/sidebar.php';
 
 <!-- Modal Tạo Phiếu Nhập -->
 <div class="modal fade" id="addImportModal" tabindex="-1" role="dialog" aria-labelledby="addImportModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
+  <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 96vw; width: 96vw;">
     <div class="modal-content">
       <form method="POST" action="import-slips.php" novalidate>
         <div class="modal-header">
@@ -480,25 +521,16 @@ include 'layout/sidebar.php';
           </div>
 
           <div class="form-group">
-            <label for="staff_name">Nhân Viên Hiện Tại</label>
-            <input type="text" class="form-control" id="staff_name" value="<?= htmlspecialchars($currentUserStaff['full_name'] ?? 'Chưa xác định') ?>" readonly>
-            <input type="hidden" name="staff_id" value="<?= (int) ($currentUserStaff['id'] ?? 0) ?>">
-            <?php if (!$currentUserStaff): ?>
-              <small class="text-danger">Không xác định được nhân viên hiện tại để lập phiếu nhập.</small>
-            <?php endif; ?>
-          </div>
-
-          <div class="form-group">
             <label>Chi tiết nhập kho</label>
             <div class="table-responsive mb-2">
-              <table class="table table-bordered table-sm mb-0" id="import_detail_table">
+              <table class="table table-bordered table-sm mb-0" id="import_detail_table" style="min-width: 1100px;">
                 <thead>
                   <tr>
-                    <th style="width: 20%;">Loại</th>
-                    <th style="width: 30%;">Tên mục</th>
-                    <th style="width: 15%;">SL</th>
-                    <th style="width: 20%;">Đơn giá nhập</th>
-                    <th style="width: 15%;">Thành tiền</th>
+                    <th style="width: 14%; white-space: nowrap;">Loại</th>
+                    <th style="width: 32%;">Tên mục</th>
+                    <th style="width: 10%; white-space: nowrap;">SL</th>
+                    <th style="width: 18%; white-space: nowrap;">Đơn giá nhập</th>
+                    <th style="width: 16%; white-space: nowrap;">Thành tiền</th>
                     <th style="width: 50px;"></th>
                   </tr>
                 </thead>
@@ -517,19 +549,13 @@ include 'layout/sidebar.php';
           </div>
 
           <div class="form-group">
-            <label>Trạng Thái</label>
-            <input type="text" class="form-control" value="Đang chờ duyệt" readonly>
-            <input type="hidden" name="status" value="Đang chờ duyệt">
-          </div>
-
-          <div class="form-group">
             <label for="note">Ghi chú</label>
             <textarea class="form-control" id="note" name="note" rows="3"></textarea>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || (empty($products) && empty($equipmentList)) || !$canAddImport || !$currentUserStaff) ? 'disabled' : '' ?>>Tạo phiếu</button>
+          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || (empty($products) && empty($equipmentList)) || !$canAddImport) ? 'disabled' : '' ?>>Tạo phiếu</button>
         </div>
       </form>
     </div>
@@ -672,10 +698,12 @@ include 'layout/sidebar.php';
           <select class="form-control form-control-sm detail-item" name="detail_item_id[]"></select>\
         </td>\
         <td>\
-          <input type="number" class="form-control form-control-sm detail-quantity" name="detail_quantity[]" min="1" step="1">\
+          <input type="number" class="form-control form-control-sm detail-quantity" name="detail_quantity[]" step="1" inputmode="numeric">\
+          <small class="text-danger d-none detail-quantity-error"></small>\
         </td>\
         <td>\
-          <input type="number" class="form-control form-control-sm detail-price" name="detail_import_price[]" min="1" step="any">\
+          <input type="number" class="form-control form-control-sm detail-price" name="detail_import_price[]" step="any" inputmode="decimal">\
+          <small class="text-danger d-none detail-price-error"></small>\
         </td>\
         <td class="text-right align-middle detail-line-total">0 VNĐ</td>\
         <td class="text-center">\
@@ -815,6 +843,7 @@ include 'layout/sidebar.php';
     function clearImportFormErrors() {
       $('#importFormErrors').hide().find('ul').empty();
       $('#supplierIdError, #importDetailError').text('').hide();
+      $('.detail-quantity-error, .detail-price-error').text('').addClass('d-none');
       $('#import_detail_body .is-invalid').removeClass('is-invalid');
     }
 
@@ -851,6 +880,8 @@ include 'layout/sidebar.php';
         showImportFieldError('importDetailError', 'Vui lòng thêm ít nhất 1 dòng chi tiết nhập kho.');
       } else {
         let hasDetailError = false;
+        let hasQuantityError = false;
+        let hasPriceError = false;
         $rows.each(function () {
           const $row = $(this);
           const type = $row.find('.detail-type').val();
@@ -865,17 +896,27 @@ include 'layout/sidebar.php';
           }
           if (quantity <= 0) {
             $row.find('.detail-quantity').addClass('is-invalid');
+            $row.find('.detail-quantity-error').text('số lượng phải lớn hơn hoặc bằng 1.').removeClass('d-none');
             hasDetailError = true;
+            hasQuantityError = true;
           }
           if (price <= 0) {
             $row.find('.detail-price').addClass('is-invalid');
+            $row.find('.detail-price-error').text('đơn giá nhập phải lớn hơn hoặc bằng 1.').removeClass('d-none');
             hasDetailError = true;
+            hasPriceError = true;
           }
         });
 
         if (hasDetailError) {
-          errors.push('Vui lòng kiểm tra lại chi tiết nhập kho (mục chọn, số lượng, đơn giá phải hợp lệ).');
-          showImportFieldError('importDetailError', 'Vui lòng kiểm tra lại chi tiết nhập kho (mục chọn, số lượng, đơn giá phải hợp lệ).');
+          if (hasQuantityError) {
+            errors.push('số lượng phải lớn hơn hoặc bằng 1.');
+          }
+          if (hasPriceError) {
+            errors.push('đơn giá nhập phải lớn hơn hoặc bằng 1.');
+          }
+
+          showImportFieldError('importDetailError', errors.join(' '));
         }
       }
 
@@ -896,4 +937,4 @@ include 'layout/sidebar.php';
       $('#add_import_detail_row').trigger('click');
     }
   })();
-</script>
+</script> 

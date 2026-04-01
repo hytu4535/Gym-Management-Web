@@ -105,7 +105,30 @@ if ($memberId <= 0 || $imageBase64 === '') {
 try {
 	$db = getDB();
 
-	$memberStmt = $db->prepare('SELECT id, full_name, status, face_consent FROM members WHERE id = ? LIMIT 1');
+	$hasFaceConsentColumn = false;
+	$hasFaceConsentAtColumn = false;
+	$hasFaceConsentSourceColumn = false;
+	try {
+		$colStmt = $db->query("SHOW COLUMNS FROM members LIKE 'face_consent'");
+		$hasFaceConsentColumn = $colStmt && $colStmt->fetch(PDO::FETCH_ASSOC) !== false;
+
+		$colStmt = $db->query("SHOW COLUMNS FROM members LIKE 'face_consent_at'");
+		$hasFaceConsentAtColumn = $colStmt && $colStmt->fetch(PDO::FETCH_ASSOC) !== false;
+
+		$colStmt = $db->query("SHOW COLUMNS FROM members LIKE 'face_consent_source'");
+		$hasFaceConsentSourceColumn = $colStmt && $colStmt->fetch(PDO::FETCH_ASSOC) !== false;
+	} catch (Throwable $e) {
+		$hasFaceConsentColumn = false;
+		$hasFaceConsentAtColumn = false;
+		$hasFaceConsentSourceColumn = false;
+	}
+
+	$memberSelect = 'id, full_name, status';
+	if ($hasFaceConsentColumn) {
+		$memberSelect .= ', face_consent';
+	}
+
+	$memberStmt = $db->prepare("SELECT {$memberSelect} FROM members WHERE id = ? LIMIT 1");
 	$memberStmt->execute([$memberId]);
 	$member = $memberStmt->fetch(PDO::FETCH_ASSOC);
 
@@ -134,14 +157,22 @@ try {
 		face_json_response(422, ['success' => false, 'message' => $serviceResult['data']['error'] ?? 'Đăng ký khuôn mặt thất bại.']);
 	}
 
-	$consentStmt = $db->prepare(
-		"UPDATE members
-		 SET face_consent = 1,
-			 face_consent_at = COALESCE(face_consent_at, NOW()),
-			 face_consent_source = 'admin_face_enroll'
-		 WHERE id = ?"
-	);
-	$consentStmt->execute([$memberId]);
+	if ($hasFaceConsentColumn || $hasFaceConsentAtColumn || $hasFaceConsentSourceColumn) {
+		$updateSet = [];
+		if ($hasFaceConsentColumn) {
+			$updateSet[] = 'face_consent = 1';
+		}
+		if ($hasFaceConsentAtColumn) {
+			$updateSet[] = 'face_consent_at = COALESCE(face_consent_at, NOW())';
+		}
+		if ($hasFaceConsentSourceColumn) {
+			$updateSet[] = "face_consent_source = 'admin_face_enroll'";
+		}
+
+		$consentSql = 'UPDATE members SET ' . implode(', ', $updateSet) . ' WHERE id = ?';
+		$consentStmt = $db->prepare($consentSql);
+		$consentStmt->execute([$memberId]);
+	}
 
 	face_json_response(200, [
 		'success' => true,

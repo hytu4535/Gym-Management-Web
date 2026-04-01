@@ -21,12 +21,14 @@ if ($order_id === 0) {
     exit;
 }
 
-$sql_order = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, m.full_name, mt.name as tier_name,
-              u_staff.full_name as handler_name 
+$sql_order = "SELECT o.id, o.total_amount, o.order_date, o.status, o.payment_method, m.id AS member_code, m.full_name, mt.name as tier_name,
+              COALESCE(NULLIF(u_staff.full_name, ''), u_staff.username) as handler_name,
+              COALESCE(NULLIF(u_confirmed.full_name, ''), u_confirmed.username) as confirmed_name 
               FROM orders o 
               LEFT JOIN members m ON o.member_id = m.id 
               LEFT JOIN member_tiers mt ON m.tier_id = mt.id
               LEFT JOIN users u_staff ON o.handled_by = u_staff.id
+              LEFT JOIN users u_confirmed ON o.confirmed_by = u_confirmed.id
               WHERE o.id = $order_id";
 $result_order = $conn->query($sql_order);
 
@@ -144,13 +146,15 @@ $subtotal_before_discount = $total_items_cost;
                 <div class="info-card customer">
                     <h6><i class="fas fa-user-circle mr-1"></i> Khách hàng</h6>
                     <p><strong>Họ tên:</strong> <?php echo htmlspecialchars($order['full_name'] ?? 'Khách vãng lai'); ?></p>
+                  <p><strong>Mã khách hàng:</strong> <?php echo !empty($order['member_code']) ? '#KH' . str_pad((string) $order['member_code'], 3, '0', STR_PAD_LEFT) : '<span class="text-muted">-</span>'; ?></p>
                 </div>
             </div>
             <div class="col-md-4 mb-3 mb-md-0">
                 <div class="info-card order">
                     <h6><i class="fas fa-shopping-bag mr-1"></i> Đơn hàng</h6>
                     <p><strong>Ngày đặt:</strong> <?php echo date('H:i - d/m/Y', strtotime($order['order_date'])); ?></p>
-                    <p><strong>Người duyệt:</strong> <?php echo !empty($order['handler_name']) ? "<span class='text-primary'><i class='fas fa-user-check'></i> " . htmlspecialchars($order['handler_name']) . "</span>" : 'Chưa có người xử lý'; ?></p>
+                    <p><strong>Duyệt bởi:</strong> <?php echo !empty($order['confirmed_name']) ? "<span class='text-primary'><i class='fas fa-user-check'></i> " . htmlspecialchars($order['confirmed_name']) . "</span>" : 'Chưa xử lý'; ?></p>
+                    <p><strong>Nhân viên xuất:</strong> <?php echo !empty($order['handler_name']) ? "<span class='text-primary'><i class='fas fa-user-check'></i> " . htmlspecialchars($order['handler_name']) . "</span>" : 'Chưa xử lý'; ?></p>
                     <p><strong>Trạng thái:</strong> 
                         <?php 
                             $status_badges = [

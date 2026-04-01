@@ -244,7 +244,7 @@ function resolveTierDisplayName($tierId, $tierName) {
             $filterFieldsHtml .= '<option value="' . (int) $tier['id'] . '" ' . $selected . '>' . htmlspecialchars(resolveTierDisplayName($tier['id'], $tier['name'])) . '</option>';
           }
           $filterFieldsHtml .= '</select></div></div>
-            <div class="col-md-2"><div class="form-group mb-0"><label>Loại giảm</label><select name="discount_type" class="form-control"><option value="">-- Tất cả --</option><option value="percentage" ' . ($filterDiscountType === 'percentage' ? 'selected' : '') . '>Phần trăm</option><option value="fixed" ' . ($filterDiscountType === 'fixed' ? 'selected' : '') . '>Cố định</option><option value="package" ' . ($filterDiscountType === 'package' ? 'selected' : '') . '>Gói dịch vụ</option></select></div></div>
+            <div class="col-md-2"><div class="form-group mb-0"><label>Loại giảm</label><select name="discount_type" class="form-control"><option value="">-- Tất cả --</option><option value="percentage" ' . ($filterDiscountType === 'percentage' ? 'selected' : '') . '>Phần trăm</option><option value="fixed" ' . ($filterDiscountType === 'fixed' ? 'selected' : '') . '>Cố định</option></select></div></div>
             <div class="col-md-2"><div class="form-group mb-0"><label>Trạng thái</label><select name="status" class="form-control"><option value="">-- Tất cả --</option><option value="active" ' . ($filterStatus === 'active' ? 'selected' : '') . '>Active</option><option value="inactive" ' . ($filterStatus === 'inactive' ? 'selected' : '') . '>Inactive</option><option value="expired" ' . ($filterStatus === 'expired' ? 'selected' : '') . '>Expired</option></select></div></div>
           ';
           include 'layout/filter-card.php';
@@ -281,8 +281,6 @@ function resolveTierDisplayName($tierId, $tierName) {
                     $discountTypeLabel = 'Phần trăm';
                     if ($promotion['discount_type'] === 'fixed') {
                       $discountTypeLabel = 'Cố định';
-                    } elseif ($promotion['discount_type'] === 'package') {
-                      $discountTypeLabel = 'Gói dịch vụ';
                     }
 
                     $discountValueLabel = number_format((float) $promotion['discount_value'], 0, ',', '.');
@@ -367,7 +365,6 @@ function resolveTierDisplayName($tierId, $tierName) {
             <select class="form-control" id="discount_type" name="discount_type" required>
               <option value="percentage">Phần trăm</option>
               <option value="fixed">Cố định</option>
-              <option value="package">Gói dịch vụ</option>
             </select>
           </div>
           <div class="form-group">
@@ -436,7 +433,6 @@ function resolveTierDisplayName($tierId, $tierName) {
             <select class="form-control" id="edit_discount_type" name="edit_discount_type" required>
               <option value="percentage">Phần trăm</option>
               <option value="fixed">Cố định</option>
-              <option value="package">Gói dịch vụ</option>
             </select>
           </div>
           <div class="form-group">

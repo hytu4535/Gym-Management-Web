@@ -6,10 +6,13 @@ require_once '../config/db.php';
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-$sql = "SELECT o.*, m.full_name, u.full_name AS handler_name 
+$sql = "SELECT o.*, m.full_name, 
+           COALESCE(NULLIF(u.full_name, ''), u.username) AS handler_name,
+           COALESCE(NULLIF(u_confirmed.full_name, ''), u_confirmed.username) AS confirmed_name 
         FROM orders o 
         LEFT JOIN members m ON o.member_id = m.id 
-        LEFT JOIN users u ON o.handled_by = u.id
+    LEFT JOIN users u ON o.handled_by = u.id
+    LEFT JOIN users u_confirmed ON o.confirmed_by = u_confirmed.id
         WHERE o.id = $id";
 $result = $conn->query($sql);
 
@@ -41,7 +44,8 @@ if ($result->num_rows > 0) {
                             <div class="col-md-6">
                                 <p><strong>Khách hàng:</strong> <?php echo htmlspecialchars($order['full_name'] ?? 'Khách vãng lai'); ?></p>
                                 <p><strong>Ngày đặt:</strong> <?php echo date('d/m/Y H:i', strtotime($order['order_date'])); ?></p>
-                                <p><strong>Người duyệt:</strong> <?php echo !empty($order['handler_name']) ? "<span class='badge badge-info'><i class='fas fa-user-check'></i> " . htmlspecialchars($order['handler_name']) . "</span>" : '<span class="text-muted">Chưa xử lý</span>'; ?></p>
+                                <p><strong>Duyệt bởi:</strong> <?php echo !empty($order['confirmed_name']) ? "<span class='badge badge-primary'><i class='fas fa-user-check'></i> " . htmlspecialchars($order['confirmed_name']) . "</span>" : '<span class="text-muted">Chưa xử lý</span>'; ?></p>
+                                <p><strong>Nhân viên xuất:</strong> <?php echo !empty($order['handler_name']) ? "<span class='badge badge-info'><i class='fas fa-user-check'></i> " . htmlspecialchars($order['handler_name']) . "</span>" : '<span class="text-muted">Chưa xử lý</span>'; ?></p>
                                 <p><strong>Tổng tiền:</strong> <span class="text-danger font-weight-bold"><?php echo number_format($order['total_amount'], 0, ',', '.'); ?>đ</span></p>
                             </div>
                             <div class="col-md-6">

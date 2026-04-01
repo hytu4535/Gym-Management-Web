@@ -1,4 +1,3 @@
-php
 <?php
 session_start(); // luôn khởi tạo session
 
@@ -9,6 +8,7 @@ include '../includes/auth.php';
 
 // kết nối DB và kiểm tra quyền
 include '../includes/database.php';
+include '../includes/functions.php';
 include '../includes/auth_permission.php';
 
 // chỉ cho phép user có quyền MANAGE_EQUIPMENT
@@ -33,6 +33,143 @@ if ($hasManageAll) {
   $canDeleteEquipment = $legacyManageEquipment;
 }
 
+function setEquipmentFlash($type, $message) {
+  $_SESSION['equipment_flash'] = [
+    'type' => $type,
+    'message' => $message
+  ];
+}
+
+function tableHasColumn(PDO $db, $tableName, $columnName) {
+  // MySQL does not allow binding identifiers, so validate before interpolation.
+  if (!preg_match('/^[A-Za-z0-9_]+$/', (string) $tableName) || !preg_match('/^[A-Za-z0-9_]+$/', (string) $columnName)) {
+    return false;
+  }
+
+  // Some MySQL/PDO configurations don't support placeholders in SHOW statements.
+  $quotedColumn = $db->quote($columnName);
+  $query = "SHOW COLUMNS FROM `{$tableName}` LIKE {$quotedColumn}";
+  $stmt = $db->query($query);
+  return $stmt ? (bool) $stmt->fetch(PDO::FETCH_ASSOC) : false;
+}
+
+function equipmentNameExists(PDO $db, $name, $excludeId = null) {
+  if ($excludeId !== null) {
+    $stmt = $db->prepare("SELECT COUNT(*) FROM equipment WHERE name = ? AND id <> ?");
+    $stmt->execute([$name, (int) $excludeId]);
+  } else {
+    $stmt = $db->prepare("SELECT COUNT(*) FROM equipment WHERE name = ?");
+    $stmt->execute([$name]);
+  }
+
+  return (int) $stmt->fetchColumn() > 0;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_equipment_id'])) {
+  if (!$canEditEquipment) {
+    header('Location: no_permission.php');
+    exit;
+  }
+
+  $id = intval($_POST['edit_equipment_id']);
+  $name = sanitize($_POST['edit_equipment_name']);
+  $quantity = intval($_POST['edit_equipment_quantity']);
+
+  if ($name === '' || $quantity < 1) {
+    setEquipmentFlash('error', 'Dữ liệu thiết bị không hợp lệ!');
+    header('Location: equipment.php');
+    exit;
+  }
+
+  $db = getDB();
+
+  if (equipmentNameExists($db, $name, $id)) {
+    setEquipmentFlash('error', 'Tên thiết bị đã tồn tại, vui lòng nhập tên khác!');
+    header('Location: equipment.php');
+    exit;
+  }
+
+  $stmt = $db->prepare("UPDATE equipment SET name = ?, quantity = ? WHERE id = ?");
+  if ($stmt->execute([$name, $quantity, $id])) {
+    setEquipmentFlash('success', 'Cập nhật thiết bị thành công!');
+  } else {
+    setEquipmentFlash('error', 'Lỗi khi cập nhật thiết bị!');
+  }
+
+  header('Location: equipment.php');
+  exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_equipment_id'])) {
+  if (!$canDeleteEquipment) {
+    header('Location: no_permission.php');
+    exit;
+  }
+
+  $id = intval($_POST['delete_equipment_id']);
+  $db = getDB();
+
+  if (tableHasColumn($db, 'equipment_maintenance', 'status')) {
+    $openMaintenanceStmt = $db->prepare("SELECT COUNT(*) FROM equipment_maintenance WHERE equipment_id = ? AND status IN ('cho_bao_tri', 'dang_bao_tri')");
+    $openMaintenanceStmt->execute([$id]);
+  } else {
+    // Backward-compatible fallback for old schema without maintenance status column.
+    $openMaintenanceStmt = $db->prepare("SELECT COUNT(*) FROM equipment_maintenance WHERE equipment_id = ?");
+    $openMaintenanceStmt->execute([$id]);
+  }
+  $hasOpenMaintenance = (int) $openMaintenanceStmt->fetchColumn() > 0;
+
+  if ($hasOpenMaintenance) {
+    setEquipmentFlash('error', 'Thiết bị đang có phiếu bảo trì mở, không thể xóa!');
+    header('Location: equipment.php');
+    exit;
+  }
+
+  $stmt = $db->prepare("DELETE FROM equipment WHERE id = ?");
+  if ($stmt->execute([$id])) {
+    setEquipmentFlash('success', 'Xóa thiết bị thành công!');
+  } else {
+    setEquipmentFlash('error', 'Lỗi khi xóa thiết bị!');
+  }
+
+  header('Location: equipment.php');
+  exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['equipment_name'])) {
+  if (!$canAddEquipment) {
+    header('Location: no_permission.php');
+    exit;
+  }
+
+  $name = sanitize($_POST['equipment_name']);
+  $quantity = intval($_POST['equipment_quantity']);
+
+  if ($name === '' || $quantity < 1) {
+    setEquipmentFlash('error', 'Dữ liệu thiết bị không hợp lệ!');
+    header('Location: equipment.php');
+    exit;
+  }
+
+  $db = getDB();
+
+  if (equipmentNameExists($db, $name)) {
+    setEquipmentFlash('error', 'Tên thiết bị đã tồn tại, vui lòng nhập tên khác!');
+    header('Location: equipment.php');
+    exit;
+  }
+
+  $stmt = $db->prepare("INSERT INTO equipment (name, quantity, status) VALUES (?, ?, 'dang su dung')");
+  if ($stmt->execute([$name, $quantity])) {
+    setEquipmentFlash('success', 'Thêm thiết bị thành công!');
+  } else {
+    setEquipmentFlash('error', 'Lỗi khi thêm thiết bị!');
+  }
+
+  header('Location: equipment.php');
+  exit;
+}
+
 // layout chung
 include 'layout/header.php';
 include 'layout/sidebar.php';
@@ -49,10 +186,21 @@ if ($filterName !== '') {
   $whereParams[] = '%' . $filterName . '%';
 }
 if ($filterStatus !== '') {
-  $whereClauses[] = 'status = ?';
-  $whereParams[] = $filterStatus;
+  if ($filterStatus === 'bao tri') {
+    // Backward-compatible: include old status literals if they still exist in DB.
+    $whereClauses[] = "status IN ('bao tri', 'dang bao tri', 'cho bao tri')";
+  } else {
+    $whereClauses[] = 'status = ?';
+    $whereParams[] = $filterStatus;
+  }
 }
 $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
+$allEquipmentNameStmt = $db->query("SELECT id, name FROM equipment");
+$allEquipmentNames = $allEquipmentNameStmt ? $allEquipmentNameStmt->fetchAll(PDO::FETCH_ASSOC) : [];
+
+$equipmentFlash = $_SESSION['equipment_flash'] ?? null;
+unset($_SESSION['equipment_flash']);
 ?>
 
   <!-- Content Wrapper. Contains page content -->
@@ -77,6 +225,14 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
     <!-- Main content -->
     <section class="content">
       <div class="container-fluid">
+        <?php if (is_array($equipmentFlash) && !empty($equipmentFlash['message'])): ?>
+          <div class="alert alert-<?= ($equipmentFlash['type'] ?? 'success') === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show" role="alert">
+            <?= htmlspecialchars((string) $equipmentFlash['message']) ?>
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        <?php endif; ?>
         <?php
           $filterMode = 'server';
           $filterAction = 'equipment.php';
@@ -127,7 +283,6 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
                   </thead>
                   <tbody>
                   <?php
-                  require_once '../includes/functions.php';
                   $db = getDB();
                   $stmt = $db->prepare("SELECT * FROM equipment" . $whereSql . " ORDER BY id DESC");
                   $stmt->execute($whereParams);
@@ -140,7 +295,7 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
                     <td>
                       <?php if ($equipment['status'] === 'dang su dung'): ?>
                         <span class="badge badge-success">Đang sử dụng</span>
-                      <?php elseif ($equipment['status'] === 'bao tri'): ?>
+                      <?php elseif (in_array($equipment['status'], ['bao tri', 'dang bao tri', 'cho bao tri'], true)): ?>
                         <span class="badge badge-warning">Bảo trì</span>
                       <?php elseif ($equipment['status'] === 'ngung hoat dong'): ?>
                         <span class="badge badge-danger">Ngừng hoạt động</span>
@@ -153,8 +308,7 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
                       <button class="btn btn-warning btn-sm edit-equipment-btn"
                         data-id="<?= $equipment['id'] ?>"
                         data-name="<?= htmlspecialchars($equipment['name']) ?>"
-                        data-quantity="<?= $equipment['quantity'] ?>"
-                        data-status="<?= $equipment['status'] ?>">
+                        data-quantity="<?= $equipment['quantity'] ?>">
                         <i class="fas fa-edit"></i>
                       </button>
                       <?php endif; ?>
@@ -202,15 +356,7 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
             <input type="number" class="form-control" id="edit_equipment_quantity" name="edit_equipment_quantity" min="1">
             <small class="text-danger d-none validation-error"></small>
           </div>
-          <div class="form-group">
-            <label for="edit_equipment_status">Tình trạng</label>
-            <select class="form-control" id="edit_equipment_status" name="edit_equipment_status">
-              <option value="dang su dung">Đang sử dụng</option>
-              <option value="bao tri">Bảo trì</option>
-              <option value="ngung hoat dong">Ngừng hoạt động</option>
-            </select>
-            <small class="text-danger d-none validation-error"></small>
-          </div>
+          <p class="text-muted mb-0">Trạng thái bảo trì được đồng bộ tự động từ trang bảo trì thiết bị.</p>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
@@ -247,7 +393,44 @@ $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) 
 
 <script>
 $(document).ready(function() {
-  var validStatuses = ['dang su dung', 'bao tri', 'ngung hoat dong'];
+  var equipmentFlash = <?php echo json_encode($equipmentFlash, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
+  var equipmentNameRegistry = <?php echo json_encode($allEquipmentNames, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
+
+  if (equipmentFlash && equipmentFlash.message) {
+    if (equipmentFlash.type === 'success' && typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+      Swal.fire({
+        icon: 'success',
+        title: 'Thành công',
+        text: equipmentFlash.message,
+        timer: 1800,
+        showConfirmButton: false
+      });
+    }
+  }
+
+  function normalizeName(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  function isDuplicateName(name, excludeId) {
+    var normalizedInput = normalizeName(name);
+    if (!normalizedInput) {
+      return false;
+    }
+
+    return equipmentNameRegistry.some(function(item) {
+      if (!item || typeof item.name === 'undefined') {
+        return false;
+      }
+
+      var itemId = parseInt(item.id, 10);
+      if (excludeId !== null && !Number.isNaN(itemId) && itemId === excludeId) {
+        return false;
+      }
+
+      return normalizeName(item.name) === normalizedInput;
+    });
+  }
 
   function setFieldError($field, message) {
     var $error = $field.closest('.form-group').find('.validation-error');
@@ -265,7 +448,14 @@ $(document).ready(function() {
     var isValid = true;
     var $name = $form.find('input[name="equipment_name"], input[name="edit_equipment_name"]');
     var $quantity = $form.find('input[name="equipment_quantity"], input[name="edit_equipment_quantity"]');
-    var $status = $form.find('select[name="equipment_status"], select[name="edit_equipment_status"]');
+    var excludeId = null;
+
+    if ($form.attr('id') === 'editEquipmentForm') {
+      excludeId = parseInt($form.find('input[name="edit_equipment_id"]').val(), 10);
+      if (Number.isNaN(excludeId)) {
+        excludeId = null;
+      }
+    }
 
     $form.find('.form-control').each(function() {
       clearFieldError($(this));
@@ -274,6 +464,9 @@ $(document).ready(function() {
     if (!$name.val().trim()) {
       setFieldError($name, 'Vui lòng nhập tên thiết bị.');
       isValid = false;
+    } else if (isDuplicateName($name.val(), excludeId)) {
+      setFieldError($name, 'Tên thiết bị đã tồn tại. Vui lòng nhập tên khác.');
+      isValid = false;
     }
 
     if (!$quantity.val().trim()) {
@@ -281,11 +474,6 @@ $(document).ready(function() {
       isValid = false;
     } else if (Number($quantity.val()) < 1) {
       setFieldError($quantity, 'Số lượng phải lớn hơn hoặc bằng 1.');
-      isValid = false;
-    }
-
-    if (!validStatuses.includes($status.val())) {
-      setFieldError($status, 'Vui lòng chọn tình trạng hợp lệ.');
       isValid = false;
     }
 
@@ -299,18 +487,32 @@ $(document).ready(function() {
   });
 
   $('#addEquipmentForm, #editEquipmentForm').find('.form-control').on('input change', function() {
-    clearFieldError($(this));
+    var $field = $(this);
+    clearFieldError($field);
+
+    if ($field.is('input[name="equipment_name"], input[name="edit_equipment_name"]')) {
+      var $form = $field.closest('form');
+      var excludeId = null;
+      if ($form.attr('id') === 'editEquipmentForm') {
+        excludeId = parseInt($form.find('input[name="edit_equipment_id"]').val(), 10);
+        if (Number.isNaN(excludeId)) {
+          excludeId = null;
+        }
+      }
+
+      if ($field.val().trim() && isDuplicateName($field.val(), excludeId)) {
+        setFieldError($field, 'Tên thiết bị đã tồn tại. Vui lòng nhập tên khác.');
+      }
+    }
   });
 
   $('.edit-equipment-btn').on('click', function() {
     var id = $(this).data('id');
     var name = $(this).data('name');
     var quantity = $(this).data('quantity');
-    var status = $(this).data('status');
     $('#edit_equipment_id').val(id);
     $('#edit_equipment_name').val(name);
     $('#edit_equipment_quantity').val(quantity);
-    $('#edit_equipment_status').val(status);
     $('#editEquipmentModal').modal('show');
   });
   $('.delete-equipment-btn').on('click', function() {
@@ -328,53 +530,6 @@ $(document).ready(function() {
   });
 });
 </script>
-
-<!-- Handle sửa thiết bị (PHP) -->
-<?php
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_equipment_id'])) {
-    if (!$canEditEquipment) {
-      echo "<script>alert('Bạn không có quyền này');window.location='no_permission.php';</script>";
-      exit;
-    }
-
-    require_once '../includes/functions.php';
-    $id = intval($_POST['edit_equipment_id']);
-    $name = sanitize($_POST['edit_equipment_name']);
-    $quantity = intval($_POST['edit_equipment_quantity']);
-    $status = sanitize($_POST['edit_equipment_status']);
-  $validStatuses = ['dang su dung', 'bao tri', 'ngung hoat dong'];
-  if (!in_array($status, $validStatuses, true)) {
-    $status = 'dang su dung';
-  }
-    $db = getDB();
-    $stmt = $db->prepare("UPDATE equipment SET name=?, quantity=?, status=? WHERE id=?");
-    if ($stmt->execute([$name, $quantity, $status, $id])) {
-        echo "<script>alert('Cập nhật thiết bị thành công!');window.location='equipment.php';</script>";
-    } else {
-        echo "<script>alert('Lỗi khi cập nhật thiết bị!');</script>";
-    }
-}
-?>
-
-<!-- Handle xóa thiết bị (PHP) -->
-<?php
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_equipment_id'])) {
-    if (!$canDeleteEquipment) {
-      echo "<script>alert('Bạn không có quyền này');window.location='no_permission.php';</script>";
-      exit;
-    }
-
-    require_once '../includes/functions.php';
-    $id = intval($_POST['delete_equipment_id']);
-    $db = getDB();
-    $stmt = $db->prepare("DELETE FROM equipment WHERE id = ?");
-    if ($stmt->execute([$id])) {
-        echo "<script>alert('Xóa thiết bị thành công!');window.location='equipment.php';</script>";
-    } else {
-        echo "<script>alert('Lỗi khi xóa thiết bị!');</script>";
-    }
-}
-?>
 
 <!-- Modal Thêm Thiết Bị -->
 <div class="modal fade" id="addEquipmentModal" tabindex="-1" role="dialog" aria-labelledby="addEquipmentModalLabel" aria-hidden="true">
@@ -398,15 +553,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_equipment_id']
             <input type="number" class="form-control" id="equipment_quantity" name="equipment_quantity" min="1">
             <small class="text-danger d-none validation-error"></small>
           </div>
-          <div class="form-group">
-            <label for="equipment_status">Tình trạng</label>
-            <select class="form-control" id="equipment_status" name="equipment_status">
-              <option value="dang su dung">Đang sử dụng</option>
-              <option value="bao tri">Bảo trì</option>
-              <option value="ngung hoat dong">Ngừng hoạt động</option>
-            </select>
-            <small class="text-danger d-none validation-error"></small>
-          </div>
+          <p class="text-muted mb-0">Thiết bị mới sẽ mặc định ở trạng thái Đang sử dụng.</p>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
@@ -416,29 +563,3 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_equipment_id']
     </div>
   </div>
 </div>
-
-<!-- Handle thêm thiết bị (PHP) -->
-<?php
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['equipment_name'])) {
-    if (!$canAddEquipment) {
-      echo "<script>alert('Bạn không có quyền này');window.location='no_permission.php';</script>";
-      exit;
-    }
-
-    require_once '../includes/functions.php';
-    $name = sanitize($_POST['equipment_name']);
-    $quantity = intval($_POST['equipment_quantity']);
-    $status = sanitize($_POST['equipment_status']);
-  $validStatuses = ['dang su dung', 'bao tri', 'ngung hoat dong'];
-  if (!in_array($status, $validStatuses, true)) {
-    $status = 'dang su dung';
-  }
-    $db = getDB();
-    $stmt = $db->prepare("INSERT INTO equipment (name, quantity, status) VALUES (?, ?, ?)");
-    if ($stmt->execute([$name, $quantity, $status])) {
-        echo "<script>alert('Thêm thiết bị thành công!');window.location='equipment.php';</script>";
-    } else {
-        echo "<script>alert('Lỗi khi thêm thiết bị!');</script>";
-    }
-}
-?>

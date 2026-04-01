@@ -12,6 +12,10 @@ $canEditImport = $hasManageAll || !empty($inventoryActionSet['edit']);
 
 $db = getDB();
 
+$currentUserStaffStmt = $db->prepare("SELECT id, full_name FROM staff WHERE users_id = ? LIMIT 1");
+$currentUserStaffStmt->execute([(int) ($_SESSION['admin_user_id'] ?? 0)]);
+$currentUserStaff = $currentUserStaffStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
 function importStatusLabelByIndex($statusIndex) {
   switch ((int) $statusIndex) {
     case 1:
@@ -112,27 +116,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
   checkPermission('MANAGE_INVENTORY', 'add');
 
   $supplierId = intval($_POST['supplier_id']);
-  $staffId = intval($_POST['staff_id']);
-  $importDateInput = sanitize($_POST['import_date']);
   $note = sanitize($_POST['note']);
   $detailTypes = $_POST['detail_type'] ?? [];
   $detailItemIds = $_POST['detail_item_id'] ?? [];
   $detailQuantities = $_POST['detail_quantity'] ?? [];
   $detailImportPrices = $_POST['detail_import_price'] ?? [];
 
+  if (!$currentUserStaff) {
+    echo "<script>alert('Không xác định được nhân viên hiện tại. Vui lòng liên hệ quản trị viên!');window.location='import-slips.php';</script>";
+    exit;
+  }
+
+  $staffId = (int) $currentUserStaff['id'];
+
   $supplierCheckStmt = $db->prepare("SELECT COUNT(*) FROM suppliers WHERE id = ?");
   $supplierCheckStmt->execute([$supplierId]);
 
-  $staffCheckStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE id = ?");
-  $staffCheckStmt->execute([$staffId]);
+  $supplierStatusStmt = $db->prepare("SELECT status FROM suppliers WHERE id = ? LIMIT 1");
+  $supplierStatusStmt->execute([$supplierId]);
+  $supplierStatus = $supplierStatusStmt->fetchColumn();
 
   if ((int) $supplierCheckStmt->fetchColumn() === 0) {
     echo "<script>alert('Nhà cung cấp không tồn tại!');window.location='import-slips.php';</script>";
     exit;
   }
 
-  if ((int) $staffCheckStmt->fetchColumn() === 0) {
-    echo "<script>alert('Nhân viên không tồn tại!');window.location='import-slips.php';</script>";
+  if ((string) $supplierStatus !== 'active') {
+    echo "<script>alert('Nhà cung cấp này đang không hoạt động nên không thể tạo phiếu nhập!');window.location='import-slips.php';</script>";
     exit;
   }
 
@@ -182,17 +192,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
     }
   }
 
-  $importDate = date('Y-m-d H:i:s', strtotime($importDateInput));
-  if ($importDate === '1970-01-01 00:00:00') {
-    $importDate = date('Y-m-d H:i:s');
-  }
-
   try {
     $db->beginTransaction();
 
     // Let DB default set initial status to pending.
-    $insertStmt = $db->prepare("INSERT INTO import_slips (staff_id, supplier_id, total_amount, import_date, note) VALUES (?, ?, ?, ?, ?)");
-    $result = $insertStmt->execute([$staffId, $supplierId, $totalAmount, $importDate, $note]);
+    $insertStmt = $db->prepare("INSERT INTO import_slips (staff_id, supplier_id, total_amount, note) VALUES (?, ?, ?, ?)");
+    $result = $insertStmt->execute([$staffId, $supplierId, $totalAmount, $note]);
 
     if (!$result) {
       throw new Exception('Không thể tạo phiếu nhập.');
@@ -226,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['supplier_id'])) {
   exit;
 }
 
-$suppliersStmt = $db->query("SELECT id, name FROM suppliers ORDER BY name ASC");
+$suppliersStmt = $db->query("SELECT id, name FROM suppliers WHERE status = 'active' ORDER BY name ASC");
 $suppliers = $suppliersStmt->fetchAll();
 
 $staffStmt = $db->query("SELECT id, full_name FROM staff ORDER BY full_name ASC");
@@ -459,10 +464,6 @@ include 'layout/sidebar.php';
             <div class="alert alert-warning mb-3">Chưa có nhà cung cấp. Vui lòng thêm nhà cung cấp trước khi tạo phiếu nhập.</div>
           <?php endif; ?>
 
-          <?php if (empty($staffs)): ?>
-            <div class="alert alert-warning mb-3">Chưa có nhân viên. Vui lòng thêm nhân viên trước khi tạo phiếu nhập.</div>
-          <?php endif; ?>
-
           <?php if (empty($products) && empty($equipmentList)): ?>
             <div class="alert alert-warning mb-3">Chưa có sản phẩm hoặc thiết bị để nhập kho. Vui lòng tạo dữ liệu trước khi lập phiếu.</div>
           <?php endif; ?>
@@ -479,14 +480,12 @@ include 'layout/sidebar.php';
           </div>
 
           <div class="form-group">
-            <label for="staff_id">Nhân Viên <span class="text-danger">*</span></label>
-            <select class="form-control" id="staff_id" name="staff_id" <?= (empty($staffs) || !$canAddImport) ? 'disabled' : '' ?>>
-              <option value="">-- Chọn nhân viên --</option>
-              <?php foreach ($staffs as $staff): ?>
-                <option value="<?= $staff['id'] ?>"><?= htmlspecialchars($staff['full_name']) ?></option>
-              <?php endforeach; ?>
-            </select>
-            <small id="staffIdError" class="text-danger" style="display:none;"></small>
+            <label for="staff_name">Nhân Viên Hiện Tại</label>
+            <input type="text" class="form-control" id="staff_name" value="<?= htmlspecialchars($currentUserStaff['full_name'] ?? 'Chưa xác định') ?>" readonly>
+            <input type="hidden" name="staff_id" value="<?= (int) ($currentUserStaff['id'] ?? 0) ?>">
+            <?php if (!$currentUserStaff): ?>
+              <small class="text-danger">Không xác định được nhân viên hiện tại để lập phiếu nhập.</small>
+            <?php endif; ?>
           </div>
 
           <div class="form-group">
@@ -518,12 +517,6 @@ include 'layout/sidebar.php';
           </div>
 
           <div class="form-group">
-            <label for="import_date">Ngày Nhập <span class="text-danger">*</span></label>
-            <input type="datetime-local" class="form-control" id="import_date" name="import_date" <?= !$canAddImport ? 'disabled' : '' ?>>
-            <small id="importDateError" class="text-danger" style="display:none;"></small>
-          </div>
-
-          <div class="form-group">
             <label>Trạng Thái</label>
             <input type="text" class="form-control" value="Đang chờ duyệt" readonly>
             <input type="hidden" name="status" value="Đang chờ duyệt">
@@ -536,7 +529,7 @@ include 'layout/sidebar.php';
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || empty($staffs) || (empty($products) && empty($equipmentList)) || !$canAddImport) ? 'disabled' : '' ?>>Tạo phiếu</button>
+          <button type="submit" class="btn btn-primary" <?= (empty($suppliers) || (empty($products) && empty($equipmentList)) || !$canAddImport || !$currentUserStaff) ? 'disabled' : '' ?>>Tạo phiếu</button>
         </div>
       </form>
     </div>
@@ -821,7 +814,7 @@ include 'layout/sidebar.php';
 
     function clearImportFormErrors() {
       $('#importFormErrors').hide().find('ul').empty();
-      $('#supplierIdError, #staffIdError, #importDetailError, #importDateError').text('').hide();
+      $('#supplierIdError, #importDetailError').text('').hide();
       $('#import_detail_body .is-invalid').removeClass('is-invalid');
     }
 
@@ -838,14 +831,6 @@ include 'layout/sidebar.php';
       if ($(this).val()) { $('#supplierIdError').text('').hide(); }
     });
 
-    $('#staff_id').on('change', function () {
-      if ($(this).val()) { $('#staffIdError').text('').hide(); }
-    });
-
-    $('#import_date').on('change', function () {
-      if ($(this).val()) { $('#importDateError').text('').hide(); }
-    });
-
     $(document).on('change input', '.detail-item, .detail-quantity, .detail-price', function () {
       $(this).removeClass('is-invalid');
     });
@@ -858,12 +843,6 @@ include 'layout/sidebar.php';
       if (!supplierId) {
         errors.push('Vui lòng chọn nhà cung cấp.');
         showImportFieldError('supplierIdError', 'Vui lòng chọn nhà cung cấp.');
-      }
-
-      const staffId = $('#staff_id').val();
-      if (!staffId) {
-        errors.push('Vui lòng chọn nhân viên.');
-        showImportFieldError('staffIdError', 'Vui lòng chọn nhân viên.');
       }
 
       const $rows = $('#import_detail_body tr');
@@ -898,12 +877,6 @@ include 'layout/sidebar.php';
           errors.push('Vui lòng kiểm tra lại chi tiết nhập kho (mục chọn, số lượng, đơn giá phải hợp lệ).');
           showImportFieldError('importDetailError', 'Vui lòng kiểm tra lại chi tiết nhập kho (mục chọn, số lượng, đơn giá phải hợp lệ).');
         }
-      }
-
-      const importDate = $('#import_date').val();
-      if (!importDate) {
-        errors.push('Vui lòng chọn ngày nhập.');
-        showImportFieldError('importDateError', 'Vui lòng chọn ngày nhập.');
       }
 
       if (errors.length > 0) {

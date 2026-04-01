@@ -475,6 +475,61 @@ function getEquipmentByStatus($status) {
  * ========== EQUIPMENT MAINTENANCE FUNCTIONS ==========
  */
 
+function syncEquipmentMaintenanceStatus($equipmentId) {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT COUNT(*) FROM equipment_maintenance WHERE equipment_id = ? AND status IN ('cho_bao_tri', 'dang_bao_tri')");
+        $stmt->execute([$equipmentId]);
+        $openCount = (int) $stmt->fetchColumn();
+
+        $newStatus = $openCount > 0 ? 'bao tri' : 'dang su dung';
+        $updateStmt = $db->prepare("UPDATE equipment SET status = ? WHERE id = ?");
+        $updateStmt->execute([$newStatus, $equipmentId]);
+    } catch (Exception $e) {
+        error_log("Error syncing equipment maintenance status: " . $e->getMessage());
+    }
+}
+
+function inferMaintenanceOpenStatusByDate($maintenanceDate) {
+    $value = (string) $maintenanceDate;
+    $date = DateTime::createFromFormat('Y-m-d', $value);
+    if (!$date || $date->format('Y-m-d') !== $value) {
+        return 'dang_bao_tri';
+    }
+
+    $today = (new DateTime('today'))->format('Y-m-d');
+    return $value > $today ? 'cho_bao_tri' : 'dang_bao_tri';
+}
+
+function resolveMaintenanceStatusByDateAndInput($maintenanceDate, $requestedStatus = null) {
+    $status = (string) ($requestedStatus ?? '');
+    if (in_array($status, ['hoan_thanh', 'huy'], true)) {
+        return $status;
+    }
+
+    return inferMaintenanceOpenStatusByDate($maintenanceDate);
+}
+
+function hasOpenMaintenanceRecord($equipmentId, $excludeId = null) {
+    try {
+        $db = getDB();
+        $params = [intval($equipmentId)];
+        $sql = "SELECT COUNT(*) FROM equipment_maintenance WHERE equipment_id = ? AND status IN ('cho_bao_tri', 'dang_bao_tri')";
+
+        if ($excludeId !== null) {
+            $sql .= " AND id <> ?";
+            $params[] = intval($excludeId);
+        }
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn() > 0;
+    } catch (Exception $e) {
+        error_log("Error checking open maintenance records: " . $e->getMessage());
+        return false;
+    }
+}
+
 /**
  * Get all maintenance records
  */
@@ -520,22 +575,31 @@ function getMaintenanceRecordById($id) {
 function addMaintenanceRecord($data) {
     try {
         $db = getDB();
+        $equipmentId = intval($data['equipment_id'] ?? 0);
+        if ($equipmentId <= 0) {
+            return ['success' => false, 'message' => 'Thiết bị không hợp lệ'];
+        }
+
+        if (hasOpenMaintenanceRecord($equipmentId)) {
+            return ['success' => false, 'message' => 'Thiết bị này đã có phiếu chờ/đang bảo trì, không thể thêm trùng'];
+        }
+
+        $status = inferMaintenanceOpenStatusByDate($data['maintenance_date'] ?? '');
         $stmt = $db->prepare("
-            INSERT INTO equipment_maintenance (equipment_id, maintenance_date, description)
-            VALUES (?, ?, ?)
+            INSERT INTO equipment_maintenance (equipment_id, maintenance_date, description, status)
+            VALUES (?, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
-            intval($data['equipment_id']),
+            $equipmentId,
             $data['maintenance_date'],
-            sanitize($data['description']) ?? null
+            sanitize($data['description']) ?? null,
+            $status
         ]);
         
         if ($result) {
             $recordId = $db->lastInsertId();
-            // Update equipment status to maintenance
-            $updateStmt = $db->prepare("UPDATE equipment SET status = 'bao tri' WHERE id = ?");
-            $updateStmt->execute([$data['equipment_id']]);
+            syncEquipmentMaintenanceStatus(intval($data['equipment_id']));
             
             logActivity(getCurrentUserId(), 'CREATE', 'equipment_maintenance', $recordId, 'Added maintenance record');
             return ['success' => true, 'id' => $recordId, 'message' => 'Thêm bản ghi bảo trì thành công'];
@@ -554,20 +618,40 @@ function addMaintenanceRecord($data) {
 function updateMaintenanceRecord($id, $data) {
     try {
         $db = getDB();
+
+        $existingStmt = $db->prepare("SELECT equipment_id FROM equipment_maintenance WHERE id = ?");
+        $existingStmt->execute([$id]);
+        $existingEquipmentId = (int) $existingStmt->fetchColumn();
+        if ($existingEquipmentId <= 0) {
+            return ['success' => false, 'message' => 'Không tìm thấy bản ghi bảo trì'];
+        }
+
+        $status = resolveMaintenanceStatusByDateAndInput(
+            $data['maintenance_date'] ?? '',
+            $data['status'] ?? null
+        );
+
+        if (in_array($status, ['cho_bao_tri', 'dang_bao_tri'], true)
+            && hasOpenMaintenanceRecord($existingEquipmentId, $id)) {
+            return ['success' => false, 'message' => 'Thiết bị này đã có phiếu chờ/đang bảo trì khác, không thể cập nhật trùng'];
+        }
+
         $stmt = $db->prepare("
             UPDATE equipment_maintenance 
-            SET equipment_id = ?, maintenance_date = ?, description = ?
+            SET equipment_id = ?, maintenance_date = ?, description = ?, status = ?
             WHERE id = ?
         ");
         
         $result = $stmt->execute([
-            intval($data['equipment_id']),
+            $existingEquipmentId,
             $data['maintenance_date'],
             sanitize($data['description']) ?? null,
+            $status,
             $id
         ]);
         
         if ($result) {
+            syncEquipmentMaintenanceStatus($existingEquipmentId);
             logActivity(getCurrentUserId(), 'UPDATE', 'equipment_maintenance', $id, 'Updated maintenance record');
             return ['success' => true, 'message' => 'Cập nhật bản ghi bảo trì thành công'];
         }
@@ -585,11 +669,18 @@ function updateMaintenanceRecord($id, $data) {
 function deleteMaintenanceRecord($id) {
     try {
         $db = getDB();
+        $equipmentStmt = $db->prepare("SELECT equipment_id FROM equipment_maintenance WHERE id = ?");
+        $equipmentStmt->execute([$id]);
+        $equipmentId = (int) $equipmentStmt->fetchColumn();
+        if ($equipmentId <= 0) {
+            return ['success' => false, 'message' => 'Không tìm thấy bản ghi bảo trì'];
+        }
         
         $stmt = $db->prepare("DELETE FROM equipment_maintenance WHERE id = ?");
         $result = $stmt->execute([$id]);
         
         if ($result) {
+            syncEquipmentMaintenanceStatus($equipmentId);
             logActivity(getCurrentUserId(), 'DELETE', 'equipment_maintenance', $id, 'Deleted maintenance record');
             return ['success' => true, 'message' => 'Xóa bản ghi bảo trì thành công'];
         }

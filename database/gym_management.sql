@@ -360,8 +360,10 @@ CREATE TABLE `equipment_maintenance` (
   `equipment_id` int NOT NULL,
   `maintenance_date` date NOT NULL,
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `status` enum('cho_bao_tri','dang_bao_tri','hoan_thanh','huy') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'dang_bao_tri',
   PRIMARY KEY (`id`),
   KEY `idx_equipment_maintenance_equipment_id` (`equipment_id`),
+  KEY `idx_equipment_maintenance_status` (`status`),
   CONSTRAINT `fk_equipment_maintenance_equipment` FOREIGN KEY (`equipment_id`) REFERENCES `equipment` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lịch sử bảo trì thiết bị';
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -372,7 +374,7 @@ CREATE TABLE `equipment_maintenance` (
 
 LOCK TABLES `equipment_maintenance` WRITE;
 /*!40000 ALTER TABLE `equipment_maintenance` DISABLE KEYS */;
-INSERT INTO `equipment_maintenance` VALUES (2,2,'2026-03-17','ggg');
+INSERT INTO `equipment_maintenance` VALUES (2,2,'2026-03-17','ggg','dang_bao_tri');
 /*!40000 ALTER TABLE `equipment_maintenance` ENABLE KEYS */;
 UNLOCK TABLES;
 

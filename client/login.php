@@ -34,6 +34,8 @@ include 'layout/header.php';
 
                     <?php if (isset($_GET['registered']) && $_GET['registered'] == 'success'): ?>
                         <div class="alert alert-success">Đăng ký thành công! Vui lòng đăng nhập.</div>
+                    <?php elseif (isset($_GET['reset']) && $_GET['reset'] == 'success'): ?>
+                        <div class="alert alert-success">Đặt lại mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới.</div>
                     <?php endif; ?>
 
                     <form id="login-form">
@@ -50,6 +52,9 @@ include 'layout/header.php';
                                 <input type="checkbox" id="remember_me" name="remember_me">
                                 <span style="margin-left: 3px; color: white;">Ghi nhớ đăng nhập</span>
                             </label>
+                        </div>
+                        <div class="d-flex justify-content-end mt-2 mb-3">
+                            <a href="forgot-password.php" style="font-size: 14px;">Quên mật khẩu?</a>
                         </div>
                         <div id="message-container" class="mt-3 mb-3"></div>
                         <button type="submit" class="site-btn w-100">Đăng nhập</button>

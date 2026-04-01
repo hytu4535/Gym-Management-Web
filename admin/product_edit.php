@@ -6,6 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
 require_once '../config/db.php';
+require_once '../includes/functions.php';
 
 $id = (int) ($_GET['id'] ?? 0);
 $sql = "SELECT * FROM products WHERE id = $id";
@@ -13,10 +14,14 @@ $product = $conn->query($sql)->fetch_assoc();
 $productEditErrors = $_SESSION['product_edit_errors'] ?? [];
 $productEditOld = $_SESSION['product_edit_old'] ?? [];
 unset($_SESSION['product_edit_errors'], $_SESSION['product_edit_old']);
+$transactionUsage = getProductTransactionUsage($conn, $id);
+$hasTransactions = !empty($transactionUsage['has_transactions']);
 
 function productEditValue($key, $fallback, $oldInput) {
     return array_key_exists($key, $oldInput) ? $oldInput[$key] : $fallback;
 }
+
+$productUnits = ['cái', 'hộp', 'chai', 'gói', 'kg', 'lít'];
 ?>
 
 <div class="content-wrapper">
@@ -37,16 +42,10 @@ function productEditValue($key, $fallback, $oldInput) {
                                     <input id="name" type="text" name="name" class="form-control <?php echo isset($productEditErrors['name']) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars(productEditValue('name', $product['name'], $productEditOld)); ?>" required>
                                     <?php if (isset($productEditErrors['name'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['name']); ?></div><?php endif; ?>
                                 </div>
-                                 <div class="form-group">
+                                <div class="form-group">
                                     <label>Mô tả ngắn</label>
                                     <textarea name="short_description" class="form-control <?php echo isset($productEditErrors['short_description']) ? 'is-invalid' : ''; ?>" rows="3" placeholder="Mô tả ngắn sản phẩm..."><?php echo htmlspecialchars(productEditValue('short_description', $product['short_description'] ?? '', $productEditOld)); ?></textarea>
                                     <?php if (isset($productEditErrors['short_description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['short_description']); ?></div><?php endif; ?>
-                                </div>
-
-                                <div class="form-group">
-                                    <label>Mô tả chi tiết</label>
-                                    <textarea name="description" class="form-control <?php echo isset($productEditErrors['description']) ? 'is-invalid' : ''; ?>" rows="6" placeholder="Mô tả chi tiết sản phẩm..." style="min-height: 140px;"><?php echo htmlspecialchars(productEditValue('description', $product['description'] ?? '', $productEditOld)); ?></textarea>
-                                    <?php if (isset($productEditErrors['description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['description']); ?></div><?php endif; ?>
                                 </div>
                                 <div class="form-group">
                                     <label>Danh Mục</label>
@@ -85,19 +84,33 @@ function productEditValue($key, $fallback, $oldInput) {
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Đơn Vị Tính</label>
-                                    <input id="unit" type="text" name="unit" class="form-control <?php echo isset($productEditErrors['unit']) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars(productEditValue('unit', $product['unit'] ?? '', $productEditOld)); ?>">
+                                    <?php if ($hasTransactions): ?>
+                                        <span class="badge badge-info ml-2">Đã có giao dịch</span>
+                                    <?php endif; ?>
+                                    <?php $selectedUnit = $hasTransactions ? ($product['unit'] ?? '') : productEditValue('unit', $product['unit'] ?? '', $productEditOld); ?>
+                                    <select id="unit" name="unit" class="form-control <?php echo isset($productEditErrors['unit']) ? 'is-invalid' : ''; ?>" <?php echo $hasTransactions ? 'disabled' : ''; ?>>
+                                        <option value="">-- Chọn đơn vị --</option>
+                                        <?php foreach ($productUnits as $unitOption): ?>
+                                            <option value="<?php echo htmlspecialchars($unitOption); ?>" <?php echo ($selectedUnit === $unitOption) ? 'selected' : ''; ?>><?php echo htmlspecialchars($unitOption); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <?php if ($hasTransactions): ?>
+                                        <input type="hidden" name="unit" value="<?php echo htmlspecialchars($selectedUnit); ?>">
+                                    <?php endif; ?>
+                                    <?php if ($hasTransactions): ?>
+                                        <small class="form-text text-warning">Sản phẩm đã có giao dịch, không thể thay đổi đơn vị.</small>
+                                    <?php endif; ?>
                                     <?php if (isset($productEditErrors['unit'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['unit']); ?></div><?php endif; ?>
                                 </div>
                                 
                                 <div class="form-group">
                                     <label>Giá Bán (VNĐ)</label>
                                     <input id="selling_price" type="number" name="selling_price" class="form-control <?php echo isset($productEditErrors['selling_price']) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars(productEditValue('selling_price', $product['selling_price'] ?? '', $productEditOld)); ?>" required readonly>
-                                    <small class="form-text text-muted">Giá sản phẩm được cố định, không chỉnh sửa tại form này.</small>
+                                    <small class="form-text text-muted">Giá không thể chỉnh sửa tại form này.</small>
                                 </div>
                                 <div class="form-group">
-                                    <label>Tồn kho</label>
-                                    <input id="stock_quantity" type="number" name="stock_quantity" class="form-control <?php echo isset($productEditErrors['stock_quantity']) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars(productEditValue('stock_quantity', $product['stock_quantity'] ?? '', $productEditOld)); ?>">
-                                    <?php if (isset($productEditErrors['stock_quantity'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['stock_quantity']); ?></div><?php endif; ?>
+                                    <label>Tồn kho hiện tại</label>
+                                    <div class="form-control bg-light"><?php echo (int) ($product['stock_quantity'] ?? 0); ?></div>
                                 </div>
                                 
                                 <div class="form-group">
@@ -190,12 +203,8 @@ document.getElementById('editProductForm').addEventListener('submit', function(e
         showError('unit', 'Vui lòng nhập đơn vị tính (vd: hộp, chai...).');
     }
     let priceVal = document.getElementById('selling_price').value;
-    if (priceVal === '' || isNaN(priceVal) || parseFloat(priceVal) <= 0) {
-        showError('selling_price', 'Giá bán phải là số và lớn hơn 0.');
-    }
-    let stockVal = document.getElementById('stock_quantity').value;
-    if (stockVal === '' || isNaN(stockVal) || parseInt(stockVal) < 0) {
-        showError('stock_quantity', 'Vui lòng nhập số lượng tồn kho (>= 0).');
+    if (priceVal === '' || isNaN(priceVal) || parseFloat(priceVal) < 0) {
+        showError('selling_price', 'Giá bán phải là số và lớn hơn hoặc bằng 0.');
     }
 
     let statusVal = document.getElementById('status').value;

@@ -3,10 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once '../config/db.php';
-
-// Kiểm tra bảng đánh giá có tồn tại không để tránh lỗi khi DB chưa có feature này
-$checkReviewTable = $conn->query("SHOW TABLES LIKE 'product_reviews'");
-$hasReviewTable = $checkReviewTable && $checkReviewTable->num_rows > 0;
+require_once '../includes/functions.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -72,11 +69,15 @@ function buildReviewRedirectUrl($baseUrl, $extraParams = []) {
 }
 
 $review_posted = ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review']));
-if ($review_posted && $hasReviewTable) {
+if ($review_posted) {
     $order_id = isset($_POST['order_id']) ? (int) $_POST['order_id'] : 0;
     $review_target = trim($_POST['review_target'] ?? '');
     $review_content = trim($_POST['review_content'] ?? '');
     $review_rating = isset($_POST['review_rating']) ? (int) $_POST['review_rating'] : 0;
+    $review_payload = json_encode([
+        'author' => $member['full_name'],
+        'content' => $review_content,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     if ($order_id <= 0 || $review_target === '' || $review_content === '' || $review_rating < 1 || $review_rating > 5) {
         header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
@@ -129,28 +130,12 @@ if ($review_posted && $hasReviewTable) {
 
     $conn->begin_transaction();
     try {
+        $stmt_update_product = $conn->prepare('UPDATE products SET rating = ?, review = ? WHERE id = ?');
         foreach ($target_product_ids as $target_product_id) {
-            $stmt_existing_review = $conn->prepare('SELECT id FROM product_reviews WHERE product_id = ? AND member_id = ? LIMIT 1 FOR UPDATE');
-            $stmt_existing_review->bind_param('ii', $target_product_id, $member_id);
-            $stmt_existing_review->execute();
-            $existing_review_result = $stmt_existing_review->get_result();
-
-            if ($existing_review_result->num_rows > 0) {
-                $existing_review = $existing_review_result->fetch_assoc();
-                $review_id = (int) $existing_review['id'];
-                $stmt_update_review = $conn->prepare('UPDATE product_reviews SET rating = ?, content = ?, status = "approved", created_at = NOW() WHERE id = ?');
-                $stmt_update_review->bind_param('isi', $review_rating, $review_content, $review_id);
-                $stmt_update_review->execute();
-                $stmt_update_review->close();
-            } else {
-                $stmt_insert_review = $conn->prepare('INSERT INTO product_reviews (product_id, member_id, rating, content, status, created_at) VALUES (?, ?, ?, ?, "approved", NOW())');
-                $stmt_insert_review->bind_param('iiis', $target_product_id, $member_id, $review_rating, $review_content);
-                $stmt_insert_review->execute();
-                $stmt_insert_review->close();
-            }
-
-            $stmt_existing_review->close();
+            $stmt_update_product->bind_param('dsi', $review_rating, $review_payload, $target_product_id);
+            $stmt_update_product->execute();
         }
+        $stmt_update_product->close();
 
         $conn->commit();
         header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_success' => 1]));
@@ -160,9 +145,6 @@ if ($review_posted && $hasReviewTable) {
         header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
         exit;
     }
-} elseif ($review_posted && !$hasReviewTable) {
-    header('Location: ' . buildReviewRedirectUrl($review_redirect_base, ['review_error' => 1]));
-    exit;
 }
 
 $query = "
@@ -217,21 +199,20 @@ $order_ids = array_map(function ($order_row) {
 $order_products_map = [];
 $review_lookup_map = [];
 $review_stats_map = [];
-if (!empty($order_ids) && $hasReviewTable) {
+if (!empty($order_ids)) {
     $order_ids_list = implode(',', array_map('intval', $order_ids));
     $review_items_sql = "
         SELECT DISTINCT o.id AS order_id, p.id AS product_id, p.name AS product_name,
-               COALESCE(pr.rating, 0) AS review_rating,
-               COALESCE(pr.content, '') AS review_content
+               COALESCE(p.rating, 0) AS review_rating,
+               COALESCE(p.review, '') AS review_content
         FROM orders o
         JOIN order_items oi ON o.id = oi.order_id AND oi.item_type = 'product'
         JOIN products p ON p.id = oi.item_id
-        LEFT JOIN product_reviews pr ON pr.product_id = p.id AND pr.member_id = ?
         WHERE o.member_id = ? AND o.id IN ($order_ids_list)
         ORDER BY o.order_date DESC, p.name ASC
     ";
     $stmt_review_items = $conn->prepare($review_items_sql);
-    $stmt_review_items->bind_param('ii', $member_id, $member_id);
+    $stmt_review_items->bind_param('i', $member_id);
     $stmt_review_items->execute();
     $review_items_result = $stmt_review_items->get_result();
 
@@ -246,35 +227,26 @@ if (!empty($order_ids) && $hasReviewTable) {
         $order_products_map[$order_id_key][] = [
             'id' => $product_id_key,
             'name' => $review_item['product_name'],
-            'rating' => (int) $review_item['review_rating'],
-            'content' => $review_item['review_content'],
+            'rating' => (float) $review_item['review_rating'],
+            'content' => parseProductReviewPayload($review_item['review_content'])['content'],
         ];
 
-        if ((int) $review_item['review_rating'] > 0 || trim($review_item['review_content']) !== '') {
+        $parsedReview = parseProductReviewPayload($review_item['review_content']);
+        if ((float) $review_item['review_rating'] > 0 || trim($parsedReview['content']) !== '') {
             $review_lookup_map[$order_id_key][$product_id_key] = [
-                'rating' => (int) $review_item['review_rating'],
-                'content' => $review_item['review_content'],
+                'rating' => (float) $review_item['review_rating'],
+                'content' => $parsedReview['content'],
+                'author' => $parsedReview['author'] !== '' ? $parsedReview['author'] : 'Hội viên',
             ];
         }
     }
     $stmt_review_items->close();
 
-    $review_stats_sql = "
-        SELECT pr.product_id, COUNT(*) AS review_count, ROUND(AVG(pr.rating), 1) AS avg_rating
-        FROM product_reviews pr
-        WHERE pr.status = 'approved' AND pr.product_id IN (
-            SELECT DISTINCT oi.item_id
-            FROM order_items oi
-            WHERE oi.order_id IN ($order_ids_list) AND oi.item_type = 'product'
-        )
-        GROUP BY pr.product_id
-    ";
-    $review_stats_result = $conn->query($review_stats_sql);
-    if ($review_stats_result) {
-        while ($stat_row = $review_stats_result->fetch_assoc()) {
-            $review_stats_map[(int) $stat_row['product_id']] = [
-                'review_count' => (int) $stat_row['review_count'],
-                'avg_rating' => (float) $stat_row['avg_rating'],
+    foreach ($review_lookup_map as $orderIdKey => $productRows) {
+        foreach ($productRows as $productIdKey => $reviewData) {
+            $review_stats_map[(int) $productIdKey] = [
+                'review_count' => trim((string) $reviewData['content']) !== '' ? 1 : 0,
+                'avg_rating' => (float) $reviewData['rating'],
             ];
         }
     }

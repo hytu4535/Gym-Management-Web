@@ -3,6 +3,7 @@ require_once __DIR__ . '/_permission_guard.php';
 processRequirePermission('MANAGE_SALES', 'edit');
 
 require_once '../../config/db.php';
+require_once '../../includes/functions.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -21,12 +22,11 @@ if (isset($_POST['btn_edit_product'])) {
     $name = trim((string) ($_POST['name'] ?? ''));
     $category_id = trim((string) ($_POST['category_id'] ?? ''));
     $short_description = $conn->real_escape_string(trim($_POST['short_description'] ?? ''));
-    $description = $conn->real_escape_string(trim($_POST['description'] ?? ''));
     $unit = trim((string) ($_POST['unit'] ?? ''));
     $selling_price = trim((string) ($_POST['selling_price'] ?? ''));
-    $stock_quantity = trim((string) ($_POST['stock_quantity'] ?? ''));
     $status = trim((string) ($_POST['status'] ?? ''));
     $old_img = trim((string) ($_POST['old_img'] ?? ''));
+    $allowedUnits = ['cái', 'hộp', 'chai', 'gói', 'kg', 'lít'];
 
     $errors = [];
     if ($id <= 0) {
@@ -34,23 +34,47 @@ if (isset($_POST['btn_edit_product'])) {
     }
     if ($name === '') {
         $errors['name'] = 'Vui lòng nhập tên sản phẩm.';
-    } elseif (mb_strlen($name) < 3) {
-        $errors['name'] = 'Tên sản phẩm phải có ít nhất 3 ký tự.';
     }
     if ($category_id === '' || !ctype_digit($category_id)) {
         $errors['category_id'] = 'Vui lòng chọn một danh mục cho sản phẩm.';
     }
-    if ($unit === '') {
-        $errors['unit'] = 'Vui lòng nhập đơn vị tính.';
+    if ($unit === '' || !in_array($unit, $allowedUnits, true)) {
+        $errors['unit'] = 'Vui lòng chọn đơn vị tính hợp lệ.';
     }
-    if ($selling_price === '' || !is_numeric($selling_price) || (float) $selling_price <= 0) {
-        $errors['selling_price'] = 'Giá bán phải là số và lớn hơn 0.';
-    }
-    if ($stock_quantity === '' || !is_numeric($stock_quantity) || (int) $stock_quantity < 0) {
-        $errors['stock_quantity'] = 'Vui lòng nhập số lượng tồn kho lớn hơn hoặc bằng 0.';
+    if ($selling_price === '' || !is_numeric($selling_price) || (float) $selling_price < 0) {
+        $errors['selling_price'] = 'Giá bán phải là số và lớn hơn hoặc bằng 0.';
     }
     if ($status === '') {
         $errors['status'] = 'Vui lòng chọn trạng thái sản phẩm.';
+    }
+
+    $currentStmt = $conn->prepare("SELECT name, category_id, short_description, img, unit, selling_price, stock_quantity, status FROM products WHERE id = ? LIMIT 1");
+    $currentStmt->bind_param('i', $id);
+    $currentStmt->execute();
+    $currentProduct = $currentStmt->get_result()->fetch_assoc();
+    $currentStmt->close();
+
+    if (!$currentProduct) {
+        $errors['general'] = 'Không tìm thấy sản phẩm cần cập nhật.';
+    }
+
+    $transactionUsage = getProductTransactionUsage($conn, $id);
+    $hasTransactions = !empty($transactionUsage['has_transactions']);
+
+    if (!$errors && $hasTransactions && $currentProduct && $unit !== (string) ($currentProduct['unit'] ?? '')) {
+        $errors['unit'] = 'Không thể thay đổi đơn vị tính vì sản phẩm đã phát sinh giao dịch';
+    }
+
+    if (empty($errors)) {
+        $duplicateStmt = $conn->prepare("SELECT COUNT(*) AS total FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND id <> ?");
+        $duplicateStmt->bind_param('si', $name, $id);
+        $duplicateStmt->execute();
+        $duplicateCount = (int) ($duplicateStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $duplicateStmt->close();
+
+        if ($duplicateCount > 0) {
+            $errors['name'] = 'Tên sản phẩm đã tồn tại';
+        }
     }
 
     if (!empty($errors)) {
@@ -58,26 +82,15 @@ if (isset($_POST['btn_edit_product'])) {
             'name' => $name,
             'category_id' => $category_id,
             'short_description' => $_POST['short_description'] ?? '',
-            'description' => $_POST['description'] ?? '',
             'unit' => $unit,
             'selling_price' => $selling_price,
-            'stock_quantity' => $stock_quantity,
             'status' => $status,
             'old_img' => $old_img,
         ]);
     }
 
-    $currentStmt = $conn->prepare("SELECT name, category_id, short_description, description, img, unit, selling_price, stock_quantity, status FROM products WHERE id = ? LIMIT 1");
-    $currentStmt->bind_param('i', $id);
-    $currentStmt->execute();
-    $currentProduct = $currentStmt->get_result()->fetch_assoc();
-    $currentStmt->close();
-
-    if (!$currentProduct) {
-        redirectWithProductEditErrors($id, ['general' => 'Không tìm thấy sản phẩm cần cập nhật.']);
-    }
-
     $selling_price = (float) $currentProduct['selling_price'];
+    $stock_quantity = (int) $currentProduct['stock_quantity'];
     
     // Xử lý upload hình ảnh mới (nếu có)
     $img_name = $old_img; // Giữ nguyên hình cũ
@@ -111,7 +124,6 @@ if (isset($_POST['btn_edit_product'])) {
     }
 
     $hasShortDescriptionColumn = (bool) ($conn->query("SHOW COLUMNS FROM products LIKE 'short_description'")->num_rows ?? 0);
-    $hasDescriptionColumn = (bool) ($conn->query("SHOW COLUMNS FROM products LIKE 'description'")->num_rows ?? 0);
 
     $updateParts = [
         "name = '$name'",
@@ -122,16 +134,11 @@ if (isset($_POST['btn_edit_product'])) {
         $updateParts[] = "short_description = '$short_description'";
     }
 
-    if ($hasDescriptionColumn) {
-        $resolvedDescription = $description !== '' ? $description : $short_description;
-        $updateParts[] = "description = '$resolvedDescription'";
-    }
-
     $updateParts = array_merge($updateParts, [
         "img = '$img_name'",
         "unit = '$unit'",
         "selling_price = " . $selling_price,
-        "stock_quantity = " . (int) $stock_quantity,
+        "stock_quantity = " . $stock_quantity,
         "status = '$status'",
     ]);
 
@@ -145,10 +152,8 @@ if (isset($_POST['btn_edit_product'])) {
             'name' => $name,
             'category_id' => $category_id,
             'short_description' => $_POST['short_description'] ?? '',
-            'description' => $_POST['description'] ?? '',
             'unit' => $unit,
             'selling_price' => $selling_price,
-            'stock_quantity' => $stock_quantity,
             'status' => $status,
             'old_img' => $old_img,
         ]);

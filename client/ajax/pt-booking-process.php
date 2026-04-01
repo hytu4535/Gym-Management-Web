@@ -59,15 +59,17 @@ if (!$member) {
 }
 $memberId = (int) $member['id'];
 
-$trainingDayStart = $trainingDate->format('Y-m-d 00:00:00');
-$trainingDayEnd = $trainingDate->format('Y-m-d 23:59:59');
+$trainingDay = $trainingDate->format('Y-m-d');
 
 $dailyLimitStmt = $conn->prepare(
     'SELECT id FROM training_schedules
-     WHERE member_id = ? AND training_date BETWEEN ? AND ?
+    WHERE member_id = ?
+      AND status <> ?
+      AND DATE(training_date) = ?
      LIMIT 1'
 );
-$dailyLimitStmt->bind_param('iss', $memberId, $trainingDayStart, $trainingDayEnd);
+$activeStatus = 'canceled';
+$dailyLimitStmt->bind_param('iss', $memberId, $activeStatus, $trainingDay);
 $dailyLimitStmt->execute();
 $existingDailySchedule = $dailyLimitStmt->get_result()->fetch_assoc();
 $dailyLimitStmt->close();

@@ -35,6 +35,12 @@ function resolveCurrentMember(PDO $db)
 }
 
 $currentMember = resolveCurrentMember($db);
+$currentMemberFeedbackCount = 0;
+if ($currentMember) {
+    $feedbackCountStmt = $db->prepare('SELECT COUNT(*) FROM feedback WHERE member_id = ?');
+    $feedbackCountStmt->execute([(int) $currentMember['id']]);
+    $currentMemberFeedbackCount = (int) $feedbackCountStmt->fetchColumn();
+}
 
 include 'layout/header.php';
 ?>
@@ -125,6 +131,10 @@ include 'layout/header.php';
     .feedback-submit {
         min-width: 170px;
     }
+    .feedback-locked {
+        opacity: .75;
+        pointer-events: none;
+    }
 </style>
 
 <!-- Profile Section Begin -->
@@ -141,12 +151,7 @@ include 'layout/header.php';
                     <?php endif; ?>
                 </div>
                 <div class="col-lg-4">
-                    <div class="input-group portal-search">
-                        <input type="text" id="globalSearch" class="form-control" placeholder="Tìm ưu đãi...">
-                        <div class="input-group-append">
-                            <button class="btn btn-warning" id="searchBtn" type="button"><i class="fa fa-search"></i></button>
-                        </div>
-                    </div>
+                    <div class="text-right text-muted small">Thông tin hội viên và phản hồi</div>
                 </div>
             </div>
 
@@ -158,32 +163,16 @@ include 'layout/header.php';
             </div>
 
             <ul class="nav nav-tabs portal-tabs mt-4" id="memberTabs" role="tablist">
-                <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-promotions" role="tab">Ưu đãi</a></li>
-                <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-feedback" role="tab">Feedback</a></li>
+                <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-feedback" role="tab">Feedback</a></li>
                 <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-notifications" role="tab">Thông báo</a></li>
             </ul>
 
             <div class="tab-content">
-                <div class="tab-pane fade show active" id="tab-promotions" role="tabpanel">
-                    <h5 class="text-white mb-3">Ưu đãi theo hạng thành viên</h5>
-                    <div class="table-responsive">
-                        <table class="table portal-table table-bordered table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Tên ưu đãi</th>
-                                    <th>Loại giảm</th>
-                                    <th>Giá trị</th>
-                                    <th>Thời gian áp dụng</th>
-                                    <th>Lượt dùng tối đa</th>
-                                </tr>
-                            </thead>
-                            <tbody id="promotionTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="tab-pane fade" id="tab-feedback" role="tabpanel">
+                <div class="tab-pane fade show active" id="tab-feedback" role="tabpanel">
                     <h5 class="text-white mb-3">Gửi Feedback</h5>
+                    <div id="feedbackLockedNotice" class="alert alert-info" style="display:none;">
+                        Bạn đã gửi feedback cho tài khoản này rồi. Mỗi tài khoản chỉ được gửi 1 feedback duy nhất.
+                    </div>
                     <form id="feedbackForm" class="mb-4">
                         <div class="row">
                             <div class="col-md-4">
@@ -205,7 +194,7 @@ include 'layout/header.php';
                                 </div>
                             </div>
                             <div class="col-12">
-                                <button type="submit" class="primary-btn feedback-submit">Gửi Feedback</button>
+                                <button type="submit" class="primary-btn feedback-submit" id="feedbackSubmitBtn">Gửi Feedback</button>
                             </div>
                         </div>
                     </form>
@@ -268,8 +257,8 @@ include 'layout/header.php';
                 </div>
             </div>
             <div class="modal-footer" style="border-top:1px solid #2a2a2a;">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
-            </div>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Đóng</button>
+                    </div>
         </div>
     </div>
 </div>
@@ -345,22 +334,22 @@ function promoValueText(item) {
 }
 
 function renderDashboard(data) {
-    const hasAnyData = ['promotions', 'feedbacks', 'notifications']
+    const hasAnyData = ['feedbacks', 'notifications']
         .some(key => Array.isArray(data[key]) && data[key].length > 0);
 
     if (!hasAnyData) {
-        showAlert('info', 'Hiện chưa có dữ liệu cho hội viên này. Vui lòng thêm ưu đãi hoặc thông báo trong hệ thống để hiển thị tại đây.');
+        showAlert('info', 'Hiện chưa có dữ liệu cho hội viên này.');
     }
-
-    const promoRows = (data.promotions || []).map(item => `<tr>
-        <td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.discount_type)}</td><td>${promoValueText(item)}</td><td>${formatDate(item.start_date)} - ${formatDate(item.end_date)}</td><td>${item.usage_limit || 'Không giới hạn'}</td>
-    </tr>`).join('');
-    $('#promotionTableBody').html(promoRows || emptyRow(5, 'Hiện chưa có ưu đãi cá nhân', 'Ưu đãi chỉ xuất hiện khi còn hạn và đúng hạng hội viên của bạn.'));
 
     const feedbackRows = (data.feedbacks || []).map(item => `<tr>
         <td>${escapeHtml(item.created_at)}</td><td>${escapeHtml(item.rating)}</td><td>${escapeHtml(item.content)}</td><td><span class="badge badge-info">${escapeHtml(item.status)}</span></td>
     </tr>`).join('');
     $('#feedbackTableBody').html(feedbackRows || emptyRow(4, 'Bạn chưa gửi feedback nào', 'Hãy gửi đánh giá để bộ phận chăm sóc hội viên hỗ trợ tốt hơn.'));
+
+    const hasFeedback = Array.isArray(data.feedbacks) && data.feedbacks.length > 0;
+    $('#feedbackForm :input').prop('disabled', hasFeedback);
+    $('#feedbackSubmitBtn').toggle(!hasFeedback);
+    $('#feedbackLockedNotice').toggle(hasFeedback);
 
     notificationStore = {};
     (data.notifications || []).forEach(item => {
@@ -371,7 +360,6 @@ function renderDashboard(data) {
         <td>${escapeHtml(truncateText(item.title, 15))}</td><td>${escapeHtml(truncateText(item.content, 15))}</td><td>${escapeHtml(item.created_at)}</td>
         <td>${item.is_read == 1 ? '<span class="badge badge-success">Đã đọc</span>' : '<span class="badge badge-warning">Chưa đọc</span>'}</td>
         <td>
-            <button class="btn btn-primary btn-sm view-noti-btn" data-id="${item.id}"><i class="fa fa-eye"></i> Xem</button>
             ${item.is_read == 1 ? '' : `<button class="btn btn-info btn-sm mark-read-btn" data-id="${item.id}"><i class="fa fa-check"></i> Đánh dấu đã đọc</button>`}
             ${item.is_read == 1 ? `<button class="btn btn-danger btn-sm delete-noti-btn" data-id="${item.id}"><i class="fa fa-trash"></i> Xoá</button>` : ''}
         </td>
@@ -458,28 +446,6 @@ $(document).on('click', '.mark-read-btn', function() {
     });
 });
 
-$(document).on('click', '.view-noti-btn', function() {
-    const notificationId = String($(this).data('id'));
-    const notification = notificationStore[notificationId];
-
-    if (!notification) {
-        showAlert('warning', 'Không tìm thấy thông báo để hiển thị');
-        return;
-    }
-
-    openNotificationModal(notification);
-
-    if (Number(notification.is_read) !== 1) {
-        $.post('api.php', { action: 'mark_notification_read', member_id: currentMemberId, notification_id: notificationId }, function(response) {
-            if (response.success) {
-                notification.is_read = 1;
-                $('#viewNotificationStatus').html('<span class="badge badge-success">Đã đọc</span>');
-                loadDashboard();
-            }
-        }, 'json');
-    }
-});
-
 $(document).on('click', '.delete-noti-btn', function() {
     if (!confirm('Xoá thông báo này?')) return;
     const notificationId = $(this).data('id');
@@ -496,6 +462,10 @@ $(document).on('click', '.delete-noti-btn', function() {
 
 $('#feedbackForm').on('submit', function(e) {
     e.preventDefault();
+    if ($('#feedbackSubmitBtn').is(':disabled')) {
+        showAlert('warning', 'Bạn đã gửi feedback cho tài khoản này rồi.');
+        return;
+    }
     const rating = $('#feedbackRating').val();
     const content = $('#feedbackContent').val().trim();
     if (!content) {
@@ -506,6 +476,9 @@ $('#feedbackForm').on('submit', function(e) {
         if (response.success) {
             showAlert('success', response.message || 'Gửi feedback thành công');
             $('#feedbackContent').val('');
+            $('#feedbackForm :input').prop('disabled', true);
+            $('#feedbackSubmitBtn').hide();
+            $('#feedbackLockedNotice').show();
             loadDashboard();
         } else {
             showAlert('warning', response.message || 'Không thể gửi feedback');
@@ -513,13 +486,6 @@ $('#feedbackForm').on('submit', function(e) {
     }, 'json').fail(function() {
         showAlert('danger', 'Lỗi kết nối khi gửi feedback');
     });
-});
-
-$('#searchBtn').on('click', performSearch);
-$('#globalSearch').on('keypress', function(e) {
-    if (e.which === 13) {
-        performSearch();
-    }
 });
 
 loadDashboard();

@@ -84,6 +84,10 @@ if ($avatarPath !== '') {
     border-color: #dc3545;
     box-shadow: 0 0 0 0.2rem rgba(220,53,69,.25);
 }
+.form-control[readonly] {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+}
 </style>
 
 <section class="profile-section spad">
@@ -134,6 +138,7 @@ if ($avatarPath !== '') {
             <div class="col-lg-9">
                 <div class="profile-content" style="background-color: aliceblue; padding: 30px; border-radius: 8px;">
                     <h4>Thông tin tài khoản & cá nhân</h4>
+                    <div class="alert alert-info mb-4">Tên tài khoản và email chỉ hiển thị, còn số điện thoại có thể chỉnh sửa.</div>
                     <div id="message-container"></div>
                     <form id="profile-form" enctype="multipart/form-data">
                         <div class="row">
@@ -155,14 +160,14 @@ if ($avatarPath !== '') {
                             <div class="col-lg-6">
                                 <div class="form-group">
                                     <label>Tên tài khoản</label>
-                                    <input type="text" name="username" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" class="form-control">
+                                    <input type="text" name="username" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" class="form-control" readonly>
                                     <small class="text-danger error-text mt-1" style="display:none; font-weight: 500;"></small>
                                 </div>
                             </div>
                             <div class="col-lg-6">
                                 <div class="form-group">
                                     <label>Email</label>
-                                    <input type="email" name="email" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" class="form-control">
+                                    <input type="email" name="email" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" class="form-control" readonly>
                                     <small class="text-danger error-text mt-1" style="display:none; font-weight: 500;"></small>
                                 </div>
                             </div>
@@ -327,22 +332,12 @@ document.getElementById('profile-form').addEventListener('submit', function(e) {
     clearErrors('profile-form');
 
     const fullNameInput = document.querySelector('#profile-form [name="full_name"]');
-    const usernameInput = document.querySelector('#profile-form [name="username"]');
-    const emailInput = document.querySelector('#profile-form [name="email"]');
     const phoneInput = document.querySelector('#profile-form [name="phone"]');
     const heightInput = document.querySelector('#profile-form [name="height"]');
     const weightInput = document.querySelector('#profile-form [name="weight"]');
 
     if (fullNameInput.value.trim() === '') {
         return showErrorInline('full_name', 'Vui lòng nhập họ và tên!', 'profile-form');
-    }
-    if (usernameInput.value.trim() === '') {
-        return showErrorInline('username', 'Vui lòng nhập tên tài khoản!', 'profile-form');
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (emailInput.value.trim() === '' || !emailRegex.test(emailInput.value.trim())) {
-        return showErrorInline('email', 'Vui lòng nhập email hợp lệ!', 'profile-form');
     }
 
     const phoneRegex = /^0[0-9]{9}$/;

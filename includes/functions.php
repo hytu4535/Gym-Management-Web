@@ -42,6 +42,47 @@ function generateToken($length = 32) {
 }
 
 /**
+ * Ensure password reset columns exist.
+ */
+function ensurePasswordResetColumns($conn) {
+    static $initialized = false;
+
+    if ($initialized) {
+        return;
+    }
+
+    $initialized = true;
+
+    $columns = [
+        'reset_token_hash' => "ALTER TABLE users ADD COLUMN reset_token_hash varchar(64) DEFAULT NULL AFTER avatar",
+        'reset_token_expires_at' => "ALTER TABLE users ADD COLUMN reset_token_expires_at datetime DEFAULT NULL AFTER reset_token_hash",
+    ];
+
+    foreach ($columns as $columnName => $alterSql) {
+        $checkStmt = $conn->prepare("SELECT COUNT(*) AS total FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?");
+        if (!$checkStmt) {
+            throw new Exception('Không thể kiểm tra cấu trúc bảng users.');
+        }
+
+        $checkStmt->bind_param('s', $columnName);
+        $checkStmt->execute();
+        $result = $checkStmt->get_result();
+        $columnExists = false;
+
+        if ($result) {
+            $row = $result->fetch_assoc();
+            $columnExists = ((int) ($row['total'] ?? 0)) > 0;
+        }
+
+        $checkStmt->close();
+
+        if (!$columnExists && !$conn->query($alterSql)) {
+            throw new Exception('Không thể khởi tạo chức năng quên mật khẩu.');
+        }
+    }
+}
+
+/**
  * Redirect to URL
  */
 function redirect($url) {
@@ -176,6 +217,135 @@ function getUserUsageCounts(PDO $db, $userId) {
 function isUserLinkedToStaffOrMember(PDO $db, $userId) {
     [$staffCount, $memberCount] = getUserUsageCounts($db, $userId);
     return $staffCount > 0 || $memberCount > 0;
+}
+
+/**
+ * Check whether a product has been used in sales/import records.
+ */
+function getProductTransactionUsage(mysqli $conn, $productId) {
+    $productId = (int) $productId;
+    if ($productId <= 0) {
+        return [
+            'has_transactions' => false,
+            'order_count' => 0,
+            'import_count' => 0,
+            'total_count' => 0,
+        ];
+    }
+
+    $orderCount = 0;
+    $importCount = 0;
+
+    $orderStmt = $conn->prepare("SELECT COUNT(*) AS total FROM order_items WHERE item_type = 'product' AND item_id = ?");
+    if ($orderStmt) {
+        $orderStmt->bind_param('i', $productId);
+        $orderStmt->execute();
+        $orderCount = (int) ($orderStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $orderStmt->close();
+    }
+
+    $importTable = null;
+    $importItemsCheck = $conn->query("SHOW TABLES LIKE 'import_items'");
+    if ($importItemsCheck && $importItemsCheck->num_rows > 0) {
+        $importTable = 'import_items';
+    } else {
+        $importDetailsCheck = $conn->query("SHOW TABLES LIKE 'import_details'");
+        if ($importDetailsCheck && $importDetailsCheck->num_rows > 0) {
+            $importTable = 'import_details';
+        }
+    }
+
+    if ($importTable !== null) {
+        $importStmt = $conn->prepare("SELECT COUNT(*) AS total FROM {$importTable} WHERE product_id = ?");
+        if ($importStmt) {
+            $importStmt->bind_param('i', $productId);
+            $importStmt->execute();
+            $importCount = (int) ($importStmt->get_result()->fetch_assoc()['total'] ?? 0);
+            $importStmt->close();
+        }
+    }
+
+    $totalCount = $orderCount + $importCount;
+
+    return [
+        'has_transactions' => $totalCount > 0,
+        'order_count' => $orderCount,
+        'import_count' => $importCount,
+        'total_count' => $totalCount,
+    ];
+}
+
+/**
+ * Decode the stored product review payload.
+ */
+function parseProductReviewPayload($reviewValue) {
+    $reviewValue = trim((string) $reviewValue);
+
+    if ($reviewValue === '') {
+        return ['author' => '', 'content' => ''];
+    }
+
+    $decoded = json_decode($reviewValue, true);
+    if (is_array($decoded)) {
+        return [
+            'author' => trim((string) ($decoded['author'] ?? '')),
+            'content' => trim((string) ($decoded['content'] ?? '')),
+        ];
+    }
+
+    return [
+        'author' => 'Hội viên',
+        'content' => $reviewValue,
+    ];
+}
+
+/**
+ * Sync product rating/review columns from approved product_reviews rows.
+ */
+function syncProductReviewSummary($conn, $productId) {
+    $productId = (int) $productId;
+    if ($productId <= 0 || !($conn instanceof mysqli)) {
+        return ['rating' => 0.0, 'review' => ''];
+    }
+
+    $tableCheck = $conn->query("SHOW TABLES LIKE 'product_reviews'");
+    if (!$tableCheck || $tableCheck->num_rows === 0) {
+        return ['rating' => 0.0, 'review' => ''];
+    }
+
+    $rating = 0.0;
+    $review = '';
+
+    $stmtStats = $conn->prepare("SELECT COUNT(*) AS review_count, ROUND(AVG(rating), 1) AS avg_rating FROM product_reviews WHERE product_id = ? AND status = 'approved'");
+    if ($stmtStats) {
+        $stmtStats->bind_param('i', $productId);
+        $stmtStats->execute();
+        $statsResult = $stmtStats->get_result();
+        if ($statsResult && ($stats = $statsResult->fetch_assoc())) {
+            $rating = (float) ($stats['avg_rating'] ?? 0);
+        }
+        $stmtStats->close();
+    }
+
+    $stmtLatest = $conn->prepare("SELECT content FROM product_reviews WHERE product_id = ? AND status = 'approved' ORDER BY created_at DESC, id DESC LIMIT 1");
+    if ($stmtLatest) {
+        $stmtLatest->bind_param('i', $productId);
+        $stmtLatest->execute();
+        $latestResult = $stmtLatest->get_result();
+        if ($latestResult && ($latest = $latestResult->fetch_assoc())) {
+            $review = trim((string) ($latest['content'] ?? ''));
+        }
+        $stmtLatest->close();
+    }
+
+    $stmtUpdate = $conn->prepare('UPDATE products SET rating = ?, review = ? WHERE id = ?');
+    if ($stmtUpdate) {
+        $stmtUpdate->bind_param('dsi', $rating, $review, $productId);
+        $stmtUpdate->execute();
+        $stmtUpdate->close();
+    }
+
+    return ['rating' => $rating, 'review' => $review];
 }
 
 /**

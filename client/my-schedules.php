@@ -45,6 +45,8 @@ $member_id = (int) $memberData['id'];
 $sql_ts = "SELECT 
                 ts.id,
                 ts.training_date,
+             ts.end_time,
+             ts.status,
                 ts.note,
                 t.full_name  AS trainer_name,
                 t.type       AS trainer_type,
@@ -135,6 +137,7 @@ include 'layout/header.php';
 .schedule-card .meta span i { margin-right:4px; color:#f36100; }
 .badge-status { display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
 .badge-status.du-kien   { background:#fff3cd; color:#856404; }
+.badge-status.da-xac-nhan { background:#d1ecf1; color:#0c5460; }
 .badge-status.dang-tap  { background:#cce5ff; color:#004085; }
 .badge-status.hoan-thanh{ background:#d4edda; color:#155724; }
 .badge-status.huy       { background:#f8d7da; color:#721c24; }
@@ -214,21 +217,40 @@ include 'layout/header.php';
                         <?php if ($ts_result && $ts_result->num_rows > 0): ?>
                             <?php while ($ts = $ts_result->fetch_assoc()):
                                 $dt      = new DateTime($ts['training_date']);
-                                $is_past = $dt < new DateTime();
+                                $now     = new DateTime();
+                                $endDt   = !empty($ts['end_time']) ? new DateTime($ts['end_time']) : (clone $dt)->modify('+60 minutes');
+                                $status  = strtolower(trim((string) ($ts['status'] ?? 'pending')));
                                 $day_vi  = ['Chủ nhật','Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7'];
                                 $weekday = $day_vi[$dt->format('w')];
+                                $ptBadgeClass = 'du-kien';
+                                $ptBadgeLabel = 'Sắp tới';
+
+                                if ($status === 'canceled') {
+                                    $ptBadgeClass = 'huy';
+                                    $ptBadgeLabel = 'Đã hủy';
+                                } elseif ($status === 'confirmed') {
+                                    $ptBadgeClass = 'da-xac-nhan';
+                                    $ptBadgeLabel = 'Đã xác nhận';
+                                } elseif ($status === 'completed') {
+                                    $ptBadgeClass = 'hoan-thanh';
+                                    $ptBadgeLabel = 'Đã hoàn thành';
+                                } elseif ($dt <= $now && $endDt >= $now) {
+                                    $ptBadgeClass = 'dang-tap';
+                                    $ptBadgeLabel = 'Đang diễn ra';
+                                } elseif ($dt < $now) {
+                                    $ptBadgeClass = 'hoan-thanh';
+                                    $ptBadgeLabel = 'Đã qua';
+                                }
                             ?>
-                            <div class="schedule-card <?php echo $is_past ? 'past' : ''; ?>">
+                            <div class="schedule-card <?php echo in_array($status, ['canceled', 'completed'], true) || $dt < $now ? 'past' : ''; ?>">
                                 <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                                     <div>
                                         <strong style="font-size:16px;">
                                             <?php echo $weekday; ?>, <?php echo $dt->format('d/m/Y'); ?>
                                         </strong>
-                                        <?php if ($is_past): ?>
-                                        <span class="badge-status hoan-thanh" style="margin-left:8px;">Đã qua</span>
-                                        <?php else: ?>
-                                        <span class="badge-status du-kien" style="margin-left:8px;">Sắp tới</span>
-                                        <?php endif; ?>
+                                        <span class="badge-status <?php echo $ptBadgeClass; ?>" style="margin-left:8px;">
+                                            <?php echo htmlspecialchars($ptBadgeLabel); ?>
+                                        </span>
                                     </div>
                                     <strong style="color:#f36100;font-size:18px;">
                                         <i class="fa fa-clock-o"></i> <?php echo $dt->format('H:i'); ?>

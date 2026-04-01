@@ -29,6 +29,7 @@ $categoriesFilter = $conn->query("SELECT id, name FROM categories ORDER BY name 
 $productAddErrors = $_SESSION['product_add_errors'] ?? [];
 $productAddOld = $_SESSION['product_add_old'] ?? [];
 unset($_SESSION['product_add_errors'], $_SESSION['product_add_old']);
+$productUnits = ['cái', 'hộp', 'chai', 'gói', 'kg', 'lít'];
 
 $whereClauses = [];
 $whereParams = [];
@@ -215,19 +216,14 @@ if ($hasReviewTable) {
               <div class="form-group">
                 <label for="name">Tên Sản Phẩm <span class="text-danger">*</span></label>
                 <input type="text" class="form-control <?php echo isset($productAddErrors['name']) ? 'is-invalid' : ''; ?>" id="name" name="name" placeholder="Nhập tên sản phẩm..." value="<?php echo htmlspecialchars($productAddOld['name'] ?? ''); ?>">
-                <?php if (isset($productAddErrors['name'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['name']); ?></div><?php endif; ?>
-              </div>
-              
-<div class="form-group">
-                <label for="short_description">Mô tả ngắn</label>
-                <textarea class="form-control <?php echo isset($productAddErrors['short_description']) ? 'is-invalid' : ''; ?>" id="short_description" name="short_description" rows="3" placeholder="Mô tả ngắn về sản phẩm..."><?php echo htmlspecialchars($productAddOld['short_description'] ?? ''); ?></textarea>
-                <?php if (isset($productAddErrors['short_description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['short_description']); ?></div><?php endif; ?>
+                <?php if (isset($productAddErrors['name'])): ?><div class="invalid-feedback d-block text-danger font-weight-bold mt-1"><?php echo htmlspecialchars($productAddErrors['name']); ?></div><?php endif; ?>
+                <div id="productNameLiveError" class="invalid-feedback d-block text-danger font-weight-bold mt-1" style="display: none;"></div>
               </div>
 
               <div class="form-group">
-                <label for="description">Mô tả chi tiết</label>
-                <textarea class="form-control <?php echo isset($productAddErrors['description']) ? 'is-invalid' : ''; ?>" id="description" name="description" rows="6" placeholder="Mô tả chi tiết về sản phẩm..." style="min-height: 140px;"><?php echo htmlspecialchars($productAddOld['description'] ?? ''); ?></textarea>
-                <?php if (isset($productAddErrors['description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['description']); ?></div><?php endif; ?>
+                <label for="short_description">Mô tả ngắn</label>
+                <textarea class="form-control <?php echo isset($productAddErrors['short_description']) ? 'is-invalid' : ''; ?>" id="short_description" name="short_description" rows="3" placeholder="Mô tả ngắn về sản phẩm..."><?php echo htmlspecialchars($productAddOld['short_description'] ?? ''); ?></textarea>
+                <?php if (isset($productAddErrors['short_description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['short_description']); ?></div><?php endif; ?>
               </div>
 
               <div class="form-group">
@@ -264,7 +260,12 @@ if ($hasReviewTable) {
             <div class="col-md-6">
               <div class="form-group">
                 <label for="unit">Đơn Vị Tính</label>
-                <input type="text" class="form-control <?php echo isset($productAddErrors['unit']) ? 'is-invalid' : ''; ?>" id="unit" name="unit" placeholder="hộp, chai, cái..." value="<?php echo htmlspecialchars($productAddOld['unit'] ?? ''); ?>">
+                <select class="form-control <?php echo isset($productAddErrors['unit']) ? 'is-invalid' : ''; ?>" id="unit" name="unit">
+                  <option value="">-- Chọn đơn vị --</option>
+                  <?php foreach ($productUnits as $unitOption): ?>
+                    <option value="<?php echo htmlspecialchars($unitOption); ?>" <?php echo (($productAddOld['unit'] ?? '') === $unitOption) ? 'selected' : ''; ?>><?php echo htmlspecialchars($unitOption); ?></option>
+                  <?php endforeach; ?>
+                </select>
                 <?php if (isset($productAddErrors['unit'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['unit']); ?></div><?php endif; ?>
               </div>
 
@@ -272,12 +273,6 @@ if ($hasReviewTable) {
                 <label for="selling_price">Giá Bán Lẻ (VNĐ) <span class="text-danger">*</span></label>
                 <input type="number" class="form-control <?php echo isset($productAddErrors['selling_price']) ? 'is-invalid' : ''; ?>" id="selling_price" name="selling_price" min="0" placeholder="Nhập giá bán..." value="<?php echo htmlspecialchars($productAddOld['selling_price'] ?? ''); ?>">
                 <?php if (isset($productAddErrors['selling_price'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['selling_price']); ?></div><?php endif; ?>
-              </div>
-
-              <div class="form-group">
-                <label for="stock_quantity">Số Lượng Tồn Kho</label>
-                <input type="number" class="form-control <?php echo isset($productAddErrors['stock_quantity']) ? 'is-invalid' : ''; ?>" id="stock_quantity" name="stock_quantity" min="0" placeholder="Nhập số lượng..." value="<?php echo htmlspecialchars($productAddOld['stock_quantity'] ?? ''); ?>">
-                <?php if (isset($productAddErrors['stock_quantity'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['stock_quantity']); ?></div><?php endif; ?>
               </div>
             </div>
           </div>
@@ -372,23 +367,24 @@ document.getElementById('addProductForm').addEventListener('submit', function(e)
 
     let unitVal = document.getElementById('unit').value.trim();
     if (unitVal === '') {
-        showError('unit', 'Vui lòng nhập đơn vị tính (vd: hộp, chai...).');
+      showError('unit', 'Vui lòng chọn đơn vị tính.');
     }
 
     let priceVal = document.getElementById('selling_price').value;
-    if (priceVal === '' || isNaN(priceVal) || parseFloat(priceVal) <= 0) {
-        showError('selling_price', 'Giá bán phải là số và lớn hơn 0.');
-    }
-
-    let stockVal = document.getElementById('stock_quantity').value;
-    if (stockVal === '' || isNaN(stockVal) || parseInt(stockVal) < 0) {
-        showError('stock_quantity', 'Vui lòng nhập số lượng tồn kho (>= 0).');
+    if (priceVal === '' || isNaN(priceVal) || parseFloat(priceVal) < 0) {
+      showError('selling_price', 'Giá bán phải là số và lớn hơn hoặc bằng 0.');
     }
 
     let statusVal = document.getElementById('status').value;
     if (statusVal === '') {
         showError('status', 'Vui lòng chọn trạng thái sản phẩm.');
     }
+
+    let liveNameErrorBox = document.getElementById('productNameLiveError');
+    if (liveNameErrorBox && liveNameErrorBox.textContent.trim() !== '') {
+      showError('name', liveNameErrorBox.textContent.trim());
+    }
+
     if (!isValid) {
         e.preventDefault();
         if (firstErrorElement) {
@@ -396,6 +392,105 @@ document.getElementById('addProductForm').addEventListener('submit', function(e)
         }
     }
 });
+
+  (function() {
+    const nameInput = document.getElementById('name');
+    const liveErrorBox = document.getElementById('productNameLiveError');
+    const liveSubmitButton = document.querySelector('#addProductForm button[type="submit"]');
+    let debounceTimer = null;
+    let requestController = null;
+
+      function setSubmitDisabled(disabled) {
+        if (liveSubmitButton) {
+          liveSubmitButton.disabled = disabled;
+        }
+      }
+
+    function setLiveNameError(message) {
+      if (!liveErrorBox) {
+        return;
+      }
+
+      if (message) {
+        liveErrorBox.textContent = message;
+        liveErrorBox.style.display = 'block';
+        nameInput.classList.add('is-invalid');
+          setSubmitDisabled(true);
+      } else {
+        liveErrorBox.textContent = '';
+        liveErrorBox.style.display = 'none';
+        if (!document.querySelector('#addProductForm .custom-error-text')) {
+          nameInput.classList.remove('is-invalid');
+        }
+          setSubmitDisabled(false);
+      }
+    }
+
+    async function checkDuplicateName() {
+      const nameValue = nameInput.value.trim();
+
+      if (nameValue === '') {
+        setLiveNameError('');
+        return;
+      }
+
+      if (requestController) {
+        requestController.abort();
+      }
+
+      requestController = new AbortController();
+
+      try {
+        const response = await fetch('process/check_product_name.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: 'name=' + encodeURIComponent(nameValue),
+          signal: requestController.signal
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        setLiveNameError(data.exists ? data.message : '');
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          return;
+        }
+      }
+    }
+
+    nameInput.addEventListener('input', function() {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
+      setSubmitDisabled(true);
+      setLiveNameError('');
+
+      debounceTimer = setTimeout(checkDuplicateName, 250);
+    });
+
+    nameInput.addEventListener('blur', function() {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
+      checkDuplicateName();
+    });
+
+    if (liveSubmitButton) {
+      liveSubmitButton.addEventListener('click', function() {
+        if (nameInput.value.trim() !== '') {
+          checkDuplicateName();
+        }
+      });
+    }
+  })();
 
   <?php if (!empty($productAddErrors)): ?>
   $('#addProductModal').modal('show');

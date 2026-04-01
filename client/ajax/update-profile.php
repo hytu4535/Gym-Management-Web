@@ -15,8 +15,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Lấy dữ liệu từ form
     $full_name = trim($_POST['full_name'] ?? '');
-    $username  = trim($_POST['username'] ?? '');
-    $email     = trim($_POST['email'] ?? '');
     $phone     = trim($_POST['phone'] ?? '');
     $height    = $_POST['height'] ?? '';
     $weight    = $_POST['weight'] ?? '';
@@ -25,12 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $uploadedAvatarFullPath = null;
 
     // Kiểm tra dữ liệu đầu vào
-    if (empty($full_name) || empty($email) || empty($username) || empty($phone)) {
-        echo json_encode(['success'=>false,'message'=>'Họ tên, username, email và SDT là bắt buộc!']);
-        exit();
-    }
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['success'=>false,'message'=>'Email không hợp lệ!']);
+    if (empty($full_name)) {
+        echo json_encode(['success'=>false,'message'=>'Họ tên là bắt buộc!']);
         exit();
     }
     if (!empty($phone) && !preg_match('/^[0-9]{10}$/', $phone)) {
@@ -101,17 +95,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $avatarRelativePath = 'assets/uploads/avatars/' . $avatarFileName;
         }
 
-        // Update bảng users (username, email)
+        // Update bảng users chỉ cho phép đổi avatar
         if ($avatarRelativePath !== null) {
-            $stmt = $conn->prepare("UPDATE users SET username=?, email=?, avatar=? WHERE id=?");
+            $stmt = $conn->prepare("UPDATE users SET avatar=? WHERE id=?");
         } else {
-            $stmt = $conn->prepare("UPDATE users SET username=?, email=? WHERE id=?");
+            $stmt = $conn->prepare("UPDATE users SET id=id WHERE id=?");
         }
         if(!$stmt){ throw new Exception("SQL error (users): ".$conn->error); }
         if ($avatarRelativePath !== null) {
-            $stmt->bind_param("sssi", $username, $email, $avatarRelativePath, $user_id);
+            $stmt->bind_param("si", $avatarRelativePath, $user_id);
         } else {
-            $stmt->bind_param("ssi", $username, $email, $user_id);
+            $stmt->bind_param("i", $user_id);
         }
         $stmt->execute();
         $stmt->close();
@@ -123,6 +117,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        $stmtUserPhone = $conn->prepare("UPDATE users SET phone=? WHERE id=?");
+        if(!$stmtUserPhone){ throw new Exception("SQL error (users phone): ".$conn->error); }
+        $stmtUserPhone->bind_param("si", $phone, $user_id);
+        $stmtUserPhone->execute();
+        $stmtUserPhone->close();
+
         // Update bảng members (full_name, phone, height, weight)
         $stmt2 = $conn->prepare("UPDATE members SET full_name=?, phone=?, height=?, weight=? WHERE users_id=?");
         if(!$stmt2){ throw new Exception("SQL error (members): ".$conn->error); }
@@ -133,9 +133,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Cập nhật session để hiển thị ngay
         $_SESSION['full_name'] = $full_name;
-        $_SESSION['username']  = $username;
-        $_SESSION['email']     = $email;
-        $_SESSION['phone']     = $phone;
         $_SESSION['height']    = $height;
         $_SESSION['weight']    = $weight;
         if ($avatarRelativePath !== null) {

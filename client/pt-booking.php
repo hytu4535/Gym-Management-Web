@@ -23,6 +23,25 @@ if (!$member) {
     exit();
 }
 
+$existingBookedDays = [];
+$bookedDaysStmt = $conn->prepare('SELECT DISTINCT DATE(training_date) AS booking_day FROM training_schedules WHERE member_id = ? AND status <> ? ORDER BY booking_day ASC');
+if ($bookedDaysStmt) {
+    $canceledStatus = 'canceled';
+    $bookedDaysStmt->bind_param('is', $member['id'], $canceledStatus);
+    $bookedDaysStmt->execute();
+    $bookedDaysResult = $bookedDaysStmt->get_result();
+
+    if ($bookedDaysResult) {
+        while ($row = $bookedDaysResult->fetch_assoc()) {
+            if (!empty($row['booking_day'])) {
+                $existingBookedDays[] = $row['booking_day'];
+            }
+        }
+    }
+
+    $bookedDaysStmt->close();
+}
+
 $trainers = [];
 $sqlTrainers = "SELECT id, full_name, type, phone, status
                 FROM trainers
@@ -133,6 +152,7 @@ include 'layout/footer.php';
     var form = document.getElementById('pt-booking-form');
     var btn = document.getElementById('btn-submit-pt');
     var messageBox = document.getElementById('pt-booking-message');
+    var existingBookedDays = <?php echo json_encode($existingBookedDays, JSON_UNESCAPED_UNICODE); ?>;
 
     function label(field) {
         if (field === 'trainer_id') return 'Vui lòng chọn huấn luyện viên.';
@@ -183,6 +203,36 @@ include 'layout/footer.php';
         messageBox.style.color = ok ? '#155724' : '#721c24';
     }
 
+    function getDateOnly(value) {
+        return String(value || '').trim().slice(0, 10);
+    }
+
+    function isDayAlreadyBooked(dayValue) {
+        var selectedDay = getDateOnly(dayValue);
+
+        if (!selectedDay) {
+            return false;
+        }
+
+        return existingBookedDays.indexOf(selectedDay) !== -1;
+    }
+
+    function validateDailyLimit() {
+        var trainingDateInput = form.querySelector('[name="training_date"]');
+        if (!trainingDateInput) {
+            return true;
+        }
+
+        if (isDayAlreadyBooked(trainingDateInput.value)) {
+            showFieldError(trainingDateInput, 'Bạn đã có lịch PT trong ngày này. Mỗi ngày chỉ được đặt 1 lần.');
+            showMessage('Bạn đã có lịch PT trong ngày này. Mỗi ngày chỉ được đặt 1 lần.', false);
+            return false;
+        }
+
+        showFieldError(trainingDateInput, '');
+        return true;
+    }
+
     form.addEventListener('submit', function (e) {
         e.preventDefault();
 
@@ -194,6 +244,10 @@ include 'layout/footer.php';
         });
 
         if (!isValid) {
+            return;
+        }
+
+        if (!validateDailyLimit()) {
             return;
         }
 
@@ -232,6 +286,9 @@ include 'layout/footer.php';
     form.addEventListener('change', function (e) {
         if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-field')) {
             validateField(e.target);
+            if (e.target.getAttribute('data-field') === 'training_date') {
+                validateDailyLimit();
+            }
         }
     });
 })();

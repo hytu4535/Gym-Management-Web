@@ -361,6 +361,19 @@ function handleSubmitFeedback(PDO $db, $member, $rating, $content)
         jsonResponse(false, 'Nội dung feedback không được để trống.');
     }
 
+    $existingFeedbackStmt = $db->prepare(
+        "SELECT id
+         FROM feedback
+         WHERE member_id = ?
+         LIMIT 1"
+    );
+    $existingFeedbackStmt->execute([(int) $member['id']]);
+    $existingFeedback = $existingFeedbackStmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($existingFeedback) {
+        jsonResponse(false, 'Mỗi tài khoản chỉ được gửi 1 feedback duy nhất.');
+    }
+
     $stmt = $db->prepare(
         "INSERT INTO feedback (member_id, content, rating, status)
          VALUES (?, ?, ?, 'new')"

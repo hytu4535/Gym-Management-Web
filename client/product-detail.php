@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once '../config/db.php';
 require_once '../includes/discount_helper.php';
+require_once '../includes/functions.php';
 
 $product_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0;
@@ -33,38 +34,18 @@ $stock = $product['stock_quantity'] ?? 0;
 $short_description = $product['short_description'] ?? '';
 $detail_description = trim($product['description'] ?? '');
 $display_description = $short_description !== '' ? $short_description : $detail_description;
-$review_count = 0;
-$review_avg = 0.0;
 $rating = isset($product['rating']) ? (float) $product['rating'] : 0.0;
-$review_items = [];
-$hasReviewTable = false;
-$reviewTableCheck = $conn->query("SHOW TABLES LIKE 'product_reviews'");
-if ($reviewTableCheck && $reviewTableCheck->num_rows > 0) {
-    $hasReviewTable = true;
-
-    $stmt_review_stats = $conn->prepare("SELECT COUNT(*) AS review_count, ROUND(AVG(rating), 1) AS avg_rating FROM product_reviews WHERE product_id = ? AND status = 'approved'");
-    $stmt_review_stats->bind_param('i', $product_id);
-    $stmt_review_stats->execute();
-    $review_stats_result = $stmt_review_stats->get_result();
-    if ($review_stats_result && ($review_stats = $review_stats_result->fetch_assoc())) {
-        $review_count = (int) ($review_stats['review_count'] ?? 0);
-        $review_avg = (float) ($review_stats['avg_rating'] ?? 0);
-    }
-    $stmt_review_stats->close();
-
-    $stmt_review_items = $conn->prepare("SELECT pr.rating, pr.content, pr.created_at, m.full_name FROM product_reviews pr JOIN members m ON m.id = pr.member_id WHERE pr.product_id = ? AND pr.status = 'approved' ORDER BY pr.created_at DESC LIMIT 6");
-    $stmt_review_items->bind_param('i', $product_id);
-    $stmt_review_items->execute();
-    $review_items_result = $stmt_review_items->get_result();
-    while ($review_row = $review_items_result->fetch_assoc()) {
-        $review_items[] = $review_row;
-    }
-    $stmt_review_items->close();
-}
-
-if ($review_count > 0) {
-    $rating = $review_avg;
-}
+$productReviewData = parseProductReviewPayload($product['review'] ?? '');
+$productReviewAuthor = $productReviewData['author'] !== '' ? $productReviewData['author'] : 'Hội viên';
+$productReviewText = trim((string) ($productReviewData['content'] ?? ''));
+$review_count = $productReviewText !== '' ? 1 : 0;
+$review_items = $productReviewText !== '' ? [[
+    'full_name' => $productReviewAuthor,
+    'created_at' => null,
+    'rating' => $rating,
+    'content' => $productReviewText,
+]] : [];
+$hasReviewTable = true;
 
 // Tính giá sau giảm theo tier
 $price_info = calculateDiscountedPrice($product['selling_price'], $user_id, $conn);

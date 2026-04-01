@@ -20,33 +20,38 @@ if (isset($_POST['btn_add_product'])) {
     $name = trim((string) ($_POST['name'] ?? ''));
     $category_id = trim((string) ($_POST['category_id'] ?? ''));
     $short_description = $conn->real_escape_string(trim($_POST['short_description'] ?? ''));
-    $description = $conn->real_escape_string(trim($_POST['description'] ?? ''));
     $unit = trim((string) ($_POST['unit'] ?? ''));
     $selling_price = trim((string) ($_POST['selling_price'] ?? ''));
-    $stock_quantity = trim((string) ($_POST['stock_quantity'] ?? ''));
     $status = trim((string) ($_POST['status'] ?? ''));
+    $allowedUnits = ['cái', 'hộp', 'chai', 'gói', 'kg', 'lít'];
 
     $errors = [];
     if ($name === '') {
         $errors['name'] = 'Vui lòng nhập tên sản phẩm.';
-    } elseif (mb_strlen($name) < 3) {
-        $errors['name'] = 'Tên sản phẩm phải có ít nhất 3 ký tự.';
+    }
+
+    if ($name !== '') {
+        $duplicateStmt = $conn->prepare("SELECT COUNT(*) AS total FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))");
+        $duplicateStmt->bind_param('s', $name);
+        $duplicateStmt->execute();
+        $duplicateCount = (int) ($duplicateStmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $duplicateStmt->close();
+
+        if ($duplicateCount > 0) {
+            $errors['name'] = 'đã có sản phẩm trùng tên, vui lòng nhập tên khác';
+        }
     }
 
     if ($category_id === '' || !ctype_digit($category_id)) {
         $errors['category_id'] = 'Vui lòng chọn một danh mục cho sản phẩm.';
     }
 
-    if ($unit === '') {
-        $errors['unit'] = 'Vui lòng nhập đơn vị tính.';
+    if ($unit === '' || !in_array($unit, $allowedUnits, true)) {
+        $errors['unit'] = 'Vui lòng chọn đơn vị tính hợp lệ.';
     }
 
-    if ($selling_price === '' || !is_numeric($selling_price) || (float) $selling_price <= 0) {
-        $errors['selling_price'] = 'Giá bán phải là số và lớn hơn 0.';
-    }
-
-    if ($stock_quantity === '' || !is_numeric($stock_quantity) || (int) $stock_quantity < 0) {
-        $errors['stock_quantity'] = 'Vui lòng nhập số lượng tồn kho lớn hơn hoặc bằng 0.';
+    if ($selling_price === '' || !is_numeric($selling_price) || (float) $selling_price < 0) {
+        $errors['selling_price'] = 'Giá bán phải là số và lớn hơn hoặc bằng 0.';
     }
 
     if ($status === '') {
@@ -72,10 +77,8 @@ if (isset($_POST['btn_add_product'])) {
             'name' => $name,
             'category_id' => $category_id,
             'short_description' => $_POST['short_description'] ?? '',
-            'description' => $_POST['description'] ?? '',
             'unit' => $unit,
             'selling_price' => $selling_price,
-            'stock_quantity' => $stock_quantity,
             'status' => $status,
         ]);
     }
@@ -107,7 +110,6 @@ if (isset($_POST['btn_add_product'])) {
     }
 
     $hasShortDescriptionColumn = (bool) ($conn->query("SHOW COLUMNS FROM products LIKE 'short_description'")->num_rows ?? 0);
-    $hasDescriptionColumn = (bool) ($conn->query("SHOW COLUMNS FROM products LIKE 'description'")->num_rows ?? 0);
 
     $insertColumns = ['category_id', 'name'];
     $insertValues = [(int) $category_id, "'$name'"];
@@ -116,13 +118,9 @@ if (isset($_POST['btn_add_product'])) {
         $insertColumns[] = 'short_description';
         $insertValues[] = "'$short_description'";
     }
-    if ($hasDescriptionColumn) {
-        $insertColumns[] = 'description';
-        $insertValues[] = "'" . ($description !== '' ? $description : $short_description) . "'";
-    }
 
     $insertColumns = array_merge($insertColumns, ['img', 'unit', 'stock_quantity', 'selling_price', 'status']);
-    $insertValues = array_merge($insertValues, ["'$img_name'", "'$unit'", (int) $stock_quantity, (float) $selling_price, "'$status'"]);
+    $insertValues = array_merge($insertValues, ["'$img_name'", "'$unit'", 0, (float) $selling_price, "'$status'"]);
 
     $sql_insert = "INSERT INTO products (" . implode(', ', $insertColumns) . ") VALUES (" . implode(', ', $insertValues) . ")";
 

@@ -731,15 +731,15 @@ $(function() {
   }
 
   // Điền dữ liệu vào modal sửa
-  $('.btn-edit').on('click', function() {
-    const currentStatus = $(this).data('current_status') || $(this).data('status') || 'pending';
-    const memberId = $(this).data('member_id');
-    const trainerId = $(this).data('trainer_id');
+  $(document).on('click', '.btn-edit', function() {
+    const currentStatus = $(this).attr('data-current_status') || $(this).attr('data-status') || $(this).data('current_status') || $(this).data('status') || 'pending';
+    const memberId = $(this).attr('data-member_id') || $(this).data('member_id') || '';
+    const trainerId = $(this).attr('data-trainer_id') || $(this).data('trainer_id') || '';
     $('#edit-id').val($(this).data('id'));
     $('#edit-member_id-backup').val(memberId || '');
     $('#edit-trainer_id-backup').val(trainerId || '');
-    $('#edit-member_id').val(memberId).trigger('change');
-    $('#edit-trainer_id').val(trainerId).trigger('change');
+    $('#edit-member_id').val(String(memberId)).trigger('change');
+    $('#edit-trainer_id').val(String(trainerId)).trigger('change');
     $('#edit-date').val($(this).data('date'));
     $('#edit-time').val($(this).data('time'));
     $('#edit-end-time').val($(this).data('end_time') || '');
@@ -771,7 +771,7 @@ $(function() {
   });
 
   // Điền dữ liệu vào modal xóa
-  $('.btn-delete').on('click', function() {
+  $(document).on('click', '.btn-delete', function() {
     $('#delete-id').val($(this).data('id'));
     $('#delete-member').text($(this).data('member'));
     $('#delete-date').text($(this).data('date'));

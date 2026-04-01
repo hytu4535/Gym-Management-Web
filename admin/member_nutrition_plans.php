@@ -16,6 +16,15 @@ checkPermission('MANAGE_SERVICES_NUTRITION');
 include '../includes/functions.php';
 
 $db = getDB();
+$selectedPlanId = isset($_GET['plan_id']) ? intval($_GET['plan_id']) : 0;
+$filterKeyword = trim((string) ($_GET['q'] ?? ''));
+$filterMemberId = isset($_GET['member_id']) ? intval($_GET['member_id']) : 0;
+$filterPlanId = isset($_GET['nutrition_plan_id']) ? intval($_GET['nutrition_plan_id']) : 0;
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
+$autoOpenAddModal = isset($_GET['open']) && $_GET['open'] === 'add';
+$nutritionPlansCount = (int) $db->query("SELECT COUNT(*) FROM nutrition_plans")->fetchColumn();
+$nutritionPlanItemsCount = (int) $db->query("SELECT COUNT(*) FROM nutrition_plan_items")->fetchColumn();
+$nutritionItemsCount = (int) $db->query("SELECT COUNT(*) FROM nutrition_items")->fetchColumn();
 
 function isPastDate($date)
 {
@@ -153,15 +162,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Lấy danh sách dinh dưỡng đã gán kèm tên hội viên và chế độ
-$stmt = $db->query("
-    SELECT mnp.*, 
-           m.full_name AS member_name,
-           np.name AS plan_name, np.type AS plan_type, np.calories, np.bmi_range
+$recordConditions = [];
+$recordParams = [];
+
+if ($filterKeyword !== '') {
+  $recordConditions[] = "(m.full_name LIKE ? OR m.phone LIKE ? OR np.name LIKE ? OR np.type LIKE ?)";
+  $like = '%' . $filterKeyword . '%';
+  $recordParams[] = $like;
+  $recordParams[] = $like;
+  $recordParams[] = $like;
+  $recordParams[] = $like;
+}
+
+if ($filterMemberId > 0) {
+  $recordConditions[] = "mnp.member_id = ?";
+  $recordParams[] = $filterMemberId;
+}
+
+if ($filterPlanId > 0) {
+  $recordConditions[] = "mnp.nutrition_plan_id = ?";
+  $recordParams[] = $filterPlanId;
+}
+
+$allowedStatuses = ['đã áp dụng', 'kết thúc'];
+if ($filterStatus !== '' && in_array($filterStatus, $allowedStatuses, true)) {
+  $recordConditions[] = "mnp.status = ?";
+  $recordParams[] = $filterStatus;
+}
+
+$recordSql = "SELECT mnp.*, m.full_name AS member_name, np.name AS plan_name, np.type AS plan_type, np.calories, np.bmi_range
     FROM member_nutrition_plans mnp
     LEFT JOIN members m ON mnp.member_id = m.id
-    LEFT JOIN nutrition_plans np ON mnp.nutrition_plan_id = np.id
-    ORDER BY mnp.start_date DESC
-");
+    LEFT JOIN nutrition_plans np ON mnp.nutrition_plan_id = np.id";
+
+if (!empty($recordConditions)) {
+  $recordSql .= " WHERE " . implode(' AND ', $recordConditions);
+}
+
+$recordSql .= " ORDER BY mnp.start_date DESC";
+
+$stmt = $db->prepare($recordSql);
+$stmt->execute($recordParams);
 $records = $stmt->fetchAll();
 
 foreach ($records as &$record) {
@@ -211,12 +252,97 @@ include 'layout/sidebar.php';
       <div class="container-fluid">
 
         <!-- Thông báo -->
-        <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show">
-          <button type="button" class="close" data-dismiss="alert">&times;</button>
-          <?= $flash['message'] ?>
+        <?php renderAdminFlash($flash); ?>
+
+        <?php
+          $filterTitle = 'Lọc nhanh dinh dưỡng hội viên';
+          $filterAction = 'member_nutrition_plans.php';
+          $filterFormId = 'memberNutritionFilterForm';
+          $filterMode = 'server';
+          $filterFieldsHtml = '
+            <div class="col-md-3">
+              <div class="form-group mb-0">
+                <label>Hội viên</label>
+                <select class="form-control select2" name="member_id" style="width: 100%;">
+                  <option value="">Tất cả hội viên</option>';
+          foreach ($members as $member) {
+            $selected = $filterMemberId === (int) $member['id'] ? ' selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $member['id'] . '"' . $selected . '>' . htmlspecialchars($member['full_name']) . ' - ' . htmlspecialchars($member['phone'] ?? '') . '</option>';
+          }
+          $filterFieldsHtml .= '
+                </select>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="form-group mb-0">
+                <label>Chế độ</label>
+                <select class="form-control select2" name="nutrition_plan_id" style="width: 100%;">
+                  <option value="">Tất cả chế độ</option>';
+          foreach ($plans as $plan) {
+            $selected = $filterPlanId === (int) $plan['id'] ? ' selected' : '';
+            $filterFieldsHtml .= '<option value="' . (int) $plan['id'] . '"' . $selected . '>' . htmlspecialchars($plan['name']) . ' (' . htmlspecialchars($plan['type']) . ')</option>';
+          }
+          $filterFieldsHtml .= '
+                </select>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="form-group mb-0">
+                <label>Từ khóa</label>
+                <input type="text" class="form-control" name="q" placeholder="Tìm theo hội viên, chế độ hoặc số điện thoại..." value="' . htmlspecialchars($filterKeyword) . '">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="form-group mb-0">
+                <label>Trạng thái</label>
+                <select class="form-control" name="status">
+                  <option value="">Tất cả</option>
+                  <option value="đã áp dụng"' . ($filterStatus === 'đã áp dụng' ? ' selected' : '') . '>Đang áp dụng</option>
+                  <option value="kết thúc"' . ($filterStatus === 'kết thúc' ? ' selected' : '') . '>Đã kết thúc</option>
+                </select>
+              </div>
+            </div>';
+          include 'layout/filter-card.php';
+        ?>
+
+        <div class="row mb-3">
+          <div class="col-md-4 col-sm-6 mb-3 mb-md-0">
+            <div class="info-box h-100">
+              <span class="info-box-icon bg-primary"><i class="fas fa-clipboard-list"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text">Chế độ dinh dưỡng</span>
+                <span class="info-box-number"><?= $nutritionPlansCount ?></span>
+                <div class="mt-2">
+                  <a href="nutrition_plans.php" class="btn btn-sm btn-outline-primary">Quay lại plan</a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4 col-sm-6 mb-3 mb-md-0">
+            <div class="info-box h-100">
+              <span class="info-box-icon bg-success"><i class="fas fa-list-ul"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text">Món trong thực đơn</span>
+                <span class="info-box-number"><?= $nutritionPlanItemsCount ?></span>
+                <div class="mt-2">
+                  <a href="nutrition_plan_items.php" class="btn btn-sm btn-outline-success">Gán món vào plan</a>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4 col-sm-12">
+            <div class="info-box h-100">
+              <span class="info-box-icon bg-info"><i class="fas fa-utensils"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text">Món dinh dưỡng</span>
+                <span class="info-box-number"><?= $nutritionItemsCount ?></span>
+                <div class="mt-2">
+                  <a href="nutrition_items.php" class="btn btn-sm btn-outline-info">Quản lý món</a>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <?php endif; ?>
 
         <!-- Thống kê nhanh -->
         <div class="row mb-3">
@@ -257,7 +383,7 @@ include 'layout/sidebar.php';
           <div class="col-12">
             <div class="card">
               <div class="card-header">
-                <h3 class="card-title">Danh sách dinh dưỡng đã gán</h3>
+                <h3 class="card-title">Danh sách dinh dưỡng hội viên</h3>
                 <div class="card-tools">
                   <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addModal">
                     <i class="fas fa-plus"></i> Gán chế độ
@@ -379,7 +505,7 @@ include 'layout/sidebar.php';
                 <select class="form-control select2" name="nutrition_plan_id" data-field="nutrition_plan_id" style="width: 100%;">
                   <option value="">-- Chọn chế độ --</option>
                   <?php foreach ($plans as $plan): ?>
-                    <option value="<?= $plan['id'] ?>">
+                    <option value="<?= $plan['id'] ?>" <?= $selectedPlanId === (int) $plan['id'] ? 'selected' : '' ?>>
                       <?= htmlspecialchars($plan['name']) ?> (<?= $plan['type'] ?>)
                       <?= $plan['calories'] ? ' - ' . number_format($plan['calories']) . ' kcal' : '' ?>
                     </option>
@@ -413,6 +539,7 @@ include 'layout/sidebar.php';
                   <option value="kết thúc">Đã kết thúc</option>
                 </select>
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
+                <small class="form-text text-muted">Dùng trạng thái và ngày kết thúc để theo dõi tuân thủ chế độ.</small>
               </div>
             </div>
             <div class="modal-footer">
@@ -484,6 +611,7 @@ include 'layout/sidebar.php';
                   <option value="kết thúc">Đã kết thúc</option>
                 </select>
                 <small class="text-danger d-block mt-2" style="display:none;"></small>
+                <small class="form-text text-muted">Dùng trạng thái và ngày kết thúc để theo dõi tuân thủ chế độ.</small>
               </div>
             </div>
             <div class="modal-footer">
@@ -526,6 +654,9 @@ include 'layout/sidebar.php';
 <!-- Script xử lý modal -->
 <script>
 $(function() {
+  const presetPlanId = <?= (int) $selectedPlanId ?>;
+  const autoOpenAddModal = <?= $autoOpenAddModal ? 'true' : 'false' ?>;
+
   if ($.fn.select2) {
     $('.select2').not('.select2-hidden-accessible').each(function() {
       $(this).select2({
@@ -535,6 +666,14 @@ $(function() {
         dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body)
       });
     });
+  }
+
+  if (autoOpenAddModal) {
+    $('#addModal').modal('show');
+  }
+
+  if (presetPlanId) {
+    $('#addModal').find('[name="nutrition_plan_id"]').val(String(presetPlanId)).trigger('change');
   }
 
   $('.btn-edit').on('click', function() {

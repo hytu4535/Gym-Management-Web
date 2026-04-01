@@ -1,12 +1,22 @@
 <?php 
 $page_title = "Chỉnh sửa sản phẩm";
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
 require_once '../config/db.php';
 
-$id = $_GET['id'];
+$id = (int) ($_GET['id'] ?? 0);
 $sql = "SELECT * FROM products WHERE id = $id";
 $product = $conn->query($sql)->fetch_assoc();
+$productEditErrors = $_SESSION['product_edit_errors'] ?? [];
+$productEditOld = $_SESSION['product_edit_old'] ?? [];
+unset($_SESSION['product_edit_errors'], $_SESSION['product_edit_old']);
+
+function productEditValue($key, $fallback, $oldInput) {
+    return array_key_exists($key, $oldInput) ? $oldInput[$key] : $fallback;
+}
 ?>
 
 <div class="content-wrapper">
@@ -24,29 +34,34 @@ $product = $conn->query($sql)->fetch_assoc();
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Tên Sản Phẩm</label>
-                                    <input id="name" type="text" name="name" class="form-control" value="<?php echo $product['name']; ?>" required>
+                                    <input id="name" type="text" name="name" class="form-control <?php echo isset($productEditErrors['name']) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars(productEditValue('name', $product['name'], $productEditOld)); ?>" required>
+                                    <?php if (isset($productEditErrors['name'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['name']); ?></div><?php endif; ?>
                                 </div>
                                  <div class="form-group">
                                     <label>Mô tả ngắn</label>
-                                    <textarea name="short_description" class="form-control" rows="3" placeholder="Mô tả ngắn sản phẩm..."><?php echo htmlspecialchars($product['short_description'] ?? ''); ?></textarea>
+                                    <textarea name="short_description" class="form-control <?php echo isset($productEditErrors['short_description']) ? 'is-invalid' : ''; ?>" rows="3" placeholder="Mô tả ngắn sản phẩm..."><?php echo htmlspecialchars(productEditValue('short_description', $product['short_description'] ?? '', $productEditOld)); ?></textarea>
+                                    <?php if (isset($productEditErrors['short_description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['short_description']); ?></div><?php endif; ?>
                                 </div>
 
                                 <div class="form-group">
                                     <label>Mô tả chi tiết</label>
-                                    <textarea name="description" class="form-control" rows="6" placeholder="Mô tả chi tiết sản phẩm..." style="min-height: 140px;"><?php echo htmlspecialchars($product['description'] ?? ''); ?></textarea>
+                                    <textarea name="description" class="form-control <?php echo isset($productEditErrors['description']) ? 'is-invalid' : ''; ?>" rows="6" placeholder="Mô tả chi tiết sản phẩm..." style="min-height: 140px;"><?php echo htmlspecialchars(productEditValue('description', $product['description'] ?? '', $productEditOld)); ?></textarea>
+                                    <?php if (isset($productEditErrors['description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['description']); ?></div><?php endif; ?>
                                 </div>
                                 <div class="form-group">
                                     <label>Danh Mục</label>
-                                    <select id="category_id" name="category_id" class="form-control">
+                                    <select id="category_id" name="category_id" class="form-control <?php echo isset($productEditErrors['category_id']) ? 'is-invalid' : ''; ?>">
                                         <option value="">-- Chưa phân loại --</option>
                                         <?php
                                         $cats = $conn->query("SELECT * FROM categories");
+                                        $selectedCategoryId = productEditValue('category_id', $product['category_id'] ?? '', $productEditOld);
                                         while($cat = $cats->fetch_assoc()) {
-                                            $selected = ($cat['id'] == $product['category_id']) ? 'selected' : '';
+                                            $selected = ((string) $selectedCategoryId !== '' && (int) $cat['id'] === (int) $selectedCategoryId) ? 'selected' : '';
                                             echo "<option value='{$cat['id']}' $selected>{$cat['name']}</option>";
                                         }
                                         ?>
                                     </select>
+                                    <?php if (isset($productEditErrors['category_id'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['category_id']); ?></div><?php endif; ?>
                                 </div>
                                 
                                 <div class="form-group">
@@ -70,24 +85,29 @@ $product = $conn->query($sql)->fetch_assoc();
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Đơn Vị Tính</label>
-                                    <input id="unit" type="text" name="unit" class="form-control" value="<?php echo $product['unit']; ?>">
+                                    <input id="unit" type="text" name="unit" class="form-control <?php echo isset($productEditErrors['unit']) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars(productEditValue('unit', $product['unit'] ?? '', $productEditOld)); ?>">
+                                    <?php if (isset($productEditErrors['unit'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['unit']); ?></div><?php endif; ?>
                                 </div>
                                 
                                 <div class="form-group">
                                     <label>Giá Bán (VNĐ)</label>
-                                    <input id="selling_price" type="number" name="selling_price" class="form-control" value="<?php echo $product['selling_price']; ?>" required>
+                                    <input id="selling_price" type="number" name="selling_price" class="form-control <?php echo isset($productEditErrors['selling_price']) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars(productEditValue('selling_price', $product['selling_price'] ?? '', $productEditOld)); ?>" required readonly>
+                                    <small class="form-text text-muted">Giá sản phẩm được cố định, không chỉnh sửa tại form này.</small>
                                 </div>
                                 <div class="form-group">
                                     <label>Tồn kho</label>
-                                    <input id="stock_quantity" type="number" name="stock_quantity" class="form-control" value="<?php echo $product['stock_quantity']; ?>">
+                                    <input id="stock_quantity" type="number" name="stock_quantity" class="form-control <?php echo isset($productEditErrors['stock_quantity']) ? 'is-invalid' : ''; ?>" value="<?php echo htmlspecialchars(productEditValue('stock_quantity', $product['stock_quantity'] ?? '', $productEditOld)); ?>">
+                                    <?php if (isset($productEditErrors['stock_quantity'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['stock_quantity']); ?></div><?php endif; ?>
                                 </div>
                                 
                                 <div class="form-group">
                                     <label>Trạng Thái</label>
-                                    <select id="status" name="status" class="form-control">
-                                        <option value="active" <?php echo ($product['status'] == 'active') ? 'selected' : ''; ?>>Active (Kích hoạt)</option>
-                                        <option value="inactive" <?php echo ($product['status'] == 'inactive') ? 'selected' : ''; ?>>Inactive (Ẩn)</option>
+                                    <select id="status" name="status" class="form-control <?php echo isset($productEditErrors['status']) ? 'is-invalid' : ''; ?>">
+                                        <?php $selectedStatus = productEditValue('status', $product['status'] ?? 'active', $productEditOld); ?>
+                                        <option value="active" <?php echo ($selectedStatus == 'active') ? 'selected' : ''; ?>>Active (Kích hoạt)</option>
+                                        <option value="inactive" <?php echo ($selectedStatus == 'inactive') ? 'selected' : ''; ?>>Inactive (Ẩn)</option>
                                     </select>
+                                    <?php if (isset($productEditErrors['status'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productEditErrors['status']); ?></div><?php endif; ?>
                                 </div>
                             </div>
                         </div>

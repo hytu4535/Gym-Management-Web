@@ -40,17 +40,30 @@ $memberUserIdColumn = 'users_id';
 $hasUserFullNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'full_name' LIMIT 1")->fetchColumn();
 $hasUserNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'name' LIMIT 1")->fetchColumn();
 $hasUserPhoneColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'phone' LIMIT 1")->fetchColumn();
+$memberRoleId = (int) ($db->query("SELECT id FROM roles WHERE name = 'Hội viên' LIMIT 1")->fetchColumn() ?: 0);
+if ($memberRoleId <= 0) {
+  $memberRoleId = (int) ($db->query("SELECT id FROM roles WHERE name = 'member' LIMIT 1")->fetchColumn() ?: 0);
+}
 
 $userDisplayNameSelect = $hasUserFullNameColumn
-  ? 'full_name AS full_name'
-  : ($hasUserNameColumn ? 'name AS full_name' : 'username AS full_name');
+  ? 'u.full_name AS full_name'
+  : ($hasUserNameColumn ? 'u.name AS full_name' : 'u.username AS full_name');
 $userPhoneSelect = $hasUserPhoneColumn ? 'phone' : "'' AS phone";
+$userRoleJoinSql = ' LEFT JOIN roles r ON u.role_id = r.id';
+$userRoleSelectSql = 'r.name AS role_name';
+$userRoleFilterSql = $memberRoleId > 0 ? 'u.role_id = ' . (int) $memberRoleId : '1=1';
 
 // Hàm tự động xác định tier dựa trên total_spent
 function getTierByTotalSpent($db, $total_spent) {
     $stmt = $db->query("SELECT id FROM member_tiers WHERE min_spent <= $total_spent ORDER BY min_spent DESC LIMIT 1");
     $tier = $stmt->fetch();
     return $tier ? $tier['id'] : 1; // Mặc định là tier 1 (Đồng)
+}
+
+function getRoleIdByName(PDO $db, string $roleName): int {
+  $stmt = $db->prepare("SELECT id FROM roles WHERE name = ? LIMIT 1");
+  $stmt->execute([$roleName]);
+  return (int) $stmt->fetchColumn();
 }
 
 function getMemberTotalSpentFromOrders($db, $memberId) {
@@ -102,8 +115,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $users_id = isset($_POST['users_id']) ? (int) $_POST['users_id'] : 0;
   $memberId = isset($_POST['id']) ? (int) $_POST['id'] : 0;
   $phone = '';
-  $height = $_POST['height'];
-  $weight = $_POST['weight'];
+  $heightInput = trim((string) ($_POST['height'] ?? ''));
+  $weightInput = trim((string) ($_POST['weight'] ?? ''));
+  $height = $heightInput === '' ? null : (float) $heightInput;
+  $weight = $weightInput === '' ? null : (float) $weightInput;
   $status = $_POST['status'];
 
   if ($memberId > 0) {
@@ -113,23 +128,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   }
     
     try {
-        // Chặn trùng tài khoản/email giữa các hội viên
         if ($users_id <= 0) {
           throw new Exception("Vui lòng chọn tài khoản hợp lệ.");
         }
 
-        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE $memberUserIdColumn = ? AND id <> ?");
-        $duplicateStmt->execute([$users_id, $memberId]);
-        if ((int) $duplicateStmt->fetchColumn() > 0) {
-          throw new Exception("Tên đăng nhập / email này đã được sử dụng bởi tài khoản khác.");
-        }
+            $currentUsersId = 0;
+            if ($memberId > 0) {
+              $currentStmt = $db->prepare("SELECT $memberUserIdColumn FROM members WHERE id = ?");
+              $currentStmt->execute([$memberId]);
+              $currentUsersId = (int) $currentStmt->fetchColumn();
+              if ($currentUsersId <= 0) {
+                throw new Exception("Không tìm thấy hội viên cần cập nhật.");
+              }
+              if ($users_id !== $currentUsersId) {
+                throw new Exception("Không thể thay đổi tài khoản đã liên kết.");
+              }
+            }
 
-        $userStmt = $db->prepare("SELECT $userDisplayNameSelect, $userPhoneSelect FROM users WHERE id = ?");
-        $userStmt->execute([$users_id]);
-        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$user) {
-          throw new Exception("Không tìm thấy tài khoản đã chọn.");
-        }
+            $userStmt = $db->prepare("SELECT u.id, u.username, $userDisplayNameSelect, u.email, $userPhoneSelect, $userRoleSelectSql FROM users u $userRoleJoinSql WHERE u.id = ? AND $userRoleFilterSql LIMIT 1");
+            $userStmt->execute([$users_id]);
+            $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$user) {
+              throw new Exception("Role không hợp lệ.");
+            }
+
+            $duplicateMemberStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE $memberUserIdColumn = ?" . ($memberId > 0 ? " AND id <> ?" : ""));
+            $duplicateMemberParams = [$users_id];
+            if ($memberId > 0) {
+              $duplicateMemberParams[] = $memberId;
+            }
+            $duplicateMemberStmt->execute($duplicateMemberParams);
+
+            $duplicateStaffStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE users_id = ?");
+            $duplicateStaffStmt->execute([$users_id]);
+
+            if ((int) $duplicateMemberStmt->fetchColumn() > 0 || (int) $duplicateStaffStmt->fetchColumn() > 0) {
+              throw new Exception("Tài khoản đã được gán vai trò.");
+            }
 
         $full_name = trim((string) ($user['full_name'] ?? ''));
         $phone = trim((string) ($user['phone'] ?? ''));
@@ -139,6 +174,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($phone === '') {
           throw new Exception("Tài khoản đã chọn chưa có số điện thoại. Vui lòng cập nhật số điện thoại trong Quản lý tài khoản.");
         }
+        if ($heightInput !== '' && (!is_numeric($heightInput) || (float) $heightInput <= 0)) {
+          throw new Exception("Chiều cao phải lớn hơn 0.");
+        }
+        if ($weightInput !== '' && (!is_numeric($weightInput) || (float) $weightInput <= 0)) {
+          throw new Exception("Cân nặng phải lớn hơn 0.");
+        }
+
+        if ($memberRoleId <= 0) {
+          throw new Exception("Không tìm thấy role member trong hệ thống.");
+        }
+
+        $db->beginTransaction();
 
         if (isset($_POST['id']) && !empty($_POST['id'])) {
             // Cập nhật - Lấy total_spent hiện tại và tính tier
@@ -146,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $tier_id = getTierByTotalSpent($db, $total_spent);
             
           $stmt = $db->prepare("UPDATE members SET $memberUserIdColumn=?, full_name=?, phone=?, address=?, height=?, weight=?, status=?, tier_id=? WHERE id=?");
-          $stmt->execute([$users_id, $full_name, $phone, null, $height, $weight, $status, $tier_id, $_POST['id']]);
+          $stmt->execute([$users_id, $full_name, $phone, null, $height, $weight, $status, $tier_id, $memberId]);
             $message = "Cập nhật hội viên thành công!";
         } else {
             // Thêm mới - Mặc định tier 1 (Đồng) vì total_spent = 0
@@ -155,10 +202,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           $stmt->execute([$users_id, $full_name, $phone, null, $height, $weight, $status, $tier_id]);
             $message = "Thêm hội viên thành công!";
         }
+
+        $syncUserRoleStmt = $db->prepare('UPDATE users SET role_id = ? WHERE id = ?');
+        $syncUserRoleStmt->execute([$memberRoleId, $users_id]);
+
+        $db->commit();
         $messageType = "success";
       } catch (Exception $e) {
-        $message = toVietnameseDbError($e, 'Không thể lưu hội viên.');
-        $messageType = "danger";
+        if ($db->inTransaction()) {
+          $db->rollBack();
+        }
+        if ($e instanceof PDOException) {
+          $errorMessage = strtolower((string) $e->getMessage());
+          if ((int) $e->getCode() === 23000 || str_contains($errorMessage, 'duplicate entry')) {
+            $message = 'Tài khoản đã được gán vai trò.';
+            $messageType = 'danger';
+          } else {
+            $message = toVietnameseDbError($e, 'Không thể lưu hội viên.');
+            $messageType = "danger";
+          }
+        } else {
+          $message = toVietnameseDbError($e, 'Không thể lưu hội viên.');
+          $messageType = "danger";
+        }
     }
 }
 
@@ -191,12 +257,15 @@ $stmt = $db->prepare("SELECT m.*, COALESCE(os.total_spent, m.total_spent, 0) AS 
           ) os ON os.member_id = m.id" . $whereSql . " ORDER BY m.id DESC");
 $stmt->execute($whereParams);
 $members = $stmt->fetchAll();
-$usedUserIds = array_map('intval', array_column($members, $memberUserIdColumn));
+$usedUserIds = array_map('intval', array_unique(array_merge(
+  array_map('intval', $db->query("SELECT users_id FROM members")->fetchAll(PDO::FETCH_COLUMN)),
+  array_map('intval', $db->query("SELECT users_id FROM staff")->fetchAll(PDO::FETCH_COLUMN))
+)));
 
 $tiersFilter = $db->query("SELECT id, name FROM member_tiers ORDER BY level ASC")->fetchAll();
 
 // Lấy danh sách users cho form
-$users = $db->query("SELECT id, username, $userDisplayNameSelect, email, $userPhoneSelect FROM users ORDER BY email ASC")->fetchAll();
+$users = $db->query("SELECT u.id, u.username, $userDisplayNameSelect, u.email, $userPhoneSelect, $userRoleSelectSql FROM users u $userRoleJoinSql WHERE $userRoleFilterSql AND u.id NOT IN (SELECT users_id FROM members) AND u.id NOT IN (SELECT users_id FROM staff) ORDER BY u.email ASC, u.username ASC")->fetchAll();
 
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
@@ -344,7 +413,7 @@ include 'layout/sidebar.php';
               <option value="<?php echo $user['id']; ?>" data-used="<?php echo in_array((int) $user['id'], $usedUserIds, true) ? '1' : '0'; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>"><?php echo htmlspecialchars($userLabel); ?></option>
               <?php endforeach; ?>
             </select>
-            <small id="users_id_error" class="text-danger d-none">Tên đăng nhập / email này đã được sử dụng bởi tài khoản khác.</small>
+            <small id="users_id_error" class="text-danger d-none">Tài khoản đã được gán vai trò.</small>
           </div>
           <div class="form-group">
             <label>Họ tên</label>
@@ -361,13 +430,15 @@ include 'layout/sidebar.php';
             <div class="col-md-6">
               <div class="form-group">
                 <label>Chiều cao (cm)</label>
-                <input type="number" step="0.01" name="height" id="height" class="form-control">
+                <input type="number" step="0.01" min="0.01" name="height" id="height" class="form-control">
+                <small id="height_error" class="text-danger d-none">Chiều cao phải lớn hơn 0.</small>
               </div>
             </div>
             <div class="col-md-6">
               <div class="form-group">
                 <label>Cân nặng (kg)</label>
-                <input type="number" step="0.01" name="weight" id="weight" class="form-control">
+                <input type="number" step="0.01" min="0.01" name="weight" id="weight" class="form-control">
+                <small id="weight_error" class="text-danger d-none">Cân nặng phải lớn hơn 0.</small>
               </div>
             </div>
           </div>
@@ -401,6 +472,7 @@ function resetForm() {
   document.getElementById('member_id').value = '';
   document.getElementById('users_id_hidden').value = '';
   document.getElementById('member_form_mode').value = 'add';
+  clearTemporaryMemberOptions();
   $('#users_id').prop('disabled', false);
   $('#users_id').val(null).trigger('change');
   document.getElementById('full_name').value = '';
@@ -418,6 +490,7 @@ function editMember(member) {
   document.getElementById('member_id').value = member.id;
   document.getElementById('users_id_hidden').value = member.users_id || '';
   document.getElementById('member_form_mode').value = 'edit';
+  ensureMemberUserOption(member);
   $('#users_id').prop('disabled', true);
   $('#users_id').val(String(member.users_id || '')).trigger('change');
   syncFieldsFromSelectedUser();
@@ -436,6 +509,82 @@ function editMember(member) {
   document.getElementById('tier_display').innerHTML = tierBadge;
 }
 
+function ensureMemberUserOption(member) {
+  var select = document.getElementById('users_id');
+  if (!select || !member || !member.users_id) {
+    return;
+  }
+
+  var value = String(member.users_id);
+  var existingOption = select.querySelector('option[value="' + value.replace(/"/g, '\\"') + '"]');
+  if (existingOption) {
+    existingOption.setAttribute('data-name', member.full_name || existingOption.getAttribute('data-name') || '');
+    existingOption.setAttribute('data-phone', member.phone || existingOption.getAttribute('data-phone') || '');
+    return;
+  }
+
+  var option = document.createElement('option');
+  option.value = value;
+  option.text = (member.username || '') + ' / ' + (member.email || '');
+  option.setAttribute('data-name', member.full_name || '');
+  option.setAttribute('data-phone', member.phone || '');
+  option.setAttribute('data-used', '0');
+  option.setAttribute('data-temporary', '1');
+  select.appendChild(option);
+}
+
+function clearTemporaryMemberOptions() {
+  var select = document.getElementById('users_id');
+  if (!select) {
+    return;
+  }
+
+  Array.from(select.querySelectorAll('option[data-temporary="1"]')).forEach(function (option) {
+    option.remove();
+  });
+}
+
+function getSelectedMemberOption() {
+  var select = document.getElementById('users_id');
+  if (!select) {
+    return null;
+  }
+
+  var jqSelectedOption = $('#users_id').find('option:selected').get(0);
+  if (jqSelectedOption) {
+    return jqSelectedOption;
+  }
+
+  if (select.selectedOptions && select.selectedOptions.length > 0) {
+    return select.selectedOptions[0];
+  }
+
+  var selectedIndex = select.selectedIndex;
+  return selectedIndex >= 0 ? select.options[selectedIndex] : null;
+}
+
+function getMemberFieldValue(option, attributeName) {
+  if (!option) {
+    return '';
+  }
+
+  var attrValue = option.getAttribute(attributeName);
+  if (attrValue !== null && attrValue !== undefined) {
+    return attrValue;
+  }
+
+  if (option.dataset) {
+    var datasetKey = attributeName.replace(/^data-/, '').replace(/-([a-z])/g, function (_, chr) {
+      return chr.toUpperCase();
+    });
+    if (datasetKey in option.dataset) {
+      return option.dataset[datasetKey];
+    }
+  }
+
+  return '';
+}
+
 function syncFieldsFromSelectedUser() {
   var userSelect = document.getElementById('users_id');
   var phoneDisplay = document.getElementById('phone_display');
@@ -443,10 +592,10 @@ function syncFieldsFromSelectedUser() {
   var hiddenUserId = document.getElementById('users_id_hidden');
   var userError = document.getElementById('users_id_error');
   var formMode = document.getElementById('member_form_mode').value || 'add';
-  var selectedOption = userSelect.options[userSelect.selectedIndex];
-  var phoneValue = selectedOption ? (selectedOption.getAttribute('data-phone') || '') : '';
-  var fullNameValue = selectedOption ? (selectedOption.getAttribute('data-name') || '') : '';
-  var isUsed = selectedOption && selectedOption.getAttribute('data-used') === '1';
+  var selectedOption = getSelectedMemberOption();
+  var phoneValue = getMemberFieldValue(selectedOption, 'data-phone');
+  var fullNameValue = getMemberFieldValue(selectedOption, 'data-name');
+  var isUsed = getMemberFieldValue(selectedOption, 'data-used') === '1';
 
   if (hiddenUserId) {
     hiddenUserId.value = userSelect.value || hiddenUserId.value || '';
@@ -501,29 +650,75 @@ function clearFullNameValidation() {
   fullNameError.classList.add('d-none');
 }
 
+function validatePositiveNumberField(fieldId, errorId) {
+  var field = document.getElementById(fieldId);
+  var error = document.getElementById(errorId);
+  var value = (field.value || '').trim();
+
+  if (value === '') {
+    field.classList.remove('is-invalid');
+    error.classList.add('d-none');
+    return true;
+  }
+
+  var numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    field.classList.add('is-invalid');
+    error.classList.remove('d-none');
+    return false;
+  }
+
+  field.classList.remove('is-invalid');
+  error.classList.add('d-none');
+  return true;
+}
+
+function clearPositiveNumberValidation(fieldId, errorId) {
+  var field = document.getElementById(fieldId);
+  var error = document.getElementById(errorId);
+  field.classList.remove('is-invalid');
+  error.classList.add('d-none');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var userSelect = document.getElementById('users_id');
   var fullNameInput = document.getElementById('full_name');
+  var heightInput = document.getElementById('height');
+  var weightInput = document.getElementById('weight');
   var memberForm = document.getElementById('memberForm');
 
   userSelect.addEventListener('change', syncFieldsFromSelectedUser);
   fullNameInput.addEventListener('input', validateFullNameField);
   fullNameInput.addEventListener('blur', validateFullNameField);
+  heightInput.addEventListener('input', function () {
+    validatePositiveNumberField('height', 'height_error');
+  });
+  weightInput.addEventListener('input', function () {
+    validatePositiveNumberField('weight', 'weight_error');
+  });
+  heightInput.addEventListener('blur', function () {
+    validatePositiveNumberField('height', 'height_error');
+  });
+  weightInput.addEventListener('blur', function () {
+    validatePositiveNumberField('weight', 'weight_error');
+  });
 
   syncFieldsFromSelectedUser();
 
   if ($.fn.select2) {
-    $('#users_id').on('select2:select select2:clear', function() {
+    $('#users_id').on('change select2:select select2:clear', function() {
       syncFieldsFromSelectedUser();
     });
   }
 
   memberForm.addEventListener('submit', function(event) {
     var userSelect = document.getElementById('users_id');
-    var selectedOption = userSelect.options[userSelect.selectedIndex];
+    var selectedOption = getSelectedMemberOption();
     var isUsed = selectedOption && selectedOption.getAttribute('data-used') === '1';
     var formMode = document.getElementById('member_form_mode').value || 'add';
     var isFullNameValid = validateFullNameField();
+    var isHeightValid = validatePositiveNumberField('height', 'height_error');
+    var isWeightValid = validatePositiveNumberField('weight', 'weight_error');
 
     if (formMode === 'add' && isUsed) {
       event.preventDefault();
@@ -532,10 +727,16 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    if (!isFullNameValid) {
+    if (!isFullNameValid || !isHeightValid || !isWeightValid) {
       event.preventDefault();
       event.stopPropagation();
-      fullNameInput.focus();
+      if (!isFullNameValid) {
+        fullNameInput.focus();
+      } else if (!isHeightValid) {
+        heightInput.focus();
+      } else {
+        weightInput.focus();
+      }
     }
   });
 });

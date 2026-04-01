@@ -17,6 +17,14 @@ include '../includes/functions.php';
 
 $db = getDB();
 
+$selectedPlanId = isset($_GET['plan_id']) ? intval($_GET['plan_id']) : 0;
+$filterKeyword = trim((string) ($_GET['q'] ?? ''));
+$filterMealTime = normalizeMealTimeValue($_GET['meal_time'] ?? '') ?? '';
+$autoOpenAddModal = isset($_GET['open']) && $_GET['open'] === 'add';
+$nutritionPlansCount = (int) $db->query("SELECT COUNT(*) FROM nutrition_plans")->fetchColumn();
+$nutritionItemsCount = (int) $db->query("SELECT COUNT(*) FROM nutrition_items")->fetchColumn();
+$memberNutritionPlansCount = (int) $db->query("SELECT COUNT(*) FROM member_nutrition_plans")->fetchColumn();
+
 function hasColumn($db, $table, $column) {
   try {
     $sql = "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?";
@@ -50,6 +58,38 @@ function limitTextLength($value, $maxLen) {
   return substr($value, 0, $maxLen);
 }
 
+function normalizeMealTimeValue($value) {
+  $normalized = trim(mb_strtolower((string) $value));
+  $map = [
+    'sáng' => 'sáng',
+    'bữa sáng' => 'sáng',
+    'trưa' => 'trưa',
+    'bữa trưa' => 'trưa',
+    'chiều' => 'chiều',
+    'bữa chiều' => 'chiều',
+    'tối' => 'tối',
+    'bữa tối' => 'tối',
+    'snack' => 'chiều',
+    'ăn nhẹ' => 'chiều',
+  ];
+
+  return $map[$normalized] ?? null;
+}
+
+function normalizeMealTimeValues($value) {
+  $values = is_array($value) ? $value : [$value];
+  $result = [];
+
+  foreach ($values as $item) {
+    $normalized = normalizeMealTimeValue($item);
+    if ($normalized !== null) {
+      $result[] = $normalized;
+    }
+  }
+
+  return array_values(array_unique($result));
+}
+
 // CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
@@ -64,7 +104,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $item_ids = array_values(array_filter(array_unique($item_ids), function ($id) {
       return $id > 0;
     }));
-        $meal_time = limitTextLength(sanitize($_POST['meal_time'] ?? ''), 50);
+        $meal_times = normalizeMealTimeValues($_POST['meal_time'] ?? []);
+        if (empty($meal_times)) {
+          setFlashMessage('danger', 'Vui lòng chọn bữa ăn hợp lệ.');
+          redirect('nutrition_plan_items.php');
+          exit;
+        }
         $note = limitTextLength(sanitize($_POST['note'] ?? ''), 255);
         try {
       if (empty($item_ids)) {
@@ -75,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
       $db->beginTransaction();
 
-      $checkStmt = $db->prepare("SELECT id FROM nutrition_plan_items WHERE nutrition_plan_id = ? AND item_id = ? LIMIT 1");
+      $checkStmt = $db->prepare("SELECT id FROM nutrition_plan_items WHERE nutrition_plan_id = ? AND item_id = ? AND meal_time = ? LIMIT 1");
       if ($has_portion_unit) {
         $insertStmt = $db->prepare("INSERT INTO nutrition_plan_items (nutrition_plan_id, item_id, servings_per_day, portion_unit, meal_time, note) VALUES (?, ?, ?, ?, ?, ?)");
       } else {
@@ -85,20 +130,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
       $inserted = 0;
       $skipped = 0;
       foreach ($item_ids as $item_id) {
-        $checkStmt->execute([$plan_id, $item_id]);
-        if ($checkStmt->fetch()) {
-          $skipped++;
-          continue;
-        }
-
         $servings = getItemQty($item_id, 1);
 
-        if ($has_portion_unit) {
-          $insertStmt->execute([$plan_id, $item_id, $servings, 'khẩu phần', $meal_time, $note]);
-        } else {
-          $insertStmt->execute([$plan_id, $item_id, $servings, $meal_time, $note]);
+        foreach ($meal_times as $meal_time) {
+          $checkStmt->execute([$plan_id, $item_id, $meal_time]);
+          if ($checkStmt->fetch()) {
+            $skipped++;
+            continue;
+          }
+
+          if ($has_portion_unit) {
+            $insertStmt->execute([$plan_id, $item_id, $servings, 'khẩu phần', $meal_time, $note]);
+          } else {
+            $insertStmt->execute([$plan_id, $item_id, $servings, $meal_time, $note]);
+          }
+          $inserted++;
         }
-        $inserted++;
       }
 
       $db->commit();
@@ -133,7 +180,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
       $item_ids = array_values(array_filter(array_unique($item_ids), function ($v) {
         return $v > 0;
       }));
-        $meal_time = limitTextLength(sanitize($_POST['meal_time'] ?? ''), 50);
+        $meal_times = normalizeMealTimeValues($_POST['meal_time'] ?? []);
+        if (empty($meal_times)) {
+          setFlashMessage('danger', 'Vui lòng chọn bữa ăn hợp lệ.');
+          redirect('nutrition_plan_items.php');
+          exit;
+        }
         $note = limitTextLength(sanitize($_POST['note'] ?? ''), 255);
         try {
         if (empty($item_ids)) {
@@ -157,12 +209,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $inserted = 0;
         foreach ($item_ids as $item_id) {
           $servings = getItemQty($item_id, 1);
-          if ($has_portion_unit) {
-            $insertStmt->execute([$plan_id, $item_id, $servings, 'khẩu phần', $meal_time, $note]);
-          } else {
-            $insertStmt->execute([$plan_id, $item_id, $servings, $meal_time, $note]);
+          foreach ($meal_times as $meal_time) {
+            if ($has_portion_unit) {
+              $insertStmt->execute([$plan_id, $item_id, $servings, 'khẩu phần', $meal_time, $note]);
+            } else {
+              $insertStmt->execute([$plan_id, $item_id, $servings, $meal_time, $note]);
+            }
+            $inserted++;
           }
-          $inserted++;
         }
 
         $db->commit();
@@ -200,7 +254,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // List mappings grouped by plan: show all items in one row and total calories recalculated.
 $portionUnitExpr = $has_portion_unit ? "COALESCE(npi.portion_unit, 'khẩu phần')" : "'khẩu phần'";
 
-$stmt = $db->query("SELECT
+$planItemConditions = [];
+$planItemParams = [];
+
+if ($selectedPlanId > 0) {
+  $planItemConditions[] = "npi.nutrition_plan_id = ?";
+  $planItemParams[] = $selectedPlanId;
+}
+
+if ($filterKeyword !== '') {
+  $planItemConditions[] = "(np.name LIKE ? OR ni.name LIKE ? OR npi.note LIKE ?)";
+  $like = '%' . $filterKeyword . '%';
+  $planItemParams[] = $like;
+  $planItemParams[] = $like;
+  $planItemParams[] = $like;
+}
+
+$allowedMealTimes = ['sáng', 'trưa', 'chiều', 'tối'];
+$normalizedFilterMealTime = normalizeMealTimeValue($filterMealTime);
+if ($normalizedFilterMealTime !== null && in_array($normalizedFilterMealTime, $allowedMealTimes, true)) {
+  $planItemConditions[] = "npi.meal_time = ?";
+  $planItemParams[] = $normalizedFilterMealTime;
+}
+
+$planItemSql = "SELECT
   MIN(npi.id) AS id,
   npi.nutrition_plan_id,
   np.name AS plan_name,
@@ -208,17 +285,25 @@ $stmt = $db->query("SELECT
   GROUP_CONCAT(CONCAT(ni.id, ':', CAST(ROUND(COALESCE(npi.servings_per_day, 1), 0) AS UNSIGNED)) ORDER BY ni.name SEPARATOR ',') AS item_qty_pairs,
   GROUP_CONCAT(DISTINCT ni.name ORDER BY ni.name SEPARATOR ', ') AS item_names,
   SUM(COALESCE(ni.calories, 0) * COALESCE(npi.servings_per_day, 1)) AS total_calories,
-  SUBSTRING_INDEX(GROUP_CONCAT(npi.meal_time ORDER BY npi.id SEPARATOR '||'), '||', 1) AS sample_meal_time,
+  GROUP_CONCAT(DISTINCT CASE WHEN npi.meal_time IN ('snack', 'ăn nhẹ') THEN 'chiều' ELSE npi.meal_time END ORDER BY CASE WHEN npi.meal_time IN ('snack', 'ăn nhẹ') THEN 'chiều' ELSE npi.meal_time END SEPARATOR ',') AS meal_time_values,
   SUBSTRING_INDEX(GROUP_CONCAT(npi.note ORDER BY npi.id SEPARATOR '||'), '||', 1) AS sample_note,
   GROUP_CONCAT(DISTINCT CONCAT(ni.name, ' x', CAST(ROUND(COALESCE(npi.servings_per_day, 1), 0) AS UNSIGNED)) ORDER BY ni.name SEPARATOR ', ') AS portion_summary,
-  GROUP_CONCAT(DISTINCT npi.meal_time ORDER BY npi.meal_time SEPARATOR ', ') AS meal_times,
+  GROUP_CONCAT(DISTINCT CASE WHEN npi.meal_time IN ('snack', 'ăn nhẹ') THEN 'chiều' ELSE npi.meal_time END ORDER BY CASE WHEN npi.meal_time IN ('snack', 'ăn nhẹ') THEN 'chiều' ELSE npi.meal_time END SEPARATOR ', ') AS meal_times,
   GROUP_CONCAT(DISTINCT npi.note ORDER BY npi.note SEPARATOR ' | ') AS notes,
   AVG(COALESCE(npi.servings_per_day, 1)) AS avg_servings
 FROM nutrition_plan_items npi
 JOIN nutrition_plans np ON np.id = npi.nutrition_plan_id
 JOIN nutrition_items ni ON ni.id = npi.item_id
-GROUP BY npi.nutrition_plan_id, np.name
-ORDER BY npi.nutrition_plan_id DESC");
+";
+
+if (!empty($planItemConditions)) {
+  $planItemSql .= " WHERE " . implode(' AND ', $planItemConditions);
+}
+
+$planItemSql .= " GROUP BY npi.nutrition_plan_id, np.name ORDER BY npi.nutrition_plan_id DESC";
+
+$stmt = $db->prepare($planItemSql);
+$stmt->execute($planItemParams);
 $rows = $stmt->fetchAll();
 
 // Plans and items for selects
@@ -241,18 +326,92 @@ include 'layout/sidebar.php';
 
   <section class="content">
     <div class="container-fluid">
-      <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show">
-          <button type="button" class="close" data-dismiss="alert">&times;</button>
-          <?= $flash['message'] ?>
+        <?php renderAdminFlash($flash); ?>
+
+      <?php
+        $filterTitle = 'Lọc nhanh món trong thực đơn';
+        $filterAction = 'nutrition_plan_items.php';
+        $filterFormId = 'nutritionPlanItemsFilterForm';
+        $filterMode = 'server';
+        $filterFieldsHtml = '
+          <div class="col-md-4">
+            <div class="form-group mb-0">
+              <label>Chế độ</label>
+              <select class="form-control select2" name="plan_id" style="width: 100%;">
+                <option value="">Tất cả chế độ</option>';
+        foreach ($plans as $p) {
+          $selected = $selectedPlanId === (int) $p['id'] ? ' selected' : '';
+          $filterFieldsHtml .= '<option value="' . (int) $p['id'] . '"' . $selected . '>' . htmlspecialchars($p['name']) . '</option>';
+        }
+        $filterFieldsHtml .= '
+              </select>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group mb-0">
+              <label>Từ khóa</label>
+              <input type="text" class="form-control" name="q" placeholder="Tìm theo tên chế độ, món hoặc ghi chú..." value="' . htmlspecialchars($filterKeyword) . '">
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="form-group mb-0">
+              <label>Bữa ăn</label>
+              <select class="form-control" name="meal_time">
+                <option value="">Tất cả</option>
+                <option value="sáng"' . ($filterMealTime === 'sáng' ? ' selected' : '') . '>Sáng</option>
+                <option value="trưa"' . ($filterMealTime === 'trưa' ? ' selected' : '') . '>Trưa</option>
+                <option value="chiều"' . ($filterMealTime === 'chiều' ? ' selected' : '') . '>Chiều</option>
+                <option value="tối"' . ($filterMealTime === 'tối' ? ' selected' : '') . '>Tối</option>
+              </select>
+            </div>
+          </div>';
+        include 'layout/filter-card.php';
+      ?>
+
+      <div class="row mb-3">
+        <div class="col-md-4 col-sm-6 mb-3 mb-md-0">
+          <div class="info-box h-100">
+            <span class="info-box-icon bg-primary"><i class="fas fa-clipboard-list"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Chế độ dinh dưỡng</span>
+              <span class="info-box-number"><?= $nutritionPlansCount ?></span>
+              <div class="mt-2">
+                <a href="nutrition_plans.php" class="btn btn-sm btn-outline-primary">Quay lại plan</a>
+              </div>
+            </div>
+          </div>
         </div>
-      <?php endif; ?>
+        <div class="col-md-4 col-sm-6 mb-3 mb-md-0">
+          <div class="info-box h-100">
+            <span class="info-box-icon bg-info"><i class="fas fa-utensils"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Món dinh dưỡng</span>
+              <span class="info-box-number"><?= $nutritionItemsCount ?></span>
+              <div class="mt-2">
+                <a href="nutrition_items.php" class="btn btn-sm btn-outline-info">Quản lý món</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4 col-sm-12">
+          <div class="info-box h-100">
+            <span class="info-box-icon bg-warning"><i class="fas fa-user-check"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Gán cho hội viên</span>
+              <span class="info-box-number"><?= $memberNutritionPlansCount ?></span>
+              <div class="mt-2">
+                <a href="member_nutrition_plans.php" class="btn btn-sm btn-outline-warning">Theo dõi hội viên</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">Danh sách liên kết plan ↔ items</h3>
+          <h3 class="card-title">Danh sách món trong thực đơn</h3>
           <div class="card-tools">
-              <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addModal">Thêm</button>
+              <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addModal">Thêm món</button>
           </div>
         </div>
         <div class="card-body">
@@ -260,11 +419,11 @@ include 'layout/sidebar.php';
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Plan</th>
-                <th>Items</th>
+                    <th>Chế độ</th>
+                    <th>Món</th>
                 <th>Định lượng</th>
                 <th>Tổng Calories/ngày</th>
-                <th>Meal Time</th>
+                    <th>Bữa ăn</th>
                 <th>Ghi chú</th>
                 <th>Hành động</th>
               </tr>
@@ -285,7 +444,7 @@ include 'layout/sidebar.php';
                       data-plan_id="<?= $r['nutrition_plan_id'] ?>"
                       data-item_ids="<?= htmlspecialchars($r['item_ids'] ?? '') ?>"
                       data-item_qtys="<?= htmlspecialchars($r['item_qty_pairs'] ?? '') ?>"
-                      data-meal_time="<?= htmlspecialchars($r['sample_meal_time'] ?? '') ?>"
+                      data-meal_times="<?= htmlspecialchars($r['meal_time_values'] ?? '') ?>"
                       data-note="<?= htmlspecialchars($r['sample_note'] ?? '') ?>"
                       data-toggle="modal" data-target="#editModal"><i class="fas fa-edit"></i></button>
                     <button class="btn btn-danger btn-sm btn-delete" data-id="<?= $r['id'] ?>" data-plan_id="<?= $r['nutrition_plan_id'] ?>" data-toggle="modal" data-target="#deleteModal"><i class="fas fa-trash"></i></button>
@@ -306,10 +465,10 @@ include 'layout/sidebar.php';
       <div class="modal-content">
         <form method="POST" action="nutrition_plan_items.php" novalidate>
           <input type="hidden" name="action" value="add">
-          <div class="modal-header"><h5 class="modal-title">Thêm liên kết</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+          <div class="modal-header"><h5 class="modal-title">Thêm món vào thực đơn</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
             <div class="form-group">
-              <label>Plan <span class="text-danger">*</span></label>
+              <label>Chế độ <span class="text-danger">*</span></label>
               <select name="nutrition_plan_id" class="form-control select2" data-field="nutrition_plan_id" style="width: 100%;">
                 <option value="">-- Chọn --</option>
                 <?php foreach($plans as $p){ echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['name']).'</option>'; } ?>
@@ -317,7 +476,7 @@ include 'layout/sidebar.php';
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
-              <label>Items (chọn nhiều món)</label>
+              <label>Món (chọn nhiều món)</label>
               <div class="dropdown item-picker" id="add-item-picker">
                 <button class="btn btn-outline-secondary dropdown-toggle w-100 item-picker-toggle" type="button" data-field="item_ids" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <span class="picker-label text-muted">Chọn món...</span>
@@ -342,9 +501,26 @@ include 'layout/sidebar.php';
               <small class="form-text text-muted">Bấm mũi tên để mở danh sách rồi tick các món muốn chọn.</small>
             </div>
             <div class="form-group">
-              <label>Meal time <span class="text-danger">*</span></label>
-              <input class="form-control" name="meal_time" data-field="meal_time">
-              <small class="text-danger d-block mt-2" style="display:none;"></small>
+              <label>Bữa ăn <span class="text-danger">*</span></label>
+              <div class="meal-time-group" data-field="meal_time">
+                <div class="custom-control custom-checkbox custom-control-inline">
+                  <input type="checkbox" class="custom-control-input" id="add-meal-morning" name="meal_time[]" value="sáng">
+                  <label class="custom-control-label" for="add-meal-morning">Sáng</label>
+                </div>
+                <div class="custom-control custom-checkbox custom-control-inline">
+                  <input type="checkbox" class="custom-control-input" id="add-meal-noon" name="meal_time[]" value="trưa">
+                  <label class="custom-control-label" for="add-meal-noon">Trưa</label>
+                </div>
+                <div class="custom-control custom-checkbox custom-control-inline">
+                  <input type="checkbox" class="custom-control-input" id="add-meal-afternoon" name="meal_time[]" value="chiều">
+                  <label class="custom-control-label" for="add-meal-afternoon">Chiều</label>
+                </div>
+                <div class="custom-control custom-checkbox custom-control-inline">
+                  <input type="checkbox" class="custom-control-input" id="add-meal-evening" name="meal_time[]" value="tối">
+                  <label class="custom-control-label" for="add-meal-evening">Tối</label>
+                </div>
+              </div>
+              <small class="text-danger d-block mt-2 meal-time-error" style="display:none;"></small>
             </div>
             <div class="form-group"><label>Ghi chú</label><input class="form-control" name="note"></div>
           </div>
@@ -361,10 +537,10 @@ include 'layout/sidebar.php';
         <form method="POST" action="nutrition_plan_items.php" novalidate>
           <input type="hidden" name="action" value="edit">
           <input type="hidden" name="id" id="edit-id">
-          <div class="modal-header"><h5 class="modal-title">Sửa liên kết</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+          <div class="modal-header"><h5 class="modal-title">Sửa món trong thực đơn</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
             <div class="form-group">
-              <label>Plan <span class="text-danger">*</span></label>
+              <label>Chế độ <span class="text-danger">*</span></label>
               <select name="nutrition_plan_id" id="edit-plan" class="form-control select2" data-field="nutrition_plan_id" style="width: 100%;">
                 <option value="">-- Chọn --</option>
                 <?php foreach($plans as $p){ echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['name']).'</option>'; } ?>
@@ -372,7 +548,7 @@ include 'layout/sidebar.php';
               <small class="text-danger d-block mt-2" style="display:none;"></small>
             </div>
             <div class="form-group">
-              <label>Items (có thể chọn nhiều món)</label>
+              <label>Món (có thể chọn nhiều món)</label>
               <div class="dropdown item-picker" id="edit-item-picker">
                 <button class="btn btn-outline-secondary dropdown-toggle w-100 item-picker-toggle" type="button" data-field="item_ids" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <span class="picker-label text-muted">Chọn món...</span>
@@ -397,9 +573,26 @@ include 'layout/sidebar.php';
               <small class="form-text text-muted">Khi sửa, hệ thống sẽ cập nhật dòng hiện tại và thêm các món mới bạn chọn (nếu chưa có).</small>
             </div>
             <div class="form-group">
-              <label>Meal time <span class="text-danger">*</span></label>
-              <input class="form-control" id="edit-meal" name="meal_time" data-field="meal_time">
-              <small class="text-danger d-block mt-2" style="display:none;"></small>
+              <label>Bữa ăn <span class="text-danger">*</span></label>
+              <div class="meal-time-group" data-field="meal_time">
+                <div class="custom-control custom-checkbox custom-control-inline">
+                  <input type="checkbox" class="custom-control-input" id="edit-meal-morning" name="meal_time[]" value="sáng">
+                  <label class="custom-control-label" for="edit-meal-morning">Sáng</label>
+                </div>
+                <div class="custom-control custom-checkbox custom-control-inline">
+                  <input type="checkbox" class="custom-control-input" id="edit-meal-noon" name="meal_time[]" value="trưa">
+                  <label class="custom-control-label" for="edit-meal-noon">Trưa</label>
+                </div>
+                <div class="custom-control custom-checkbox custom-control-inline">
+                  <input type="checkbox" class="custom-control-input" id="edit-meal-afternoon" name="meal_time[]" value="chiều">
+                  <label class="custom-control-label" for="edit-meal-afternoon">Chiều</label>
+                </div>
+                <div class="custom-control custom-checkbox custom-control-inline">
+                  <input type="checkbox" class="custom-control-input" id="edit-meal-evening" name="meal_time[]" value="tối">
+                  <label class="custom-control-label" for="edit-meal-evening">Tối</label>
+                </div>
+              </div>
+              <small class="text-danger d-block mt-2 meal-time-error" style="display:none;"></small>
             </div>
             <div class="form-group"><label>Ghi chú</label><input class="form-control" id="edit-note" name="note"></div>
           </div>
@@ -460,10 +653,18 @@ include 'layout/sidebar.php';
     padding: 0 4px;
     font-size: 13px;
   }
+  .meal-time-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+  }
 </style>
 
 <script>
 $(function(){
+  const presetPlanId = <?= (int) $selectedPlanId ?>;
+  const autoOpenAddModal = <?= $autoOpenAddModal ? 'true' : 'false' ?>;
+
   if ($.fn.select2) {
     $('.select2').not('.select2-hidden-accessible').each(function() {
       $(this).select2({
@@ -473,6 +674,32 @@ $(function(){
         dropdownParent: $(this).closest('.modal').length ? $(this).closest('.modal') : $(document.body)
       });
     });
+  }
+
+  function normalizeMealTimeForSelect(value) {
+    var normalized = String(value || '').trim().toLowerCase();
+    var map = {
+      'sáng': 'sáng',
+      'bữa sáng': 'sáng',
+      'trưa': 'trưa',
+      'bữa trưa': 'trưa',
+      'chiều': 'chiều',
+      'bữa chiều': 'chiều',
+      'tối': 'tối',
+      'bữa tối': 'tối',
+      'snack': 'chiều',
+      'ăn nhẹ': 'chiều'
+    };
+
+    return map[normalized] || '';
+  }
+
+  if (autoOpenAddModal) {
+    $('#addModal').modal('show');
+  }
+
+  if (presetPlanId) {
+    $('#addModal').find('[name="nutrition_plan_id"]').val(String(presetPlanId)).trigger('change');
   }
 
   function renderPickerLabel($picker){
@@ -542,6 +769,19 @@ $(function(){
     }
   }
 
+  function renderMealTimeError($scope, message) {
+    var $error = $scope.find('.meal-time-error');
+    if (!$error.length) {
+      $error = $scope.closest('.form-group').find('.meal-time-error');
+    }
+    if (!$error.length) return;
+    if (message) {
+      $error.text(message).show();
+    } else {
+      $error.text('').hide();
+    }
+  }
+
   function initItemPicker(selector){
     var $picker = $(selector);
     if (!$picker.length) return;
@@ -593,11 +833,31 @@ $(function(){
     renderPickerError($picker, '');
   }
 
+  function setMealTimeChecked(selector, values) {
+    var set = {};
+    (values || []).forEach(function(value) {
+      set[String(value)] = true;
+    });
+
+    $(selector).find('input[name="meal_time[]"]').each(function() {
+      $(this).prop('checked', !!set[String($(this).val())]);
+    });
+    renderMealTimeError($(selector), '');
+  }
+
+  function getMealTimeValues(form) {
+    var values = [];
+    $(form).find('input[name="meal_time[]"]:checked').each(function() {
+      values.push(String($(this).val()));
+    });
+    return values;
+  }
+
   function validatePickerOnSubmit(formSelector, pickerSelector){
     $(formSelector).on('submit', function(e){
       var ok = true;
       var $plan = $(this).find('[name="nutrition_plan_id"]');
-      var $mealTime = $(this).find('[name="meal_time"]');
+      var mealTimes = getMealTimeValues(this);
       if (!$plan.val()) {
         renderPlanError($plan, 'Vui lòng chọn plan.');
         ok = false;
@@ -605,11 +865,11 @@ $(function(){
         renderPlanError($plan, '');
       }
 
-      if (!$mealTime.val() || !String($mealTime.val()).trim()) {
-        renderSimpleFieldError($mealTime, 'Vui lòng nhập Meal time.');
+      if (!mealTimes.length) {
+        renderMealTimeError($(this), 'Vui lòng chọn ít nhất 1 bữa ăn.');
         ok = false;
       } else {
-        renderSimpleFieldError($mealTime, '');
+        renderMealTimeError($(this), '');
       }
 
       var checkedCount = $(pickerSelector).find('.item-check:checked').length;
@@ -631,6 +891,12 @@ $(function(){
   validatePickerOnSubmit('#addModal form', '#add-item-picker');
   validatePickerOnSubmit('#editModal form', '#edit-item-picker');
 
+  $('#addModal').on('show.bs.modal', function(){
+    if (presetPlanId) {
+      $(this).find('[name="nutrition_plan_id"]').val(String(presetPlanId)).trigger('change');
+    }
+  });
+
   $('.btn-edit').on('click', function(){
     $('#edit-id').val($(this).data('id'));
     $('#edit-plan').val($(this).data('plan_id')).trigger('change');
@@ -645,7 +911,9 @@ $(function(){
       });
     }
     setPickerChecked('#edit-item-picker', itemIds, qtyMap);
-    $('#edit-meal').val($(this).data('meal_time'));
+    var mealTimesRaw = String($(this).data('meal_times') || $(this).data('meal_time') || '');
+    var mealTimes = mealTimesRaw ? mealTimesRaw.split(',').map(function(v){ return normalizeMealTimeForSelect(v); }).filter(function(v){ return v !== ''; }) : [];
+    setMealTimeChecked('#editModal', mealTimes);
     $('#edit-note').val($(this).data('note'));
   });
   $('.btn-delete').on('click', function(){
@@ -658,17 +926,18 @@ $(function(){
     var value = String($field.val() || '').trim();
     if ($field.attr('data-field') === 'nutrition_plan_id') {
       renderPlanError($field, value ? '' : 'Vui lòng chọn plan.');
-      return;
-    }
-    if ($field.attr('data-field') === 'meal_time') {
-      renderSimpleFieldError($field, value ? '' : 'Vui lòng nhập Meal time.');
-      return;
     }
     var box = $field.closest('.form-group').find('small.text-danger').not('.item-picker-error');
     if (value) {
       box.text('').hide();
       $field.removeClass('is-invalid');
     }
+  });
+
+  $(document).on('change', '#addModal input[name="meal_time[]"], #editModal input[name="meal_time[]"]', function() {
+    var $group = $(this).closest('.form-group');
+    var checked = $group.find('input[name="meal_time[]"]:checked').length > 0;
+    renderMealTimeError($group, checked ? '' : 'Vui lòng chọn ít nhất 1 bữa ăn.');
   });
 
   $(document).on('change', '#addModal [name="nutrition_plan_id"], #editModal [name="nutrition_plan_id"]', function() {

@@ -10,7 +10,7 @@ require_once '../../config/db.php';
 if (isset($_POST['btn_update_order'])) {
     $id = (int)$_POST['id'];
     $new_status = $_POST['status'];
-    $currentUserId = (int) ($_SESSION['user_id'] ?? $_SESSION['admin_user_id'] ?? 0);
+    $currentUserId = (int) ($_SESSION['admin_user_id'] ?? $_SESSION['user_id'] ?? 0);
 
     if ($currentUserId <= 0) {
         echo "<script>alert('Không tìm thấy tài khoản đang đăng nhập!'); window.history.back();</script>";

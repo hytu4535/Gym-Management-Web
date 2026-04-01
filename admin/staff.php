@@ -51,9 +51,17 @@ $canDeleteStaff = $resolveStaffActionPermission('delete');
 $db = getDB();
 $hasDepartmentIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff' AND COLUMN_NAME = 'department_id' LIMIT 1")->fetchColumn();
 $hasUserFullNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'full_name' LIMIT 1")->fetchColumn();
+$memberRoleId = (int) ($db->query("SELECT id FROM roles WHERE name = 'Hội viên' LIMIT 1")->fetchColumn() ?: 0);
+if ($memberRoleId <= 0) {
+  $memberRoleId = (int) ($db->query("SELECT id FROM roles WHERE name = 'member' LIMIT 1")->fetchColumn() ?: 0);
+}
 $staffUserIdColumnName = 'users_id';
 $staffUserIdSelectSql = 's.users_id AS users_id';
 $staffUserJoinSql = ' LEFT JOIN users u ON s.users_id = u.id';
+$staffUserRoleJoinSql = ' LEFT JOIN roles r ON u.role_id = r.id';
+$staffUserRoleSelectSql = 'r.name AS role_name';
+$staffUserRoleFilterSql = $memberRoleId > 0 ? 'u.role_id <> ' . (int) $memberRoleId : '1=1';
+$staffUserFullNameSelectSql = $hasUserFullNameColumn ? 'u.full_name' : 'u.username AS full_name';
 
 // Bộ lọc danh sách
 $filterName = trim((string) ($_GET['name'] ?? ''));
@@ -113,13 +121,16 @@ $stmt = $db->prepare(
 );
 $stmt->execute($whereParams);
 $staffList = $stmt->fetchAll();
-$usedUserIds = [];
-if ($staffUserIdColumnName !== null) {
-  $usedUserIds = array_map('intval', $db->query("SELECT $staffUserIdColumnName FROM staff")->fetchAll(PDO::FETCH_COLUMN));
-}
 
-$usersNameSelect = $hasUserFullNameColumn ? 'full_name' : 'username AS full_name';
-$users = $db->query("SELECT u.id, u.username, $usersNameSelect, u.email, u.phone, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id ORDER BY u.email ASC, u.username ASC")->fetchAll();
+$users = $db->query(
+  "SELECT u.id, u.username, $staffUserFullNameSelectSql, u.email, u.phone, $staffUserRoleSelectSql
+   FROM users u
+   $staffUserRoleJoinSql
+   WHERE $staffUserRoleFilterSql
+     AND u.id NOT IN (SELECT users_id FROM staff)
+     AND u.id NOT IN (SELECT users_id FROM members)
+   ORDER BY u.email ASC, u.username ASC"
+)->fetchAll();
 $roles = $db->query("SELECT id, name, description FROM roles WHERE status = 'active' ORDER BY id ASC")->fetchAll();
 $departments = $hasDepartmentIdColumn ? $db->query("SELECT id, name FROM departments ORDER BY id ASC")->fetchAll() : [];
 
@@ -262,14 +273,13 @@ include 'layout/sidebar.php';
               <?php foreach ($users as $user): ?>
                 <?php
                   $userLabel = trim((string) ($user['username'] ?? '')) . ' / ' . trim((string) ($user['email'] ?? ''));
-                  $isUsed = in_array((int) $user['id'], $usedUserIds, true);
                 ?>
-                <option value="<?php echo (int) $user['id']; ?>" data-used="<?php echo $isUsed ? '1' : '0'; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>" data-position="<?php echo htmlspecialchars((string) ($user['role_name'] ?? ''), ENT_QUOTES); ?>">
+                <option value="<?php echo (int) $user['id']; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>" data-position="<?php echo htmlspecialchars((string) ($user['role_name'] ?? ''), ENT_QUOTES); ?>">
                   <?php echo htmlspecialchars($userLabel); ?>
                 </option>
               <?php endforeach; ?>
             </select>
-            <small id="users_id_error" class="text-danger d-none">Tài khoản / email này đã được dùng trong bảng staff.</small>
+            <small id="users_id_error" class="text-danger d-none">Tài khoản đã được gán vai trò.</small>
           </div>
           <div class="form-group">
             <label>Họ tên</label>
@@ -344,11 +354,84 @@ include 'layout/sidebar.php';
     });
   }
 
+  function ensureStaffUserOption(staff) {
+    var select = document.getElementById('users_id');
+    if (!select || !staff || !staff.users_id) {
+      return;
+    }
+
+    var value = String(staff.users_id);
+    var existingOption = select.querySelector('option[value="' + value.replace(/"/g, '\\"') + '"]');
+    if (existingOption) {
+      existingOption.setAttribute('data-name', staff.full_name || existingOption.getAttribute('data-name') || '');
+      existingOption.setAttribute('data-phone', staff.phone || existingOption.getAttribute('data-phone') || '');
+      existingOption.setAttribute('data-position', staff.position || existingOption.getAttribute('data-position') || '');
+      return;
+    }
+
+    var option = document.createElement('option');
+    option.value = value;
+    option.text = (staff.username || '') + ' / ' + (staff.email || '');
+    option.setAttribute('data-name', staff.full_name || '');
+    option.setAttribute('data-phone', staff.phone || '');
+    option.setAttribute('data-position', staff.position || '');
+    option.setAttribute('data-temporary', '1');
+    select.appendChild(option);
+  }
+
+  function clearTemporaryStaffOptions() {
+    var select = document.getElementById('users_id');
+    if (!select) {
+      return;
+    }
+
+    Array.from(select.querySelectorAll('option[data-temporary="1"]')).forEach(function (option) {
+      option.remove();
+    });
+  }
+
+  function getSelectedStaffOption() {
+    var select = document.getElementById('users_id');
+    if (!select) {
+      return null;
+    }
+
+    var jqSelectedOption = $('#users_id').find('option:selected').get(0);
+    if (jqSelectedOption) {
+      return jqSelectedOption;
+    }
+
+    if (select.selectedOptions && select.selectedOptions.length > 0) {
+      return select.selectedOptions[0];
+    }
+
+    var selectedIndex = select.selectedIndex;
+    return selectedIndex >= 0 ? select.options[selectedIndex] : null;
+  }
+
+  function getStaffFieldValue(option, attributeName) {
+    if (!option) {
+      return '';
+    }
+
+    var attrValue = option.getAttribute(attributeName);
+    if (attrValue !== null && attrValue !== undefined) {
+      return attrValue;
+    }
+
+    if (option.dataset && option.dataset[attributeName.replace(/^data-/, '').replace(/-([a-z])/g, function (_, chr) { return chr.toUpperCase(); })]) {
+      return option.dataset[attributeName.replace(/^data-/, '').replace(/-([a-z])/g, function (_, chr) { return chr.toUpperCase(); })];
+    }
+
+    return '';
+  }
+
   function resetStaffForm() {
     document.getElementById('staffModalTitle').innerText = 'Thêm Staff Mới';
     document.getElementById('staff_action').value = 'add';
     document.getElementById('staff_id').value = '';
     document.getElementById('staff_form_mode').value = 'add';
+    clearTemporaryStaffOptions();
     $('#users_id').prop('disabled', false).val(null).trigger('change');
     $('#position').val('');
     $('#position_display').val('');
@@ -366,6 +449,7 @@ include 'layout/sidebar.php';
     document.getElementById('staff_action').value = 'edit';
     document.getElementById('staff_id').value = staff.id || '';
     document.getElementById('staff_form_mode').value = 'edit';
+    ensureStaffUserOption(staff);
     $('#users_id').prop('disabled', true).val(String(staff.users_id || '')).trigger('change');
     $('#position').val(staff.position || '');
     $('#position_display').val(staff.position || '');
@@ -381,24 +465,25 @@ include 'layout/sidebar.php';
     var error = document.getElementById('users_id_error');
     if (error) {
       error.classList.add('d-none');
+      error.textContent = 'Tài khoản đã được gán vai trò.';
     }
     $('#users_id').removeClass('is-invalid');
   }
 
   function syncSelectedUserInfo() {
     var userSelect = document.getElementById('users_id');
-    var selectedOption = userSelect && userSelect.options[userSelect.selectedIndex] ? userSelect.options[userSelect.selectedIndex] : null;
+    var selectedOption = getSelectedStaffOption();
     var fullNameInput = document.getElementById('full_name');
     var phoneInput = document.getElementById('phone_display');
     var positionInput = document.getElementById('position');
     var positionDisplay = document.getElementById('position_display');
     var error = document.getElementById('users_id_error');
     var formMode = document.getElementById('staff_form_mode').value || 'add';
-    var isUsed = selectedOption && selectedOption.getAttribute('data-used') === '1';
-    var positionValue = selectedOption ? (selectedOption.getAttribute('data-position') || '') : '';
+    var isUsed = selectedOption && getStaffFieldValue(selectedOption, 'data-used') === '1';
+    var positionValue = getStaffFieldValue(selectedOption, 'data-position');
 
-    fullNameInput.value = selectedOption ? (selectedOption.getAttribute('data-name') || '') : '';
-    phoneInput.value = selectedOption ? (selectedOption.getAttribute('data-phone') || '') : '';
+    fullNameInput.value = getStaffFieldValue(selectedOption, 'data-name');
+    phoneInput.value = getStaffFieldValue(selectedOption, 'data-phone');
     if (positionInput) {
       positionInput.value = positionValue;
     }
@@ -422,7 +507,7 @@ include 'layout/sidebar.php';
     return true;
   }
 
-  $('#users_id').on('change', function () {
+  $('#users_id').on('change select2:select select2:clear', function () {
     syncSelectedUserInfo();
   });
 
@@ -440,7 +525,7 @@ include 'layout/sidebar.php';
     if (document.getElementById('staff_form_mode').value === 'add' && !$('#users_id').val()) {
       event.preventDefault();
       $('#users_id').addClass('is-invalid');
-      document.getElementById('users_id_error').textContent = 'Vui lòng chọn tài khoản / email.';
+      document.getElementById('users_id_error').textContent = 'Vui lòng chọn tài khoản.';
       document.getElementById('users_id_error').classList.remove('d-none');
       return false;
     }

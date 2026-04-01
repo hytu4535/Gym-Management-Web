@@ -20,21 +20,58 @@ function resolveCurrentMember(PDO $db)
         }
     }
 
-    $memberIdFromQuery = isset($_GET['member_id']) ? intval($_GET['member_id']) : 0;
-    if ($memberIdFromQuery > 0) {
-        $stmt = $db->prepare("SELECT * FROM members WHERE id = ? LIMIT 1");
-        $stmt->execute([$memberIdFromQuery]);
-        $member = $stmt->fetch();
-        if ($member) {
-            return $member;
+    return null;
+}
+
+function getMemberNutritionPlans(PDO $db, int $memberId): array
+{
+    $stmt = $db->prepare("\n        SELECT\n            mnp.id AS member_nutrition_plan_id,\n            mnp.member_id,\n            mnp.nutrition_plan_id,\n            mnp.start_date,\n            mnp.end_date,\n            mnp.status,\n            np.name AS plan_name,\n            np.type AS plan_type,\n            np.calories,\n            np.bmi_range,\n            np.description\n        FROM member_nutrition_plans mnp\n        LEFT JOIN nutrition_plans np ON np.id = mnp.nutrition_plan_id\n        WHERE mnp.member_id = ?\n        ORDER BY mnp.start_date DESC, mnp.id DESC\n    ");
+    $stmt->execute([$memberId]);
+
+    $plans = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($plans as &$plan) {
+        if (!empty($plan['end_date'])) {
+            try {
+                $endDate = new DateTimeImmutable($plan['end_date']);
+                if ($endDate < new DateTimeImmutable('today')) {
+                    $plan['status'] = 'kết thúc';
+                }
+            } catch (Exception $e) {
+                // Giữ nguyên dữ liệu gốc nếu ngày không hợp lệ.
+            }
         }
     }
+    unset($plan);
 
-    $fallbackStmt = $db->query("SELECT * FROM members ORDER BY id ASC LIMIT 1");
-    return $fallbackStmt->fetch();
+    foreach ($plans as &$plan) {
+        $planCalories = isset($plan['calories']) ? (float) $plan['calories'] : 0.0;
+        if ($planCalories <= 0 && !empty($plan['nutrition_plan_id'])) {
+            $planCalories = calculatePlanCalories($db, (int) $plan['nutrition_plan_id']);
+        }
+        if ($planCalories > 0) {
+            $plan['calories'] = $planCalories;
+        }
+    }
+    unset($plan);
+
+    return $plans;
+}
+
+function calculatePlanCalories(PDO $db, int $planId)
+{
+    if ($planId <= 0) {
+        return null;
+    }
+
+    $stmt = $db->prepare("SELECT SUM(ni.calories * npi.servings_per_day) AS calc\n        FROM nutrition_plan_items npi\n        JOIN nutrition_items ni ON ni.id = npi.item_id\n        WHERE npi.nutrition_plan_id = ?");
+    $stmt->execute([$planId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return (!empty($row['calc'])) ? (int) $row['calc'] : null;
 }
 
 $currentMember = resolveCurrentMember($db);
+$memberNutritionPlans = $currentMember ? getMemberNutritionPlans($db, (int) $currentMember['id']) : [];
 
 include 'layout/header.php';
 ?>
@@ -120,7 +157,7 @@ include 'layout/header.php';
 
             <h5 class="text-white mt-4 mb-3">Danh sách kế hoạch</h5>
             <div class="table-responsive">
-                <table class="table portal-table table-bordered table-sm">
+                <table class="table portal-table table-bordered table-sm" id="nutritionTable">
                     <thead>
                         <tr>
                             <th>Tên kế hoạch</th>
@@ -205,6 +242,7 @@ include 'layout/header.php';
 
 <script>
 const currentMemberId = <?php echo $currentMember ? (int) $currentMember['id'] : 0; ?>;
+const memberNutritionPlans = <?php echo json_encode($memberNutritionPlans, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
 let nutritionPlanStore = {};
 
 window.addEventListener('load', function() {
@@ -243,16 +281,17 @@ function truncateText(value, maxLength = 60) {
 
 function renderNutrition(items) {
     nutritionPlanStore = {};
+    const displayValue = (value, fallback = '-') => (value === null || value === undefined || value === '' ? fallback : value);
 
     const rows = (items || []).map(item => `<tr>
-        <td>${escapeHtml(item.name)}</td>
-        <td>${escapeHtml(item.type)}</td>
-        <td>${escapeHtml(item.calories || '-')}</td>
+        <td>${escapeHtml(item.plan_name || item.name || '-')}</td>
+        <td>${escapeHtml(item.plan_type || item.type || '-')}</td>
+        <td>${escapeHtml(displayValue(item.calories))}</td>
         <td>${escapeHtml(item.bmi_range || '-')}</td>
         <td class="nutrition-desc-col">
             ${(() => {
-                const planId = Number(item.id) || 0;
-                const planName = String(item.name || '');
+                const planId = Number(item.nutrition_plan_id || item.plan_id || item.id) || 0;
+                const planName = String(item.plan_name || item.name || '');
                 const fullDescription = String(item.description || '');
 
                 nutritionPlanStore[String(planId)] = {
@@ -268,7 +307,7 @@ function renderNutrition(items) {
             })()}
         </td>
         <td>
-            <button type="button" class="btn btn-warning btn-sm view-meals-btn" data-plan-id="${Number(item.id) || 0}">
+            <button type="button" class="btn btn-warning btn-sm view-meals-btn" data-plan-id="${Number(item.nutrition_plan_id || item.plan_id || item.id) || 0}">
                 Danh sách món ăn
             </button>
         </td>
@@ -277,32 +316,14 @@ function renderNutrition(items) {
     $('#nutritionTableBody').html(rows || emptyRow(6, 'Chưa có kế hoạch dinh dưỡng', 'Kế hoạch sẽ hiển thị khi được tạo và kích hoạt trong hệ thống.'));
 }
 
-function loadNutrition() {
-    if (!currentMemberId) {
-        showAlert('warning', 'Không tìm thấy hội viên để tải dữ liệu.');
-        return;
-    }
-
-    $.getJSON('api.php', { action: 'dashboard', member_id: currentMemberId }, function(response) {
-        if (!response.success) {
-            showAlert('danger', response.message || 'Không tải được dữ liệu dinh dưỡng');
-            return;
-        }
-
-        const nutritionPlans = (response.data && response.data.nutrition_plans) || [];
-        renderNutrition(nutritionPlans);
-    }).fail(function() {
-        showAlert('danger', 'Lỗi kết nối khi tải dữ liệu dinh dưỡng.');
-    });
-}
-
 function renderPlanMeals(data) {
     const plan = data.plan || {};
     const items = data.items || [];
+    const planCalories = plan.calories ?? plan.plan_calories ?? '-';
 
     $('#planMealsName').text(plan.name || '-');
     $('#planMealsType').text(plan.type || '-');
-    $('#planMealsCalories').text(plan.calories || '-');
+    $('#planMealsCalories').text(planCalories);
 
     const rows = items.map(item => `<tr>
         <td>${escapeHtml(item.name)}</td>
@@ -366,7 +387,13 @@ $(document).on('click', '.view-desc-btn', function() {
     $('#planDescriptionModal').modal('show');
 });
 
-loadNutrition();
+    if (!currentMemberId) {
+        $('#nutritionTableBody').html(emptyRow(6, 'Chưa đăng nhập hoặc chưa liên kết hội viên', 'Vui lòng đăng nhập bằng tài khoản hội viên để xem kế hoạch dinh dưỡng.'));
+        showAlert('warning', 'Không tìm thấy hội viên đang đăng nhập để tải dữ liệu.');
+        return;
+    }
+
+    renderNutrition(memberNutritionPlans);
 });
 </script>
 

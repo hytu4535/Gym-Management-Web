@@ -159,6 +159,27 @@ CREATE TABLE `carts` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `face_checkin_logs`
+--
+
+DROP TABLE IF EXISTS `face_checkin_logs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `face_checkin_logs` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `member_id` int DEFAULT NULL,
+  `confidence` decimal(6,4) DEFAULT NULL,
+  `is_success` tinyint(1) NOT NULL DEFAULT '0',
+  `captured_image_path` varchar(255) DEFAULT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_face_checkin_member_id` (`member_id`),
+  CONSTRAINT `fk_face_checkin_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Dumping data for table `carts`
 --
 
@@ -696,12 +717,16 @@ CREATE TABLE `members` (
   `address` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `join_date` date DEFAULT NULL,
   `status` enum('active','inactive') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `face_consent` tinyint(1) NOT NULL DEFAULT '0',
+  `face_consent_at` datetime DEFAULT NULL,
+  `face_consent_source` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `height` decimal(5,2) DEFAULT NULL COMMENT 'Chiều cao (cm)',
   `weight` decimal(5,2) DEFAULT NULL COMMENT 'Cân nặng (kg)',
   `tier_id` int DEFAULT '1' COMMENT 'Hạng hội viên',
   `total_spent` decimal(12,2) DEFAULT '0.00' COMMENT 'Tổng tiền đã chi',
   PRIMARY KEY (`id`),
   KEY `users_id` (`users_id`),
+  UNIQUE KEY `uniq_members_users_id` (`users_id`),
   KEY `fk_members_tier` (`tier_id`),
   CONSTRAINT `fk_members_tier` FOREIGN KEY (`tier_id`) REFERENCES `member_tiers` (`id`),
   CONSTRAINT `members_ibfk_1` FOREIGN KEY (`users_id`) REFERENCES `users` (`id`)
@@ -1208,6 +1233,7 @@ CREATE TABLE `staff` (
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `users_id` (`users_id`),
+  UNIQUE KEY `uniq_staff_users_id` (`users_id`),
   KEY `department_id` (`department_id`),
   CONSTRAINT `staff_ibfk_1` FOREIGN KEY (`users_id`) REFERENCES `users` (`id`),
   CONSTRAINT `staff_ibfk_2` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`)

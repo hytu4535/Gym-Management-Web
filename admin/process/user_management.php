@@ -215,12 +215,21 @@ if ($action == 'edit') {
     // Lấy lại username/email hiện tại từ DB để không bị ghi đè bằng chuỗi rỗng từ form disabled
     $currentUser = null;
     if (empty($errors)) {
-        $currentStmt = $db->prepare("SELECT username, email, full_name FROM users WHERE id = ? LIMIT 1");
+        $currentStmt = $db->prepare("SELECT username, email, full_name, role_id FROM users WHERE id = ? LIMIT 1");
         $currentStmt->execute([$id]);
         $currentUser = $currentStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$currentUser) {
             $errors['general'] = 'Không tìm thấy user cần cập nhật';
+        }
+
+        if (empty($errors)) {
+            [$staffCount, $memberCount] = getUserUsageCounts($db, $id);
+            $submittedRoleId = (string) $role_id;
+            $currentRoleId = (string) ($currentUser['role_id'] ?? '');
+            if (($staffCount > 0 || $memberCount > 0) && $submittedRoleId !== $currentRoleId) {
+                $errors['general'] = 'Không thể thay đổi vai trò vì tài khoản đã được gán vào hệ thống (staff/member)';
+            }
         }
     }
     

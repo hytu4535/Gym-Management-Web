@@ -10,9 +10,13 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $hasDepartmentIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff' AND COLUMN_NAME = 'department_id' LIMIT 1")->fetchColumn();
 $staffUserIdColumn = 'users_id';
 $hasUserFullNameColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'full_name' LIMIT 1")->fetchColumn();
+$memberRoleId = (int) ($db->query("SELECT id FROM roles WHERE name = 'Hội viên' LIMIT 1")->fetchColumn() ?: 0);
+if ($memberRoleId <= 0) {
+    $memberRoleId = (int) ($db->query("SELECT id FROM roles WHERE name = 'member' LIMIT 1")->fetchColumn() ?: 0);
+}
 $userProfileSql = $hasUserFullNameColumn
-    ? 'SELECT full_name, phone FROM users WHERE id = ?'
-    : 'SELECT username AS full_name, phone FROM users WHERE id = ?';
+    ? 'SELECT u.full_name, u.phone, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ? AND u.role_id <> ' . (int) $memberRoleId . ' LIMIT 1'
+    : 'SELECT u.username AS full_name, u.phone, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ? AND u.role_id <> ' . (int) $memberRoleId . ' LIMIT 1';
 
 function failAndGoBack($message)
 {
@@ -44,17 +48,19 @@ try {
             failAndGoBack('Vui lòng chọn tài khoản / email hợp lệ.');
         }
 
-        $duplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE $staffUserIdColumn = ?");
-        $duplicateStmt->execute([$usersId]);
-        if ((int) $duplicateStmt->fetchColumn() > 0) {
-            failAndGoBack('Tài khoản / email này đã được dùng trong bảng staff.');
-        }
-
         $userStmt = $db->prepare($userProfileSql);
         $userStmt->execute([$usersId]);
         $user = $userStmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
-            failAndGoBack('Không tìm thấy tài khoản đã chọn.');
+            failAndGoBack('Role không hợp lệ.');
+        }
+
+        $staffDuplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE $staffUserIdColumn = ?");
+        $staffDuplicateStmt->execute([$usersId]);
+        $memberDuplicateStmt = $db->prepare('SELECT COUNT(*) FROM members WHERE users_id = ?');
+        $memberDuplicateStmt->execute([$usersId]);
+        if ((int) $staffDuplicateStmt->fetchColumn() > 0 || (int) $memberDuplicateStmt->fetchColumn() > 0) {
+            failAndGoBack('Tài khoản đã được gán vai trò.');
         }
 
         $fullName = trim((string) ($user['full_name'] ?? ''));
@@ -133,6 +139,21 @@ try {
             failAndGoBack('Không thể thay đổi tài khoản / email đã liên kết.');
         }
 
+        $userStmt = $db->prepare($userProfileSql);
+        $userStmt->execute([$currentUsersId]);
+        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user) {
+            failAndGoBack('Role không hợp lệ.');
+        }
+
+        $staffDuplicateStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE $staffUserIdColumn = ? AND id <> ?");
+        $staffDuplicateStmt->execute([$currentUsersId, $id]);
+        $memberDuplicateStmt = $db->prepare('SELECT COUNT(*) FROM members WHERE users_id = ?');
+        $memberDuplicateStmt->execute([$currentUsersId]);
+        if ((int) $staffDuplicateStmt->fetchColumn() > 0 || (int) $memberDuplicateStmt->fetchColumn() > 0) {
+            failAndGoBack('Tài khoản đã được gán vai trò.');
+        }
+
         if ($position === '') {
             failAndGoBack('Vui lòng chọn chức vụ.');
         }
@@ -148,13 +169,6 @@ try {
 
         if (!in_array($status, ['active', 'inactive', 'on_leave'], true)) {
             $status = 'active';
-        }
-
-        $userStmt = $db->prepare($userProfileSql);
-        $userStmt->execute([$currentUsersId]);
-        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$user) {
-            failAndGoBack('Không tìm thấy tài khoản liên kết của staff.');
         }
 
         $fullName = trim((string) ($user['full_name'] ?? ''));
@@ -237,6 +251,12 @@ try {
 } catch (Exception $e) {
     if ($db->inTransaction()) {
         $db->rollBack();
+    }
+    if ($e instanceof PDOException) {
+        $errorMessage = strtolower((string) $e->getMessage());
+        if ((int) $e->getCode() === 23000 || strpos($errorMessage, 'duplicate entry') !== false) {
+            failAndGoBack('Tài khoản đã được gán vai trò.');
+        }
     }
     failAndGoBack('Lỗi: ' . $e->getMessage());
 }

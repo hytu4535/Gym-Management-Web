@@ -8,6 +8,7 @@ include '../includes/auth.php';
 
 // kết nối DB và kiểm tra quyền
 include '../includes/database.php';
+include '../includes/functions.php';
 include '../includes/auth_permission.php';
 
 // chỉ cho phép user có quyền MANAGE_ALL
@@ -87,14 +88,18 @@ $totalPages = ceil($totalRecords / $itemsPerPage);
 
 // Lấy danh sách users
 if ($hasPhoneColumn) {
-  $sql = "SELECT u.id, u.username, $displayNameSelect, u.email, u.phone, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, $displayNameSelect, u.email, u.phone, r.name AS role, u.role_id, u.status, u.created_at,
+                (SELECT COUNT(*) FROM staff s WHERE s.users_id = u.id) AS staff_count,
+                (SELECT COUNT(*) FROM members m WHERE m.users_id = u.id) AS member_count
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
             ORDER BY u.id ASC
             LIMIT $itemsPerPage OFFSET $offset";
 } else {
-  $sql = "SELECT u.id, u.username, $displayNameSelect, u.email, r.name AS role, u.role_id, u.status, u.created_at
+  $sql = "SELECT u.id, u.username, $displayNameSelect, u.email, r.name AS role, u.role_id, u.status, u.created_at,
+                (SELECT COUNT(*) FROM staff s WHERE s.users_id = u.id) AS staff_count,
+                (SELECT COUNT(*) FROM members m WHERE m.users_id = u.id) AS member_count
             FROM users u
             JOIN roles r ON u.role_id = r.id
             $whereSql
@@ -125,7 +130,10 @@ unset($_SESSION['form_data']);
 $editUserId = $_GET['edit'] ?? null;
 $editUserData = null;
 if ($editUserId && !empty($validationErrors)) {
-    $editStmt = $db->prepare("SELECT u.*, r.name AS role FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
+  $editStmt = $db->prepare("SELECT u.*, r.name AS role,
+                 (SELECT COUNT(*) FROM staff s WHERE s.users_id = u.id) AS staff_count,
+                 (SELECT COUNT(*) FROM members m WHERE m.users_id = u.id) AS member_count
+                FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
     $editStmt->execute([$editUserId]);
     $editUserData = $editStmt->fetch();
 }
@@ -198,8 +206,8 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                       <label>Trạng thái</label>
                       <select name="status" class="form-control">
                         <option value="">-- Tất cả trạng thái --</option>
-                        <option value="active" <?= $filterStatus === 'active' ? 'selected' : '' ?>>Active</option>
-                        <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                        <option value="active" <?= $filterStatus === 'active' ? 'selected' : '' ?>>Hoạt động</option>
+                        <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Không hoạt động</option>
                       </select>
                     </div>
                   </div>
@@ -252,6 +260,8 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
             </thead>
             <tbody>
               <?php foreach($users as $u): ?>
+              <?php $isUserLinked = ((int) ($u['staff_count'] ?? 0) > 0) || ((int) ($u['member_count'] ?? 0) > 0); ?>
+              <?php $statusInfo = getVietnameseStatusLabel($u['status'] ?? ''); ?>
               <tr>
                 <td><?= $u['id'] ?></td>
                 <td><?= $u['username'] ?></td>
@@ -259,11 +269,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                 <td><?= htmlspecialchars($u['phone'] ?? '') ?></td>
                 <td><span class="badge badge-info"><?= $u['role'] ?></span></td>
                 <td>
-                  <?php if($u['status']=='active'): ?>
-                    <span class="badge badge-success">Hoạt động</span>
-                  <?php else: ?>
-                    <span class="badge badge-danger">Bị khóa</span>
-                  <?php endif; ?>
+                  <span class="badge badge-<?= htmlspecialchars($statusInfo['class'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($statusInfo['label'], ENT_QUOTES, 'UTF-8') ?></span>
                 </td>
                 <td><?= $u['created_at'] ?></td>
                 <td>
@@ -352,13 +358,19 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                         </div>
                         <div class="form-group">
                           <label>Vai trò</label>
-                          <select class="form-control <?= getFieldError('role_id', $validationErrors) ? 'is-invalid' : '' ?>" name="role_id" data-field="role_id">
+                          <?php if ($isUserLinked): ?>
+                            <input type="hidden" name="role_id" value="<?= (int) $u['role_id'] ?>">
+                          <?php endif; ?>
+                          <select class="form-control <?= getFieldError('role_id', $validationErrors) ? 'is-invalid' : '' ?>" name="role_id" data-field="role_id" <?= $isUserLinked ? 'disabled' : '' ?>>
                             <?php foreach($roles as $r): ?>
                               <option value="<?= $r['id'] ?>" <?= ($formData ? (getFieldValue('role_id', $formData) == $r['id']) : ($u['role_id']==$r['id'])) ? 'selected' : '' ?>>
                                 <?= $r['name'] ?>
                               </option>
                             <?php endforeach; ?>
                           </select>
+                          <?php if ($isUserLinked): ?>
+                            <small class="text-warning d-block mt-2">Tài khoản này đã được sử dụng, không thể đổi vai trò.</small>
+                          <?php endif; ?>
                           <small class="text-danger d-block mt-2" style="<?= getFieldError('role_id', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('role_id', $validationErrors) ?></small>
                         </div>
                       </div>
@@ -390,7 +402,7 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                         <div class="col-md-6">
                           <div class="form-group">
                             <label>Trạng thái</label>
-                            <input type="text" class="form-control" value="<?= $u['status'] == 'active' ? 'Active' : 'Inactive' ?>" readonly>
+                            <input type="text" class="form-control" value="<?= htmlspecialchars($statusInfo['label'], ENT_QUOTES, 'UTF-8') ?>" readonly>
                           </div>
                         </div>
                         <div class="col-md-6">
@@ -645,13 +657,19 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
           </div>
           <div class="form-group">
             <label>Vai trò</label>
-            <select class="form-control <?= getFieldError('role_id', $validationErrors) ? 'is-invalid' : '' ?>" name="role_id" data-field="role_id">
+            <?php if (((int) ($editUserData['staff_count'] ?? 0) > 0) || ((int) ($editUserData['member_count'] ?? 0) > 0)): ?>
+              <input type="hidden" name="role_id" value="<?= (int) $editUserData['role_id'] ?>">
+            <?php endif; ?>
+            <select class="form-control <?= getFieldError('role_id', $validationErrors) ? 'is-invalid' : '' ?>" name="role_id" data-field="role_id" <?= (((int) ($editUserData['staff_count'] ?? 0) > 0) || ((int) ($editUserData['member_count'] ?? 0) > 0)) ? 'disabled' : '' ?>>
               <?php foreach($roles as $r): ?>
                 <option value="<?= $r['id'] ?>" <?= ($formData ? (getFieldValue('role_id', $formData) == $r['id']) : ($editUserData['role_id']==$r['id'])) ? 'selected' : '' ?>>
                   <?= $r['name'] ?>
                 </option>
               <?php endforeach; ?>
             </select>
+            <?php if (((int) ($editUserData['staff_count'] ?? 0) > 0) || ((int) ($editUserData['member_count'] ?? 0) > 0)): ?>
+              <small class="text-warning d-block mt-2">Tài khoản này đã được sử dụng, không thể đổi vai trò.</small>
+            <?php endif; ?>
             <small class="text-danger d-block mt-2" style="<?= getFieldError('role_id', $validationErrors) ? 'display: block;' : 'display: none;' ?>"><?= getFieldError('role_id', $validationErrors) ?></small>
           </div>
         </div>

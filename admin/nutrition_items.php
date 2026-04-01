@@ -1,7 +1,7 @@
 <?php
 session_start(); // luôn khởi tạo session
 
-$page_title = "Quản lý nutrition items";
+$page_title = "Quản lý món dinh dưỡng";
 
 // kiểm tra đăng nhập
 include '../includes/auth.php';
@@ -16,6 +16,13 @@ checkPermission('MANAGE_SERVICES_NUTRITION');
 include '../includes/functions.php';
 
 $db = getDB();
+
+$nutritionPlansCount = (int) $db->query("SELECT COUNT(*) FROM nutrition_plans")->fetchColumn();
+$nutritionPlanItemsCount = (int) $db->query("SELECT COUNT(*) FROM nutrition_plan_items")->fetchColumn();
+$memberNutritionPlansCount = (int) $db->query("SELECT COUNT(*) FROM member_nutrition_plans")->fetchColumn();
+
+$filterKeyword = trim((string) ($_GET['q'] ?? ''));
+$filterStatus = trim((string) ($_GET['status'] ?? ''));
 
 // CRUD
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -83,7 +90,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // List
-$stmt = $db->query("SELECT * FROM nutrition_items ORDER BY id DESC");
+$itemConditions = [];
+$itemParams = [];
+
+if ($filterKeyword !== '') {
+  $itemConditions[] = "(name LIKE ? OR serving_desc LIKE ? OR notes LIKE ?)";
+  $like = '%' . $filterKeyword . '%';
+  $itemParams[] = $like;
+  $itemParams[] = $like;
+  $itemParams[] = $like;
+}
+
+$allowedStatuses = ['hoạt động', 'không hoạt động'];
+if ($filterStatus !== '' && in_array($filterStatus, $allowedStatuses, true)) {
+  $itemConditions[] = "status = ?";
+  $itemParams[] = $filterStatus;
+}
+
+$itemSql = "SELECT * FROM nutrition_items";
+if (!empty($itemConditions)) {
+  $itemSql .= " WHERE " . implode(' AND ', $itemConditions);
+}
+$itemSql .= " ORDER BY id DESC";
+
+$stmt = $db->prepare($itemSql);
+$stmt->execute($itemParams);
 $items = $stmt->fetchAll();
 $flash = getFlashMessage();
 
@@ -102,18 +133,77 @@ include 'layout/sidebar.php';
 
   <section class="content">
     <div class="container-fluid">
-      <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show">
-          <button type="button" class="close" data-dismiss="alert">&times;</button>
-          <?= $flash['message'] ?>
+        <?php renderAdminFlash($flash); ?>
+
+      <?php
+        $filterTitle = 'Lọc nhanh món dinh dưỡng';
+        $filterAction = 'nutrition_items.php';
+        $filterFormId = 'nutritionItemsFilterForm';
+        $filterMode = 'server';
+        $filterFieldsHtml = '
+          <div class="col-md-7">
+            <div class="form-group mb-0">
+              <label>Từ khóa</label>
+              <input type="text" class="form-control" name="q" placeholder="Tìm theo tên, định lượng hoặc ghi chú..." value="' . htmlspecialchars($filterKeyword) . '">
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="form-group mb-0">
+              <label>Trạng thái</label>
+              <select class="form-control" name="status">
+                <option value="">Tất cả</option>
+                <option value="hoạt động"' . ($filterStatus === 'hoạt động' ? ' selected' : '') . '>Hoạt động</option>
+                <option value="không hoạt động"' . ($filterStatus === 'không hoạt động' ? ' selected' : '') . '>Không hoạt động</option>
+              </select>
+            </div>
+          </div>';
+        include 'layout/filter-card.php';
+      ?>
+
+      <div class="row mb-3">
+        <div class="col-md-4 col-sm-6 mb-3 mb-md-0">
+          <div class="info-box h-100">
+            <span class="info-box-icon bg-primary"><i class="fas fa-clipboard-list"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Chế độ dinh dưỡng</span>
+              <span class="info-box-number"><?= $nutritionPlansCount ?></span>
+              <div class="mt-2">
+                <a href="nutrition_plans.php" class="btn btn-sm btn-outline-primary">Quay lại plan</a>
+              </div>
+            </div>
+          </div>
         </div>
-      <?php endif; ?>
+        <div class="col-md-4 col-sm-6 mb-3 mb-md-0">
+          <div class="info-box h-100">
+            <span class="info-box-icon bg-success"><i class="fas fa-list-ul"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Món trong thực đơn</span>
+              <span class="info-box-number"><?= $nutritionPlanItemsCount ?></span>
+              <div class="mt-2">
+                <a href="nutrition_plan_items.php" class="btn btn-sm btn-outline-success">Gán món vào plan</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4 col-sm-12">
+          <div class="info-box h-100">
+            <span class="info-box-icon bg-warning"><i class="fas fa-user-check"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Gán cho hội viên</span>
+              <span class="info-box-number"><?= $memberNutritionPlansCount ?></span>
+              <div class="mt-2">
+                <a href="member_nutrition_plans.php" class="btn btn-sm btn-outline-warning">Theo dõi hội viên</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">Danh sách items</h3>
+          <h3 class="card-title">Danh sách món dinh dưỡng</h3>
           <div class="card-tools">
-            <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addModal">Thêm item</button>
+            <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#addModal">Thêm món</button>
           </div>
         </div>
         <div class="card-body">
@@ -121,12 +211,12 @@ include 'layout/sidebar.php';
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Tên</th>
+                <th>Tên món</th>
                 <th>Định lượng</th>
-                <th>Cal</th>
-                <th>Protein</th>
-                <th>Carbs</th>
-                <th>Fat</th>
+                <th>Calories</th>
+                <th>Protein (g)</th>
+                <th>Carbs (g)</th>
+                <th>Fat (g)</th>
                 <th>Trạng thái</th>
                 <th>Hành động</th>
               </tr>
@@ -173,15 +263,15 @@ include 'layout/sidebar.php';
       <div class="modal-content">
         <form method="POST" action="nutrition_items.php" novalidate>
           <input type="hidden" name="action" value="add">
-          <div class="modal-header"><h5 class="modal-title">Thêm item</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+          <div class="modal-header"><h5 class="modal-title">Thêm món dinh dưỡng</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
-            <div class="form-group"><label>Tên</label><input class="form-control" name="name" data-field="name"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+            <div class="form-group"><label>Tên món</label><input class="form-control" name="name" data-field="name"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-group"><label>Định lượng</label><input class="form-control" name="serving_desc" data-field="serving_desc"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-group"><label>Calories</label><input type="number" class="form-control" name="calories" min="0" data-field="calories"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-row">
-              <div class="form-group col-md-4"><label>Protein</label><input class="form-control" name="protein" type="number" step="0.01" data-field="protein"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
-              <div class="form-group col-md-4"><label>Carbs</label><input class="form-control" name="carbs" type="number" step="0.01" data-field="carbs"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
-              <div class="form-group col-md-4"><label>Fat</label><input class="form-control" name="fat" type="number" step="0.01" data-field="fat"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Protein (g)</label><input class="form-control" name="protein" type="number" step="0.01" data-field="protein"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Carbs (g)</label><input class="form-control" name="carbs" type="number" step="0.01" data-field="carbs"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Fat (g)</label><input class="form-control" name="fat" type="number" step="0.01" data-field="fat"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             </div>
             <div class="form-group"><label>Ghi chú</label><textarea class="form-control" name="notes" data-field="notes"></textarea><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-group"><label>Trạng thái</label><select class="form-control" name="status" data-field="status"><option value="hoạt động">Hoạt động</option><option value="không hoạt động">Không hoạt động</option></select><small class="text-danger d-block mt-2" style="display:none;"></small></div>
@@ -199,15 +289,15 @@ include 'layout/sidebar.php';
         <form method="POST" action="nutrition_items.php" novalidate>
           <input type="hidden" name="action" value="edit">
           <input type="hidden" name="id" id="edit-id">
-          <div class="modal-header"><h5 class="modal-title">Sửa item</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+          <div class="modal-header"><h5 class="modal-title">Sửa món dinh dưỡng</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
           <div class="modal-body">
-            <div class="form-group"><label>Tên</label><input class="form-control" name="name" id="edit-name" data-field="name"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+            <div class="form-group"><label>Tên món</label><input class="form-control" name="name" id="edit-name" data-field="name"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-group"><label>Định lượng</label><input class="form-control" name="serving_desc" id="edit-serving" data-field="serving_desc"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-group"><label>Calories</label><input type="number" class="form-control" name="calories" id="edit-calories" min="0" data-field="calories"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-row">
-              <div class="form-group col-md-4"><label>Protein</label><input class="form-control" name="protein" id="edit-protein" type="number" step="0.01" data-field="protein"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
-              <div class="form-group col-md-4"><label>Carbs</label><input class="form-control" name="carbs" id="edit-carbs" type="number" step="0.01" data-field="carbs"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
-              <div class="form-group col-md-4"><label>Fat</label><input class="form-control" name="fat" id="edit-fat" type="number" step="0.01" data-field="fat"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Protein (g)</label><input class="form-control" name="protein" id="edit-protein" type="number" step="0.01" data-field="protein"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Carbs (g)</label><input class="form-control" name="carbs" id="edit-carbs" type="number" step="0.01" data-field="carbs"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
+              <div class="form-group col-md-4"><label>Fat (g)</label><input class="form-control" name="fat" id="edit-fat" type="number" step="0.01" data-field="fat"><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             </div>
             <div class="form-group"><label>Ghi chú</label><textarea class="form-control" name="notes" id="edit-notes" data-field="notes"></textarea><small class="text-danger d-block mt-2" style="display:none;"></small></div>
             <div class="form-group"><label>Trạng thái</label><select class="form-control" name="status" id="edit-status" data-field="status"><option value="hoạt động">Hoạt động</option><option value="không hoạt động">Không hoạt động</option></select><small class="text-danger d-block mt-2" style="display:none;"></small></div>

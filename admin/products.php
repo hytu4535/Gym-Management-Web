@@ -26,6 +26,9 @@ $filterPriceMax = trim((string) ($_GET['price_max'] ?? ''));
 $filterStatus = trim((string) ($_GET['status'] ?? ''));
 
 $categoriesFilter = $conn->query("SELECT id, name FROM categories ORDER BY name ASC")->fetch_all(MYSQLI_ASSOC);
+$productAddErrors = $_SESSION['product_add_errors'] ?? [];
+$productAddOld = $_SESSION['product_add_old'] ?? [];
+unset($_SESSION['product_add_errors'], $_SESSION['product_add_old']);
 
 $whereClauses = [];
 $whereParams = [];
@@ -211,39 +214,46 @@ if ($hasReviewTable) {
             <div class="col-md-6">
               <div class="form-group">
                 <label for="name">Tên Sản Phẩm <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="name" name="name" placeholder="Nhập tên sản phẩm...">
+                <input type="text" class="form-control <?php echo isset($productAddErrors['name']) ? 'is-invalid' : ''; ?>" id="name" name="name" placeholder="Nhập tên sản phẩm..." value="<?php echo htmlspecialchars($productAddOld['name'] ?? ''); ?>">
+                <?php if (isset($productAddErrors['name'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['name']); ?></div><?php endif; ?>
               </div>
               
 <div class="form-group">
                 <label for="short_description">Mô tả ngắn</label>
-                <textarea class="form-control" id="short_description" name="short_description" rows="3" placeholder="Mô tả ngắn về sản phẩm..."></textarea>
+                <textarea class="form-control <?php echo isset($productAddErrors['short_description']) ? 'is-invalid' : ''; ?>" id="short_description" name="short_description" rows="3" placeholder="Mô tả ngắn về sản phẩm..."><?php echo htmlspecialchars($productAddOld['short_description'] ?? ''); ?></textarea>
+                <?php if (isset($productAddErrors['short_description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['short_description']); ?></div><?php endif; ?>
               </div>
 
               <div class="form-group">
                 <label for="description">Mô tả chi tiết</label>
-                <textarea class="form-control" id="description" name="description" rows="6" placeholder="Mô tả chi tiết về sản phẩm..." style="min-height: 140px;"></textarea>
+                <textarea class="form-control <?php echo isset($productAddErrors['description']) ? 'is-invalid' : ''; ?>" id="description" name="description" rows="6" placeholder="Mô tả chi tiết về sản phẩm..." style="min-height: 140px;"><?php echo htmlspecialchars($productAddOld['description'] ?? ''); ?></textarea>
+                <?php if (isset($productAddErrors['description'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['description']); ?></div><?php endif; ?>
               </div>
 
               <div class="form-group">
                 <label for="category_id">Danh Mục</label>
-                <select class="form-control" id="category_id" name="category_id">
+                <select class="form-control <?php echo isset($productAddErrors['category_id']) ? 'is-invalid' : ''; ?>" id="category_id" name="category_id">
                   <option value="">-- Chọn danh mục --</option>
                   <?php
                     $cat_sql = "SELECT id, name FROM categories";
                     $cat_result = $conn->query($cat_sql);
                     if ($cat_result && $cat_result->num_rows > 0) {
+                        $selectedCategoryId = $productAddOld['category_id'] ?? '';
                         while($cat = $cat_result->fetch_assoc()) {
-                            echo "<option value='{$cat['id']}'>{$cat['name']}</option>";
+                            $selected = ((string) $selectedCategoryId !== '' && (int) $selectedCategoryId === (int) $cat['id']) ? 'selected' : '';
+                            echo "<option value='{$cat['id']}' {$selected}>{$cat['name']}</option>";
                         }
                     }
                   ?>
                 </select>
+                <?php if (isset($productAddErrors['category_id'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['category_id']); ?></div><?php endif; ?>
               </div>
               
               <div class="form-group">
                 <label for="img">Hình Ảnh Sản Phẩm</label>
-                <input type="file" class="form-control-file" id="img" name="img" accept="image/*" onchange="previewImage(event)">
+                <input type="file" class="form-control-file <?php echo isset($productAddErrors['img']) ? 'is-invalid' : ''; ?>" id="img" name="img" accept="image/*" onchange="previewImage(event)">
                 <small class="form-text text-muted">Chọn ảnh định dạng JPG, PNG, GIF (tối đa 2MB)</small>
+                <?php if (isset($productAddErrors['img'])): ?><div class="text-danger small"><?php echo htmlspecialchars($productAddErrors['img']); ?></div><?php endif; ?>
               </div>
               
               <div class="form-group text-center">
@@ -254,27 +264,31 @@ if ($hasReviewTable) {
             <div class="col-md-6">
               <div class="form-group">
                 <label for="unit">Đơn Vị Tính</label>
-                <input type="text" class="form-control" id="unit" name="unit" placeholder="hộp, chai, cái...">
+                <input type="text" class="form-control <?php echo isset($productAddErrors['unit']) ? 'is-invalid' : ''; ?>" id="unit" name="unit" placeholder="hộp, chai, cái..." value="<?php echo htmlspecialchars($productAddOld['unit'] ?? ''); ?>">
+                <?php if (isset($productAddErrors['unit'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['unit']); ?></div><?php endif; ?>
               </div>
 
               <div class="form-group">
                 <label for="selling_price">Giá Bán Lẻ (VNĐ) <span class="text-danger">*</span></label>
-                <input type="number" class="form-control" id="selling_price" name="selling_price" min="0" placeholder="Nhập giá bán...">
+                <input type="number" class="form-control <?php echo isset($productAddErrors['selling_price']) ? 'is-invalid' : ''; ?>" id="selling_price" name="selling_price" min="0" placeholder="Nhập giá bán..." value="<?php echo htmlspecialchars($productAddOld['selling_price'] ?? ''); ?>">
+                <?php if (isset($productAddErrors['selling_price'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['selling_price']); ?></div><?php endif; ?>
               </div>
 
               <div class="form-group">
                 <label for="stock_quantity">Số Lượng Tồn Kho</label>
-                <input type="number" class="form-control" id="stock_quantity" name="stock_quantity" min="0" placeholder="Nhập số lượng...">
+                <input type="number" class="form-control <?php echo isset($productAddErrors['stock_quantity']) ? 'is-invalid' : ''; ?>" id="stock_quantity" name="stock_quantity" min="0" placeholder="Nhập số lượng..." value="<?php echo htmlspecialchars($productAddOld['stock_quantity'] ?? ''); ?>">
+                <?php if (isset($productAddErrors['stock_quantity'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['stock_quantity']); ?></div><?php endif; ?>
               </div>
             </div>
           </div>
           
           <div class="form-group">
             <label for="status">Trạng Thái</label>
-            <select class="form-control" id="status" name="status">
-              <option value="active">Active (Kích hoạt)</option>
-              <option value="inactive">Inactive (Ẩn)</option>
+            <select class="form-control <?php echo isset($productAddErrors['status']) ? 'is-invalid' : ''; ?>" id="status" name="status">
+              <option value="active" <?php echo (($productAddOld['status'] ?? 'active') === 'active') ? 'selected' : ''; ?>>Active (Kích hoạt)</option>
+              <option value="inactive" <?php echo (($productAddOld['status'] ?? '') === 'inactive') ? 'selected' : ''; ?>>Inactive (Ẩn)</option>
             </select>
+            <?php if (isset($productAddErrors['status'])): ?><div class="invalid-feedback d-block"><?php echo htmlspecialchars($productAddErrors['status']); ?></div><?php endif; ?>
           </div>
 
         </div>
@@ -306,19 +320,22 @@ document.getElementById('addProductForm').addEventListener('submit', function(e)
         el.classList.remove('is-invalid');
     });
     document.querySelectorAll('.custom-error-text').forEach(function(el) {
-        el.remove();
+      el.remove();
     });
 
     function showError(inputId, message) {
         let inputEl = document.getElementById(inputId);
         inputEl.classList.add('is-invalid');
-        
-        let errorSpan = document.createElement('div');
-        errorSpan.className = 'invalid-feedback custom-error-text';
-        errorSpan.style.display = 'block';
-        errorSpan.innerText = message;
-        
-        inputEl.parentNode.appendChild(errorSpan);
+    let existingError = inputEl.parentNode.querySelector('.custom-error-text');
+    if (existingError) {
+      existingError.remove();
+    }
+
+    let errorSpan = document.createElement('div');
+    errorSpan.className = 'invalid-feedback custom-error-text d-block';
+    errorSpan.innerText = message;
+
+    inputEl.insertAdjacentElement('afterend', errorSpan);
         isValid = false;
 
         if (!firstErrorElement) {
@@ -379,6 +396,10 @@ document.getElementById('addProductForm').addEventListener('submit', function(e)
         }
     }
 });
+
+  <?php if (!empty($productAddErrors)): ?>
+  $('#addProductModal').modal('show');
+  <?php endif; ?>
 </script>
 
 <?php include 'layout/footer.php'; ?>

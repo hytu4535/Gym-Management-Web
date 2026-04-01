@@ -47,6 +47,24 @@ function resolveMember(PDO $db, $memberIdInput)
     return $fallback ?: null;
 }
 
+function calculateNutritionPlanCalories(PDO $db, int $nutritionPlanId): ?int
+{
+    if ($nutritionPlanId <= 0) {
+        return null;
+    }
+
+    $stmt = $db->prepare(
+        "SELECT SUM(ni.calories * npi.servings_per_day) AS calc
+         FROM nutrition_plan_items npi
+         JOIN nutrition_items ni ON ni.id = npi.item_id
+         WHERE npi.nutrition_plan_id = ?"
+    );
+    $stmt->execute([$nutritionPlanId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return !empty($row['calc']) ? (int) $row['calc'] : null;
+}
+
 function getDashboardData(PDO $db, $member)
 {
     $memberId = (int) $member['id'];
@@ -115,6 +133,16 @@ function getDashboardData(PDO $db, $member)
          ORDER BY id DESC"
     );
     $nutritionPlans = $nutritionStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($nutritionPlans as &$nutritionPlan) {
+        $planCalories = isset($nutritionPlan['calories']) ? (float) $nutritionPlan['calories'] : 0.0;
+        if ($planCalories <= 0) {
+            $computedCalories = calculateNutritionPlanCalories($db, (int) $nutritionPlan['id']);
+            if ($computedCalories !== null) {
+                $nutritionPlan['calories'] = $computedCalories;
+            }
+        }
+    }
+    unset($nutritionPlan);
 
     $promoStmt = $db->prepare(
         "SELECT id, name, discount_type, discount_value, start_date, end_date, usage_limit
@@ -489,6 +517,14 @@ function handlePlanMeals(PDO $db, $nutritionPlanId)
 
     if (!$plan) {
         jsonResponse(false, 'Không tìm thấy kế hoạch dinh dưỡng.');
+    }
+
+    $planCalories = isset($plan['calories']) ? (float) $plan['calories'] : 0.0;
+    if ($planCalories <= 0) {
+        $computedCalories = calculateNutritionPlanCalories($db, $nutritionPlanId);
+        if ($computedCalories !== null) {
+            $plan['calories'] = $computedCalories;
+        }
     }
 
     $itemsStmt = $db->prepare(

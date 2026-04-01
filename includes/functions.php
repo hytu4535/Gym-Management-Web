@@ -85,6 +85,100 @@ function formatCurrency($amount) {
 }
 
 /**
+ * Get Vietnamese label and badge class for common statuses
+ */
+function getVietnameseStatusLabel($status, $context = 'generic') {
+    $normalizedStatus = strtolower(trim((string) $status));
+
+    $labelMap = [
+        'generic' => [
+            'active' => ['label' => 'Hoạt động', 'class' => 'success'],
+            'inactive' => ['label' => 'Không hoạt động', 'class' => 'secondary'],
+            'locked' => ['label' => 'Bị khóa', 'class' => 'danger'],
+            'pending' => ['label' => 'Đang chờ', 'class' => 'warning'],
+            'processed' => ['label' => 'Đã xử lý', 'class' => 'success'],
+            'completed' => ['label' => 'Hoàn thành', 'class' => 'success'],
+            'draft' => ['label' => 'Bản nháp', 'class' => 'secondary'],
+            'archived' => ['label' => 'Đã lưu trữ', 'class' => 'dark'],
+            'deleted' => ['label' => 'Đã xóa', 'class' => 'dark'],
+            'on_leave' => ['label' => 'Tạm nghỉ', 'class' => 'warning'],
+            'canceled' => ['label' => 'Đã hủy', 'class' => 'secondary'],
+            'cancelled' => ['label' => 'Đã hủy', 'class' => 'secondary'],
+            'used' => ['label' => 'Đã sử dụng', 'class' => 'success'],
+        ],
+        'user' => [
+            'active' => ['label' => 'Hoạt động', 'class' => 'success'],
+            'inactive' => ['label' => 'Không hoạt động', 'class' => 'secondary'],
+            'locked' => ['label' => 'Bị khóa', 'class' => 'danger'],
+        ],
+        'staff' => [
+            'active' => ['label' => 'Đang làm', 'class' => 'success'],
+            'inactive' => ['label' => 'Đã nghỉ việc', 'class' => 'secondary'],
+            'on_leave' => ['label' => 'Tạm nghỉ', 'class' => 'warning'],
+        ],
+        'member' => [
+            'active' => ['label' => 'Hoạt động', 'class' => 'success'],
+            'inactive' => ['label' => 'Không hoạt động', 'class' => 'secondary'],
+        ],
+    ];
+
+    $contextKey = isset($labelMap[$context]) ? $context : 'generic';
+    return $labelMap[$contextKey][$normalizedStatus] ?? ['label' => 'Không xác định', 'class' => 'dark'];
+}
+
+/**
+ * Detect the linked user column name for a table.
+ */
+function getLinkedUserColumnName(PDO $db, $tableName) {
+    static $cache = [];
+
+    $cacheKey = strtolower((string) $tableName);
+    if (array_key_exists($cacheKey, $cache)) {
+        return $cache[$cacheKey];
+    }
+
+    $stmt = $db->prepare("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME IN ('users_id', 'user_id') ORDER BY FIELD(COLUMN_NAME, 'users_id', 'user_id') LIMIT 1");
+    $stmt->execute([$tableName]);
+    $columnName = (string) $stmt->fetchColumn();
+
+    $cache[$cacheKey] = $columnName !== '' ? $columnName : null;
+    return $cache[$cacheKey];
+}
+
+/**
+ * Get counts of how many staff/member records are linked to a user.
+ */
+function getUserUsageCounts(PDO $db, $userId) {
+    $staffColumn = getLinkedUserColumnName($db, 'staff');
+    $memberColumn = getLinkedUserColumnName($db, 'members');
+
+    $staffCount = 0;
+    $memberCount = 0;
+
+    if ($staffColumn) {
+        $staffStmt = $db->prepare("SELECT COUNT(*) FROM staff WHERE `$staffColumn` = ?");
+        $staffStmt->execute([$userId]);
+        $staffCount = (int) $staffStmt->fetchColumn();
+    }
+
+    if ($memberColumn) {
+        $memberStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE `$memberColumn` = ?");
+        $memberStmt->execute([$userId]);
+        $memberCount = (int) $memberStmt->fetchColumn();
+    }
+
+    return [$staffCount, $memberCount];
+}
+
+/**
+ * Check whether a user is already linked to staff/member.
+ */
+function isUserLinkedToStaffOrMember(PDO $db, $userId) {
+    [$staffCount, $memberCount] = getUserUsageCounts($db, $userId);
+    return $staffCount > 0 || $memberCount > 0;
+}
+
+/**
  * Upload file
  */
 function uploadFile($file, $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'], $maxSize = 5242880) {
@@ -118,11 +212,11 @@ function uploadFile($file, $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'], $maxSi
 /**
  * Generate pagination
  */
-function generatePagination($currentPage, $totalPages, $baseUrl) {
+function generatePagination($currentPage, $totalPages, $baseUrl, $previousLabel = 'Trước', $nextLabel = 'Tiếp') {
     $html = '<ul class="pagination">';
     
     if ($currentPage > 1) {
-        $html .= '<li class="page-item"><a class="page-link" href="' . $baseUrl . '?page=' . ($currentPage - 1) . '">Previous</a></li>';
+        $html .= '<li class="page-item"><a class="page-link" href="' . $baseUrl . '?page=' . ($currentPage - 1) . '">' . htmlspecialchars($previousLabel, ENT_QUOTES, 'UTF-8') . '</a></li>';
     }
     
     for ($i = 1; $i <= $totalPages; $i++) {
@@ -131,7 +225,7 @@ function generatePagination($currentPage, $totalPages, $baseUrl) {
     }
     
     if ($currentPage < $totalPages) {
-        $html .= '<li class="page-item"><a class="page-link" href="' . $baseUrl . '?page=' . ($currentPage + 1) . '">Next</a></li>';
+        $html .= '<li class="page-item"><a class="page-link" href="' . $baseUrl . '?page=' . ($currentPage + 1) . '">' . htmlspecialchars($nextLabel, ENT_QUOTES, 'UTF-8') . '</a></li>';
     }
     
     $html .= '</ul>';
@@ -196,6 +290,38 @@ function getFlashMessage() {
         return $flash;
     }
     return null;
+}
+
+/**
+ * Render admin flash message.
+ */
+function renderAdminFlash($flash) {
+    if (!$flash) {
+        return;
+    }
+
+    if (is_string($flash)) {
+        $flash = ['type' => 'info', 'message' => $flash];
+    }
+
+    if (!is_array($flash) || empty($flash['message'])) {
+        return;
+    }
+
+    $type = (string) ($flash['type'] ?? 'info');
+    if ($type === 'error') {
+        $type = 'danger';
+    }
+
+    $allowedTypes = ['success', 'danger', 'warning', 'info', 'secondary', 'dark'];
+    if (!in_array($type, $allowedTypes, true)) {
+        $type = 'info';
+    }
+
+    echo '<div class="alert alert-' . htmlspecialchars($type, ENT_QUOTES, 'UTF-8') . ' alert-dismissible fade show" role="alert">';
+    echo htmlspecialchars((string) $flash['message'], ENT_QUOTES, 'UTF-8');
+    echo '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
+    echo '</div>';
 }
 
 /**

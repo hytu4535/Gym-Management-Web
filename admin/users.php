@@ -294,10 +294,6 @@ function getFieldValue($fieldName, $formData, $defaultValue = '') {
                       </button>
                     <?php endif; ?>
                   </form>
-                  <!-- Nút xoá -->
-                  <a href="process/user_management.php?action=delete&id=<?= $u['id'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Xóa user này?');">
-                    <i class="fas fa-trash"></i>
-                  </a>
                 </td>
               </tr>
 

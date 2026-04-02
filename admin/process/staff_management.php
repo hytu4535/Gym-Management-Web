@@ -15,8 +15,8 @@ if ($memberRoleId <= 0) {
     $memberRoleId = (int) ($db->query("SELECT id FROM roles WHERE name = 'member' LIMIT 1")->fetchColumn() ?: 0);
 }
 $userProfileSql = $hasUserFullNameColumn
-    ? 'SELECT u.full_name, u.phone, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ? AND u.role_id <> ' . (int) $memberRoleId . ' LIMIT 1'
-    : 'SELECT u.username AS full_name, u.phone, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ? AND u.role_id <> ' . (int) $memberRoleId . ' LIMIT 1';
+    ? 'SELECT u.full_name, u.phone, u.status AS user_status, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ? AND u.role_id <> ' . (int) $memberRoleId . ' LIMIT 1'
+    : 'SELECT u.username AS full_name, u.phone, u.status AS user_status, r.name AS role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ? AND u.role_id <> ' . (int) $memberRoleId . ' LIMIT 1';
 
 function failAndGoBack($message)
 {
@@ -71,6 +71,10 @@ try {
 
         if (!in_array($status, ['active', 'inactive', 'on_leave'], true)) {
             $status = 'active';
+        }
+
+        if (($user['user_status'] ?? '') === 'locked' && $status === 'active') {
+            failAndGoBack('Không thể đặt staff ở trạng thái đang làm khi tài khoản user đang bị khóa.');
         }
 
         if ($position === '') {
@@ -171,6 +175,10 @@ try {
             $status = 'active';
         }
 
+        if (($user['user_status'] ?? '') === 'locked' && $status === 'active') {
+            failAndGoBack('Không thể đặt staff ở trạng thái đang làm khi tài khoản user đang bị khóa.');
+        }
+
         $fullName = trim((string) ($user['full_name'] ?? ''));
         if ($fullName === '') {
             failAndGoBack('Tài khoản liên kết chưa có họ tên.');
@@ -212,40 +220,10 @@ try {
             failAndGoBack('Thiếu staff cần xóa.');
         }
 
-        $userStmt = $db->prepare("SELECT $staffUserIdColumn FROM staff WHERE id = ?");
-        $userStmt->execute([$id]);
-        $linkedUserId = (int)$userStmt->fetchColumn();
+        $stmt = $db->prepare('UPDATE staff SET status = ? WHERE id = ?');
+        $stmt->execute(['inactive', $id]);
 
-        if ($linkedUserId > 0) {
-            $checkOrderStmt = $db->prepare("SELECT COUNT(*) FROM orders WHERE handled_by = ?");
-            $checkOrderStmt->execute([$linkedUserId]);
-            if ((int)$checkOrderStmt->fetchColumn() > 0) {
-                failAndGoBack('Không thể xóa nhân viên này vì họ đã tham gia duyệt/xử lý đơn hàng.');
-            }
-        }
-
-        $importRefStmt = $db->prepare('SELECT COUNT(*) FROM import_slips WHERE staff_id = ?');
-        $importRefStmt->execute([$id]);
-        $importRefCount = (int) $importRefStmt->fetchColumn();
-        if ($importRefCount > 0) {
-            failAndGoBack('Không thể xóa nhân viên đã phát sinh phiếu nhập.');
-        }
-
-
-        $hasOrderStaffIdColumn = (bool) $db->query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'staff_id' LIMIT 1")->fetchColumn();
-        if ($hasOrderStaffIdColumn) {
-            $orderRefStmt = $db->prepare('SELECT COUNT(*) FROM orders WHERE staff_id = ?');
-            $orderRefStmt->execute([$id]);
-            if ((int) $orderRefStmt->fetchColumn() > 0) {
-                failAndGoBack('Không thể xóa nhân viên đã phát sinh đơn hàng.');
-            }
-        }
-
-
-        $stmt = $db->prepare('DELETE FROM staff WHERE id = ?');
-        $stmt->execute([$id]);
-
-        echo "<script>alert('Đã xóa staff thành công!'); window.location.href='../staff.php';</script>";
+        echo "<script>alert('Đã chuyển staff sang trạng thái không hoạt động!'); window.location.href='../staff.php';</script>";
         exit();
     }
 } catch (Exception $e) {

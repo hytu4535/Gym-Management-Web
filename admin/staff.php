@@ -115,7 +115,7 @@ $departmentJoinSql = $hasDepartmentIdColumn
   : '';
 
 $stmt = $db->prepare(
-  "SELECT s.id, $staffUserIdSelectSql, s.full_name, s.position, $departmentSelectSql, s.status, u.username, u.email, u.phone, u.role_id AS linked_role_id
+  "SELECT s.id, $staffUserIdSelectSql, s.full_name, s.position, $departmentSelectSql, s.status, u.username, u.email, u.phone, u.status AS user_status, u.role_id AS linked_role_id
    FROM staff s
    " . $staffUserJoinSql . $departmentJoinSql . $whereSql . " ORDER BY s.id DESC"
 );
@@ -232,8 +232,8 @@ include 'layout/sidebar.php';
                       </button>
                       <?php endif; ?>
                       <?php if ($canDeleteStaff): ?>
-                      <a href="process/staff_management.php?action=delete&id=<?php echo (int) $staff['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Xóa staff này?');">
-                        <i class="fas fa-trash"></i>
+                      <a href="process/staff_management.php?action=delete&id=<?php echo (int) $staff['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Chuyển staff này sang trạng thái không hoạt động?');">
+                        <i class="fas fa-user-slash"></i>
                       </a>
                       <?php endif; ?>
                     </td>
@@ -274,7 +274,7 @@ include 'layout/sidebar.php';
                 <?php
                   $userLabel = trim((string) ($user['username'] ?? '')) . ' / ' . trim((string) ($user['email'] ?? ''));
                 ?>
-                <option value="<?php echo (int) $user['id']; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>" data-position="<?php echo htmlspecialchars((string) ($user['role_name'] ?? ''), ENT_QUOTES); ?>">
+                <option value="<?php echo (int) $user['id']; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>" data-position="<?php echo htmlspecialchars((string) ($user['role_name'] ?? ''), ENT_QUOTES); ?>" data-user-status="<?php echo htmlspecialchars((string) ($user['user_status'] ?? ''), ENT_QUOTES); ?>">
                   <?php echo htmlspecialchars($userLabel); ?>
                 </option>
               <?php endforeach; ?>
@@ -321,6 +321,7 @@ include 'layout/sidebar.php';
               <option value="inactive">Đã nghỉ việc</option>
               <option value="on_leave">Tạm nghỉ</option>
             </select>
+            <small id="status_warning" class="text-warning d-none">Tài khoản user đang bị khóa nên staff không thể ở trạng thái đang làm.</small>
           </div>
         </div>
         <div class="modal-footer">
@@ -426,6 +427,27 @@ include 'layout/sidebar.php';
     return '';
   }
 
+  function applyStaffStatusConstraints() {
+    var selectedOption = getSelectedStaffOption();
+    var statusSelect = document.getElementById('status');
+    var warning = document.getElementById('status_warning');
+    var userStatus = getStaffFieldValue(selectedOption, 'data-user-status');
+    var isLocked = userStatus === 'locked';
+    var activeOption = statusSelect ? statusSelect.querySelector('option[value="active"]') : null;
+
+    if (activeOption) {
+      activeOption.disabled = isLocked;
+    }
+
+    if (warning) {
+      warning.classList.toggle('d-none', !isLocked);
+    }
+
+    if (isLocked && statusSelect && statusSelect.value === 'active') {
+      statusSelect.value = 'inactive';
+    }
+  }
+
   function resetStaffForm() {
     document.getElementById('staffModalTitle').innerText = 'Thêm Staff Mới';
     document.getElementById('staff_action').value = 'add';
@@ -439,6 +461,7 @@ include 'layout/sidebar.php';
       $('#department_id').val('').trigger('change');
     }
     $('#status').val('active').trigger('change');
+    applyStaffStatusConstraints();
     document.getElementById('full_name').value = '';
     document.getElementById('phone_display').value = '';
     clearUserValidation();
@@ -458,6 +481,7 @@ include 'layout/sidebar.php';
     }
     $('#status').val(staff.status || 'active').trigger('change');
     syncSelectedUserInfo();
+    applyStaffStatusConstraints();
     clearUserValidation();
   }
 
@@ -504,11 +528,13 @@ include 'layout/sidebar.php';
     }
 
     clearUserValidation();
+    applyStaffStatusConstraints();
     return true;
   }
 
   $('#users_id').on('change select2:select select2:clear', function () {
     syncSelectedUserInfo();
+    applyStaffStatusConstraints();
   });
 
   $('#staffModal').on('shown.bs.modal', function () {

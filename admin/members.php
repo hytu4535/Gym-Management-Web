@@ -49,6 +49,7 @@ $userDisplayNameSelect = $hasUserFullNameColumn
   ? 'u.full_name AS full_name'
   : ($hasUserNameColumn ? 'u.name AS full_name' : 'u.username AS full_name');
 $userPhoneSelect = $hasUserPhoneColumn ? 'phone' : "'' AS phone";
+$userStatusSelect = 'u.status AS user_status';
 $userRoleJoinSql = ' LEFT JOIN roles r ON u.role_id = r.id';
 $userRoleSelectSql = 'r.name AS role_name';
 $userRoleFilterSql = $memberRoleId > 0 ? 'u.role_id = ' . (int) $memberRoleId : '1=1';
@@ -95,10 +96,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
         $response = @file_get_contents($face_service_url, false, $context);
         // Tiếp tục xóa dù API xóa face thất bại
 
-        // Xóa hội viên từ database
-        $stmt = $db->prepare("DELETE FROM members WHERE id = ?");
+        // Chuyển hội viên sang trạng thái không hoạt động thay vì xóa cứng
+        $stmt = $db->prepare("UPDATE members SET status = 'inactive' WHERE id = ?");
         $stmt->execute([$member_id]);
-        $message = "Xóa hội viên thành công!";
+        $message = "Đã chuyển hội viên sang trạng thái không hoạt động!";
         $messageType = "success";
     } catch (PDOException $e) {
         if ((int) $e->getCode() === 23000 || str_contains($e->getMessage(), '1451')) {
@@ -150,6 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $user = $userStmt->fetch(PDO::FETCH_ASSOC);
             if (!$user) {
               throw new Exception("Role không hợp lệ.");
+            }
+
+            if (($user['user_status'] ?? '') === 'locked' && $status === 'active') {
+              throw new Exception("Không thể đặt hội viên ở trạng thái hoạt động khi tài khoản user đang bị khóa.");
             }
 
             $duplicateMemberStmt = $db->prepare("SELECT COUNT(*) FROM members WHERE $memberUserIdColumn = ?" . ($memberId > 0 ? " AND id <> ?" : ""));
@@ -245,7 +250,7 @@ if ($filterStatus !== '') { $whereClauses[] = 'm.status = ?'; $whereParams[] = $
 $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
 
 // Lấy danh sách hội viên
-$stmt = $db->prepare("SELECT m.*, COALESCE(os.total_spent, m.total_spent, 0) AS total_spent, u.email, u.phone AS user_phone, t.name as tier_name, t.level as tier_level 
+$stmt = $db->prepare("SELECT m.*, COALESCE(os.total_spent, m.total_spent, 0) AS total_spent, u.email, u.phone AS user_phone, u.status AS user_status, t.name as tier_name, t.level as tier_level 
                     FROM members m 
                     LEFT JOIN users u ON m.$memberUserIdColumn = u.id 
           LEFT JOIN member_tiers t ON m.tier_id = t.id
@@ -265,7 +270,7 @@ $usedUserIds = array_map('intval', array_unique(array_merge(
 $tiersFilter = $db->query("SELECT id, name FROM member_tiers ORDER BY level ASC")->fetchAll();
 
 // Lấy danh sách users cho form
-$users = $db->query("SELECT u.id, u.username, $userDisplayNameSelect, u.email, $userPhoneSelect, $userRoleSelectSql FROM users u $userRoleJoinSql WHERE $userRoleFilterSql AND u.id NOT IN (SELECT users_id FROM members) AND u.id NOT IN (SELECT users_id FROM staff) ORDER BY u.email ASC, u.username ASC")->fetchAll();
+$users = $db->query("SELECT u.id, u.username, $userDisplayNameSelect, u.email, $userPhoneSelect, $userStatusSelect, $userRoleSelectSql FROM users u $userRoleJoinSql WHERE $userRoleFilterSql AND u.id NOT IN (SELECT users_id FROM members) AND u.id NOT IN (SELECT users_id FROM staff) ORDER BY u.email ASC, u.username ASC")->fetchAll();
 
 include 'layout/header.php'; 
 include 'layout/sidebar.php';
@@ -375,8 +380,8 @@ include 'layout/sidebar.php';
                       </button>
                       <?php endif; ?>
                       <?php if ($canDeleteMember): ?>
-                      <a href="?action=delete&id=<?php echo $member['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Bạn có chắc muốn xóa?')">
-                        <i class="fas fa-trash"></i>
+                      <a href="?action=delete&id=<?php echo $member['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Chuyển hội viên này sang trạng thái không hoạt động?')">
+                        <i class="fas fa-user-slash"></i>
                       </a>
                       <?php endif; ?>
                     </td>
@@ -410,7 +415,7 @@ include 'layout/sidebar.php';
               <option value="">--- Chọn tài khoản ---</option>
               <?php foreach ($users as $user): ?>
               <?php $userLabel = trim((string) ($user['username'] ?? '')) . ' / ' . trim((string) ($user['email'] ?? '')); ?>
-              <option value="<?php echo $user['id']; ?>" data-used="<?php echo in_array((int) $user['id'], $usedUserIds, true) ? '1' : '0'; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>"><?php echo htmlspecialchars($userLabel); ?></option>
+              <option value="<?php echo $user['id']; ?>" data-used="<?php echo in_array((int) $user['id'], $usedUserIds, true) ? '1' : '0'; ?>" data-name="<?php echo htmlspecialchars((string) ($user['full_name'] ?? ''), ENT_QUOTES); ?>" data-phone="<?php echo htmlspecialchars((string) ($user['phone'] ?? ''), ENT_QUOTES); ?>" data-user-status="<?php echo htmlspecialchars((string) ($user['user_status'] ?? ''), ENT_QUOTES); ?>"><?php echo htmlspecialchars($userLabel); ?></option>
               <?php endforeach; ?>
             </select>
             <small id="users_id_error" class="text-danger d-none">Tài khoản đã được gán vai trò.</small>
@@ -455,6 +460,7 @@ include 'layout/sidebar.php';
               <option value="active">Hoạt động</option>
               <option value="inactive">Không hoạt động</option>
             </select>
+            <small id="status_warning" class="text-warning d-none">Tài khoản user đang bị khóa nên hội viên không thể ở trạng thái hoạt động.</small>
           </div>
         </div>
         <div class="modal-footer">
@@ -480,6 +486,7 @@ function resetForm() {
   document.getElementById('height').value = '';
   document.getElementById('weight').value = '';
   document.getElementById('status').value = 'active';
+  resetMemberStatusControl();
   document.getElementById('tier_info_group').style.display = 'none';
   clearUserValidation();
   clearFullNameValidation();
@@ -498,6 +505,7 @@ function editMember(member) {
   document.getElementById('weight').value = member.weight || '';
   document.getElementById('status').value = member.status;
   clearFullNameValidation();
+  applyMemberStatusConstraints();
   
   // Hiển thị thông tin tier tự động
   document.getElementById('tier_info_group').style.display = 'block';
@@ -585,6 +593,41 @@ function getMemberFieldValue(option, attributeName) {
   return '';
 }
 
+function resetMemberStatusControl() {
+  var statusSelect = document.getElementById('status');
+  var statusWarning = document.getElementById('status_warning');
+  var activeOption = statusSelect ? statusSelect.querySelector('option[value="active"]') : null;
+
+  if (activeOption) {
+    activeOption.disabled = false;
+  }
+
+  if (statusWarning) {
+    statusWarning.classList.add('d-none');
+  }
+}
+
+function applyMemberStatusConstraints() {
+  var selectedOption = getSelectedMemberOption();
+  var statusSelect = document.getElementById('status');
+  var statusWarning = document.getElementById('status_warning');
+  var userStatus = getMemberFieldValue(selectedOption, 'data-user-status');
+  var isLocked = userStatus === 'locked';
+  var activeOption = statusSelect ? statusSelect.querySelector('option[value="active"]') : null;
+
+  if (activeOption) {
+    activeOption.disabled = isLocked;
+  }
+
+  if (statusWarning) {
+    statusWarning.classList.toggle('d-none', !isLocked);
+  }
+
+  if (isLocked && statusSelect && statusSelect.value === 'active') {
+    statusSelect.value = 'inactive';
+  }
+}
+
 function syncFieldsFromSelectedUser() {
   var userSelect = document.getElementById('users_id');
   var phoneDisplay = document.getElementById('phone_display');
@@ -613,6 +656,7 @@ function syncFieldsFromSelectedUser() {
     }
   }
 
+  applyMemberStatusConstraints();
   validateFullNameField();
 }
 
@@ -738,6 +782,8 @@ document.addEventListener('DOMContentLoaded', function() {
         weightInput.focus();
       }
     }
+
+    applyMemberStatusConstraints();
   });
 });
 </script>

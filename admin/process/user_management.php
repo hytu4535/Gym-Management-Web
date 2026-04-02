@@ -18,6 +18,22 @@ if ($action == 'update_permissions') {
 $checkPhoneColumn = $db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='users' AND COLUMN_NAME='phone'")->fetch();
 $hasPhoneColumn = !empty($checkPhoneColumn);
 
+function syncLinkedAccountStatuses(PDO $db, $userId)
+{
+    $staffColumn = getLinkedUserColumnName($db, 'staff');
+    $memberColumn = getLinkedUserColumnName($db, 'members');
+
+    if ($staffColumn) {
+        $staffStmt = $db->prepare("UPDATE staff SET status = 'inactive' WHERE `$staffColumn` = ?");
+        $staffStmt->execute([$userId]);
+    }
+
+    if ($memberColumn) {
+        $memberStmt = $db->prepare("UPDATE members SET status = 'inactive' WHERE `$memberColumn` = ?");
+        $memberStmt->execute([$userId]);
+    }
+}
+
 if ($action == 'add') {
     processRequirePermission('MANAGE_ALL', 'add');
 
@@ -132,28 +148,21 @@ if ($action == 'delete') {
     }
 
     try {
-        // Nếu user đang được tham chiếu (ví dụ members.users_id), không được xóa cứng.
-        // Thay vào đó, chuyển trạng thái sang inactive.
-        $refStmt = $db->prepare("SELECT COUNT(*) AS cnt FROM members WHERE users_id = ?");
-        $refStmt->execute([$id]);
-        $refCount = (int)($refStmt->fetch()['cnt'] ?? 0);
+        $db->beginTransaction();
 
-        if ($refCount > 0) {
-            $softStmt = $db->prepare("UPDATE users SET status = 'locked' WHERE id = ?");
-            $softStmt->execute([$id]);
-            $_SESSION['validation_errors'] = ['general' => 'User đang có dữ liệu liên kết (hội viên). Đã chuyển sang trạng thái bị khóa thay vì xóa.'];
-            header("Location: ../users.php");
-            exit();
-        }
+        $softStmt = $db->prepare("UPDATE users SET status = 'locked' WHERE id = ?");
+        $softStmt->execute([$id]);
+        syncLinkedAccountStatuses($db, $id);
 
-        $sql = "DELETE FROM users WHERE id = ?";
-        $stmt = $db->prepare($sql);
-        $stmt->execute([$id]);
+        $db->commit();
+        $_SESSION['validation_errors'] = ['general' => 'User đã được chuyển sang trạng thái bị khóa.'];
         header("Location: ../users.php");
         exit();
     } catch (PDOException $e) {
-        // Bắt lỗi FK hoặc lỗi DB khác để không fatal
-        $_SESSION['validation_errors'] = ['general' => 'Không thể xóa user do đang có dữ liệu liên kết. Vui lòng kiểm tra các bảng liên quan hoặc chuyển trạng thái Inactive.'];
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        $_SESSION['validation_errors'] = ['general' => 'Không thể khóa user do lỗi hệ thống.'];
         header("Location: ../users.php");
         exit();
     }
@@ -181,11 +190,28 @@ if ($action == 'toggle_status') {
     }
 
     $newStatus = ($currentUser['status'] ?? '') === 'active' ? 'locked' : 'active';
-    $updateStmt = $db->prepare("UPDATE users SET status = ? WHERE id = ?");
-    $updateStmt->execute([$newStatus, $id]);
 
-    header("Location: ../users.php");
-    exit();
+    try {
+        $db->beginTransaction();
+        $updateStmt = $db->prepare("UPDATE users SET status = ? WHERE id = ?");
+        $updateStmt->execute([$newStatus, $id]);
+
+        if ($newStatus === 'locked') {
+            syncLinkedAccountStatuses($db, $id);
+        }
+
+        $db->commit();
+        header("Location: ../users.php");
+        exit();
+    } catch (PDOException $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+
+        $_SESSION['validation_errors'] = ['general' => 'Không thể cập nhật trạng thái user do lỗi hệ thống.'];
+        header("Location: ../users.php");
+        exit();
+    }
 }
 
 // xử lý edit

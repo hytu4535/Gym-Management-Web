@@ -303,7 +303,7 @@ try {
 					<div class="info-box">
 						<span class="info-box-icon bg-primary"><i class="fas fa-sack-dollar"></i></span>
 						<div class="info-box-content">
-							<span class="info-box-text">Doanh thu hôm nay</span>
+							<span class="info-box-text">Doanh thu hôm nay (đã chốt)</span>
 							<span class="info-box-number"><?= formatCurrencyVND($revenueToday) ?></span>
 						</div>
 					</div>
@@ -313,8 +313,11 @@ try {
 					<div class="info-box">
 						<span class="info-box-icon bg-olive"><i class="fas fa-chart-line"></i></span>
 						<div class="info-box-content">
-							<span class="info-box-text">Doanh thu tháng này</span>
+							<span class="info-box-text">Doanh thu tháng này (đã chốt)</span>
 							<span class="info-box-number"><?= formatCurrencyVND($revenueThisMonth) ?></span>
+							<?php if ($revenueThisMonth <= 0): ?>
+								<span class="text-muted" style="font-size:12px;">Chỉ tính đơn đã xác nhận/đã giao.</span>
+							<?php endif; ?>
 						</div>
 					</div>
 				</div>
